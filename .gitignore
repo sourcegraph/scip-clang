@@ -1,0 +1,6 @@
+# build outputs
+/bazel-*
+
+# clangd
+/.cache
+/compile_commands.json

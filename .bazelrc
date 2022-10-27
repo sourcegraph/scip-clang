@@ -1,0 +1,3 @@
+# Not sure why setting all of these is necessary, but just setting cxxopt
+# Leads to usage of old C++ version when compiling LLVM, which needs C++14 or newer.
+build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 --client_env=BAZEL_CXXOPTS=-std=c++17
