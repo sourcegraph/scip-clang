@@ -1,9 +1,9 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 _RULES_BOOST_COMMIT = "652b21e35e4eeed5579e696da0facbe8dba52b1f"
-
-# _LLVM_COMMIT = "346de23ec9db3d144647d0c587cf82eacd21382d" # matching Kythe
-_LLVM_COMMIT = "ada9ab610727917561370e976eaea26dbbc20cce"  # latest
+_LLVM_COMMIT = "ada9ab610727917561370e976eaea26dbbc20cce"
+_ABSL_COMMIT = "522606b7fae37836c138e83f6eec0eabb9947dc0"
+_SPDLOG_COMMIT = "8512000f36c2ad9b1265bd78b11c0b34151d6be4"
 _BAZEL_SKYLIB_VERSION = "1.3.0"
 
 def scip_clang_rule_repositories():
@@ -45,9 +45,24 @@ def scip_clang_rule_repositories():
 
     http_archive(
         name = "llvm_upstream",
-        # sha256 = "ac6a21ed47c007381b3db46dcf647c769ee37afcab526a5d303162318d0e4d92",
-        sha256 = "20b1c322fe4b8cec3c6109e878628016f668bca225466580fd9a4da34f09bb18",  # latest
+        sha256 = "20b1c322fe4b8cec3c6109e878628016f668bca225466580fd9a4da34f09bb18",
         strip_prefix = "llvm-project-%s" % _LLVM_COMMIT,
         build_file_content = "# empty",
         urls = ["https://github.com/llvm/llvm-project/archive/%s.tar.gz" % _LLVM_COMMIT],
+    )
+
+    http_archive(
+        name = "com_google_absl",
+        sha256 = "31b0b6fe3f14875a27c48d5775d05e157bab233065f7c55f0e1f4991c5e95840",
+        strip_prefix = "abseil-cpp-%s" % _ABSL_COMMIT,
+        urls = ["https://github.com/abseil/abseil-cpp/archive/%s.zip" % _ABSL_COMMIT],
+    )
+
+    # NOTE: fmt also comes through spdlog, we don't have an explicit dep on fmt.
+    http_archive(
+        name = "spdlog",
+        sha256 = "413a919a6831e8e86b8cc38ffcbefc1eecfe3ffd365ff7d1e70ec13b91bd160d",
+        build_file = "@scip_clang//third_party:spdlog.BUILD",
+        strip_prefix = "spdlog-%s" % _SPDLOG_COMMIT,
+        urls = ["https://github.com/gabime/spdlog/archive/%s.tar.gz" % _SPDLOG_COMMIT],
     )
