@@ -1,0 +1,9 @@
+$schema: "http://json.schemastore.org/buildkite"
+steps:
+  - label: ":bazel: Build"
+    key: build
+    command: "bazel build //..."
+  - label: ":bazel: Test"
+    key: test
+    depends_on: build
+    command: "bazel test //..."
