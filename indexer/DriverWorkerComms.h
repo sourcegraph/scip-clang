@@ -8,7 +8,7 @@
 
 namespace scip_clang {
 
-using WorkerId = unsigned long long;
+using WorkerId = uint64_t;
 
 std::string driverToWorkerQueueName(std::string_view driverId,
                                     WorkerId workerId);
