@@ -1,10 +1,11 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 _RULES_BOOST_COMMIT = "e83dfef18d91a3e35c8eac9b9aeb1444473c0efd"
-_LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec" # "ada9ab610727917561370e976eaea26dbbc20cce"
-_ABSL_COMMIT = "9a2c7bf98fa2482d0cbba727dcc4499e6e7c5ee2" # "522606b7fae37836c138e83f6eec0eabb9947dc0"
-_SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658" # "8512000f36c2ad9b1265bd78b11c0b34151d6be4"
+_LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec"
+_ABSL_COMMIT = "9a2c7bf98fa2482d0cbba727dcc4499e6e7c5ee2"
+_SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
 _BAZEL_SKYLIB_VERSION = "1.3.0"
+_RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 
 def scip_clang_rule_repositories():
     http_archive(
@@ -56,6 +57,14 @@ def scip_clang_rule_repositories():
         sha256 = "0db3f1408edf4e0eb12bd6c46fc01465a009feb2789a2b21ef40f91744a25783",
         strip_prefix = "abseil-cpp-%s" % _ABSL_COMMIT,
         urls = ["https://github.com/abseil/abseil-cpp/archive/%s.zip" % _ABSL_COMMIT],
+    )
+
+    http_archive(
+        name = "rapidjson",
+        sha256 = "c79acb593f1954b2b217feb170549cb58fe4b9edac48e1d4e7285e03235c54d2",
+        build_file = "@scip_clang//third_party:rapidjson.BUILD",
+        strip_prefix = "rapidjson-%s" % _RAPIDJSON_COMMIT,
+        urls = ["https://github.com/Tencent/rapidjson/archive/%s.zip" % _RAPIDJSON_COMMIT],
     )
 
     # NOTE: fmt also comes through spdlog, we don't have an explicit dep on fmt.

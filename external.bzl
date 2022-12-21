@@ -12,4 +12,6 @@ def scip_clang_dependencies():
 
     llvm_terminfo_disable(name = "llvm_terminfo")
     llvm_zlib_external(name = "llvm_zlib", external_zlib = "@net_zlib//:zlib")
-    llvm_configure(name = "llvm-project")
+    # FIXME: Should we allow all targets in a release build?
+    # Limit the number of backends here to save on compile time for now.
+    llvm_configure(name = "llvm-project", targets = ["AArch64", "X86"])

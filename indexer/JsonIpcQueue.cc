@@ -36,7 +36,7 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   readBuffer.resize(IPC_BUFFER_MAX_SIZE);
   size_t recvCount;
   unsigned recvPriority;
-  spdlog::info("will wait for atmost {}ms", waitMillis);
+  spdlog::debug("will wait for atmost {}ms", waitMillis);
   if (this->queue->timed_receive(readBuffer.data(), readBuffer.size(),
                                  recvCount, recvPriority,
                                  fromNow(waitMillis))) {

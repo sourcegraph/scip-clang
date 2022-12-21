@@ -1,11 +1,12 @@
 #include <chrono>
 #include <memory>
+#include <vector>
 
 #include "boost/interprocess/ipc/message_queue.hpp"
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
 
-#include "indexer/DriverWorkerComms.h"
+#include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/LLVMAdapter.h"
 #include "indexer/Logging.h"
@@ -33,7 +34,6 @@ struct MessageQueuePair {
 };
 
 int workerMain(int argc, char *argv[]) {
-  // TODO: Create a logger!
   assert(argc >= 6);
   assert(std::string(argv[1]) == "worker");
   assert(std::string(argv[2]) == "--driver-id");
@@ -47,9 +47,10 @@ int workerMain(int argc, char *argv[]) {
     MessageQueuePair mq(driverId, workerId);
 
     while (true) {
-      JobRequest request;
+      IndexJobRequest request{};
       using namespace std::chrono_literals;
-      // TODO: Fix the duration used here
+      // FIXME(ref: cli-args) Allow configuring the timeout here from outside.
+      // 1s is probably too little.
       auto recvError = mq.driverToWorker.timedReceive(request, 1s);
       if (recvError.isA<TimeoutError>()) {
         spdlog::error(
@@ -62,13 +63,19 @@ int workerMain(int argc, char *argv[]) {
         continue;
       }
       if (request.id == JobId::Shutdown()) {
-        spdlog::info("shutting down");
+        spdlog::debug("shutting down");
         break;
       }
-      auto recvValue = request.job.value();
-      int newValue = recvValue + 100;
-      spdlog::info("received {}, sending {}", recvValue, newValue);
-      mq.workerToDriver.send(JobResult{workerId, request.id, newValue});
+      IndexJobResult result;
+      switch (request.job.kind) {
+      case IndexJob::Kind::EmitIndex:
+        result.emitIndex = EmitIndexJobResult{"lol"};
+        break;
+      case IndexJob::Kind::SemanticAnalysis:
+        result.semanticAnalysis = SemanticAnalysisJobResult{};
+        break;
+      }
+      mq.workerToDriver.send(IndexJobResponse{workerId, request.id, result});
     }
   }
   BOOST_CATCH(boost_ip::interprocess_exception & ex) {
@@ -77,7 +84,7 @@ int workerMain(int argc, char *argv[]) {
     return 1;
   }
   BOOST_CATCH_END
-  spdlog::info("exiting cleanly");
+  spdlog::debug("exiting cleanly");
   return 0;
 }
 

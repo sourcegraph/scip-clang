@@ -1,20 +1,30 @@
+#include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <deque>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "boost/interprocess/ipc/message_queue.hpp"
 #include "boost/process/child.hpp"
 #include "boost/process/io.hpp"
+#include "rapidjson/document.h"
+#include "rapidjson/error/en.h"
+#include "rapidjson/filereadstream.h"
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/sinks/stdout_sinks.h"
 #include "spdlog/spdlog.h"
 
+#include "indexer/CompilationDatabase.h"
 #include "indexer/Driver.h"
-#include "indexer/DriverWorkerComms.h"
+#include "indexer/FileSystem.h"
+#include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/LLVMAdapter.h"
 #include "indexer/Logging.h"
@@ -80,15 +90,25 @@ class Driver {
 
   MessageQueues queues;
 
-  uint64_t nextJobId = 1;
-  absl::flat_hash_map<JobId, Job> allJobList;
+  uint64_t nextJobId = 0;
+  absl::flat_hash_map<JobId, IndexJob> allJobList;
   std::deque<JobId> pendingJobs;
   absl::flat_hash_set<JobId> wipJobs;
 
+  compdb::ResumableParser compdbParser;
+
+  size_t totalJobCount = 0;
+
+  std::vector<clang::tooling::CompileCommand> compileCommands;
+
 public:
+  Driver(const Driver &) = delete;
+  Driver &operator=(const Driver &) = delete;
+
   Driver(size_t numWorkers, const char *workerExecutablePath)
       : id(fmt::format("{}", ::getpid())),
-        workerExecutablePath(workerExecutablePath), numWorkers(numWorkers) {
+        workerExecutablePath(workerExecutablePath), numWorkers(numWorkers),
+        compdbParser() {
     MessageQueues::deleteIfPresent(this->id, numWorkers);
     this->queues = MessageQueues(this->id, numWorkers,
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
@@ -101,7 +121,22 @@ public:
     }
   }
 
-  void queueJob(Job &&j) {
+  size_t refillCount() const {
+    return 2 * this->numWorkers;
+  }
+
+  size_t refillJobs() {
+    std::vector<clang::tooling::CompileCommand> commands{};
+    this->compdbParser.parseMore(commands);
+    for (auto &command : commands) {
+      this->queueJob(IndexJob{IndexJob::Kind::SemanticAnalysis,
+                              SemanticAnalysisJobDetails{std::move(command)},
+                              EmitIndexJobDetails{}});
+    }
+    return commands.size();
+  }
+
+  void queueJob(IndexJob &&j) {
     auto jobId = JobId(this->nextJobId);
     this->nextJobId++;
     this->allJobList.insert({jobId, j});
@@ -109,14 +144,11 @@ public:
   }
 
   void runJobsTillCompletionAndShutdownWorkers() {
+    this->refillJobs();
     while (!this->pendingJobs.empty() || !this->wipJobs.empty()) {
       if (this->pendingJobs.empty()) {
+        this->refillJobs();
         this->processOneJobResult();
-        // There are a few cases here:
-        // 1. We finished processing some responses.
-        //    In this case, there may be more jobs or workers available.
-        //    Continue with the loop.
-        // 2. We didn't get any responses.
       } else if (this->availableWorkers.empty()) {
         this->processOneJobResult();
       } else {
@@ -126,8 +158,64 @@ public:
     }
     this->shutdownAllWorkers();
     this->waitForAllWorkers();
-    // Send shutdown messages to all the workers.
-    // Now wait for each of them to shutdown.
+  }
+
+  FileGuard openCompilationDatabase() {
+    auto currentPath = std::filesystem::current_path();
+    auto compdbPath = currentPath.append("compile_commands.json").string();
+
+    FILE *compDbFile = std::fopen(compdbPath.c_str(), "rb");
+    if (!compDbFile) {
+      spdlog::error("failed to open compile_commands.json: {}",
+                    std::strerror(errno));
+      std::exit(1);
+    }
+    auto fileSize =
+        std::filesystem::file_size(std::filesystem::path(compdbPath));
+
+    {
+      rapidjson::Reader reader;
+      struct ArrayCountHandler
+          : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>,
+                                                ArrayCountHandler> {
+        size_t count = 0;
+        bool EndArray(rapidjson::SizeType count) {
+          this->count = count;
+          return true;
+        };
+      };
+      ArrayCountHandler countHandler;
+      compdb::ValidateHandler<ArrayCountHandler> validator(countHandler);
+      std::string buffer(std::min(size_t(1024 * 1024), fileSize), 0);
+      auto stream =
+          rapidjson::FileReadStream(compDbFile, buffer.data(), buffer.size());
+      auto parseResult = reader.Parse(stream, validator);
+      if (parseResult.IsError()) {
+        spdlog::error("failed to parse compile_commands.json: {}",
+                      validator.errorMessage);
+        std::exit(EXIT_FAILURE);
+      }
+      if (!validator.warnings.empty()) {
+        std::vector<std::string> warnings(validator.warnings.begin(),
+                                          validator.warnings.end());
+        absl::c_sort(warnings);
+        for (auto &warning : warnings) {
+          spdlog::warn("in compile_commands.json: {}", warning);
+        }
+      }
+      this->totalJobCount = countHandler.count;
+    }
+
+    spdlog::info("total {} compilation jobs", this->totalJobCount);
+    if (this->totalJobCount == 0) {
+      spdlog::error("compilation database has zero command objects");
+      std::exit(EXIT_FAILURE);
+    }
+
+    this->compdbParser.initialize(fileSize, this->totalJobCount, compDbFile,
+                                  this->refillCount());
+
+    return FileGuard(compDbFile);
   }
 
 private:
@@ -140,8 +228,8 @@ private:
     args.push_back("--worker-id");
     args.push_back(fmt::format("{}", workerId));
     boost::process::child worker(args, boost::process::std_out > stdout);
-    spdlog::info("worker info running {}, pid = {}", worker.running(),
-                 worker.id());
+    spdlog::debug("worker info running {}, pid = {}", worker.running(),
+                  worker.id());
     this->workers[workerId] = WorkerInfo{.processHandle = std::move(worker),
                                          .status = WorkerInfo::Status::Free};
     this->availableWorkers.push_back(workerId);
@@ -181,14 +269,14 @@ private:
 
   void processOneJobResult() {
     using namespace std::chrono_literals;
-    // TODO: Make this timeout configurable
+    // FIXME(ref: cli-args): Make this timeout configurable
     auto workerTimeoutLimit = 2s;
     // NOTE: Wait duration has to be longer than the timeout.
     auto waitDuration = workerTimeoutLimit + 1s;
 
-    JobResult result;
+    IndexJobResponse response;
     auto recvError =
-        this->queues.workerToDriver.timedReceive(result, waitDuration);
+        this->queues.workerToDriver.timedReceive(response, waitDuration);
     if (recvError.isA<TimeoutError>()) {
       // All workers which are working have been doing so for too long,
       // because waitDuration is always longer than the timeout.
@@ -197,12 +285,15 @@ private:
     } else if (recvError) {
       spdlog::error("received malformed message: {}",
                     scip_clang::formatLLVM(recvError));
-      // Log the error and continue
+      // Keep going instead of exiting early for robustness.
     } else {
-      spdlog::info("received {} from worker {}", result.value, result.workerId);
+      // TODO(def: add-job-debug-helper): Add a simplified debug representation
+      // for printing jobs for debugging.
+      spdlog::debug("received job from worker {}", response.workerId);
 
-      this->markWorkerFree(result.workerId);
-      bool erased = wipJobs.erase(result.jobId);
+      this->markWorkerFree(response.workerId);
+      bool erased = wipJobs.erase(response.jobId);
+      // FIXME(ref: add-enforce)
       assert(erased);
 
       auto now = std::chrono::steady_clock::now();
@@ -214,22 +305,25 @@ private:
     this->wipJobs.insert(jobId);
     this->markWorkerBusy(workerId, jobId);
     auto it = this->allJobList.find(jobId);
+    // FIXME(ref: add-enforce)
     assert(it != this->allJobList.end());
     this->queues.driverToWorker[workerId].send(
-        JobRequest{it->first, it->second});
+        IndexJobRequest{it->first, it->second});
   }
 
   void assignJobsToAvailableWorkers() {
     auto numJobsToAssign =
         std::min(this->availableWorkers.size(), this->pendingJobs.size());
+    // FIXME(ref: add-enforce)
     assert(numJobsToAssign >= 1);
     for (unsigned i = 0; i < numJobsToAssign; ++i) {
       JobId nextJob = this->pendingJobs.front();
       this->pendingJobs.pop_front();
       unsigned nextWorkerId = this->availableWorkers.front();
       this->availableWorkers.pop_front();
-      spdlog::info("assigning jobId {} (data: {}) to worker {}", nextJob.id(),
-                   this->allJobList[nextJob].value(), nextWorkerId);
+      // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
+      spdlog::info("assigning jobId {} to worker {}", nextJob.id(),
+                   nextWorkerId);
       this->assignJobToWorker(nextWorkerId, nextJob);
     }
   }
@@ -237,7 +331,8 @@ private:
   void shutdownAllWorkers() {
     assert(this->availableWorkers.size() == this->numWorkers);
     for (unsigned i = 0; i < numWorkers; ++i) {
-      this->queues.driverToWorker[i].send(JobRequest{JobId::Shutdown(), 0});
+      this->queues.driverToWorker[i].send(
+          IndexJobRequest{JobId::Shutdown(), {}});
     }
   }
 
@@ -254,20 +349,17 @@ int driverMain(int argc, char *argv[]) {
 
   scip_clang::initialize_global_logger("driver");
 
-  // TODO: Take an optional jobs argument that defaults to number of threads.
+  // FIXME(ref: cli-args): Allow configuring number of workers
   size_t numWorkers = 2;
 
   BOOST_TRY {
     MessageQueues::deleteIfPresent(driverId, numWorkers);
 
     Driver driver(numWorkers, argv[0]);
+    auto compdbGuard = driver.openCompilationDatabase();
     driver.spawnWorkers();
-
-    for (int i = 0; i < 5; i++) {
-      driver.queueJob(Job(i));
-    }
     driver.runJobsTillCompletionAndShutdownWorkers();
-    spdlog::info("worker(s) exited; going now kthxbai");
+    spdlog::debug("worker(s) exited; going now kthxbai");
   }
   BOOST_CATCH(boost_ip::interprocess_exception & ex) {
     spdlog::error("driver caught exception {}", ex.what());
