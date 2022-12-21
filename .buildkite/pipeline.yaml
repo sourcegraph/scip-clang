@@ -1,6 +1,8 @@
 $schema: "http://json.schemastore.org/buildkite"
 steps:
   - label: ":bazel: Build"
+    agents:
+      queue: bazel
     key: build
     command: |
       apt-get update -y && apt-get install -y gcc-10 gcc-10-base g++-10 libstdc++-10-dev
