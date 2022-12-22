@@ -173,39 +173,6 @@ public:
     auto fileSize =
         std::filesystem::file_size(std::filesystem::path(compdbPath));
 
-    {
-      rapidjson::Reader reader;
-      struct ArrayCountHandler
-          : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>,
-                                                ArrayCountHandler> {
-        size_t count = 0;
-        bool EndArray(rapidjson::SizeType count) {
-          this->count = count;
-          return true;
-        };
-      };
-      ArrayCountHandler countHandler;
-      compdb::ValidateHandler<ArrayCountHandler> validator(countHandler);
-      std::string buffer(std::min(size_t(1024 * 1024), fileSize), 0);
-      auto stream =
-          rapidjson::FileReadStream(compDbFile, buffer.data(), buffer.size());
-      auto parseResult = reader.Parse(stream, validator);
-      if (parseResult.IsError()) {
-        spdlog::error("failed to parse compile_commands.json: {}",
-                      validator.errorMessage);
-        std::exit(EXIT_FAILURE);
-      }
-      if (!validator.warnings.empty()) {
-        std::vector<std::string> warnings(validator.warnings.begin(),
-                                          validator.warnings.end());
-        absl::c_sort(warnings);
-        for (auto &warning : warnings) {
-          spdlog::warn("in compile_commands.json: {}", warning);
-        }
-      }
-      this->totalJobCount = countHandler.count;
-    }
-
     spdlog::info("total {} compilation jobs", this->totalJobCount);
     if (this->totalJobCount == 0) {
       spdlog::error("compilation database has zero command objects");

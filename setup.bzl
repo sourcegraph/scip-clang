@@ -1,11 +1,17 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+_BAZEL_SKYLIB_VERSION = "1.3.0"
 _RULES_BOOST_COMMIT = "e83dfef18d91a3e35c8eac9b9aeb1444473c0efd"
 _LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec"
 _ABSL_COMMIT = "9a2c7bf98fa2482d0cbba727dcc4499e6e7c5ee2"
-_SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
-_BAZEL_SKYLIB_VERSION = "1.3.0"
+_CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
+_SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
+
+# TODO(def: update-doctest) The latest release is 2.4.9, but
+# I ran into a build issue in scip-ruby with it.
+_DOCTEST_VERSION = "2.4.1"
+_DTL_VERSION = "1.20"
 
 def scip_clang_rule_repositories():
     http_archive(
@@ -59,6 +65,16 @@ def scip_clang_rule_repositories():
         urls = ["https://github.com/abseil/abseil-cpp/archive/%s.zip" % _ABSL_COMMIT],
     )
 
+    # Abseil also has a flags/argument parsing library, but let's
+    # avoid that because it (arguably) needlessly uses global variables.
+    http_archive(
+        name = "cxxopts",
+        sha256 = "1eefdf5af3ba0c66458258de05df2a113262ad5e85cac489de0a456088e9f9b0",
+        build_file = "@scip_clang//third_party:cxxopts.BUILD",
+        strip_prefix = "cxxopts-%s" % _CXXOPTS_VERSION,
+        urls = ["https://github.com/jarro2783/cxxopts/archive/v%s.zip" % _CXXOPTS_VERSION],
+    )
+
     http_archive(
         name = "rapidjson",
         sha256 = "c79acb593f1954b2b217feb170549cb58fe4b9edac48e1d4e7285e03235c54d2",
@@ -74,4 +90,19 @@ def scip_clang_rule_repositories():
         build_file = "@scip_clang//third_party:spdlog.BUILD",
         strip_prefix = "spdlog-%s" % _SPDLOG_COMMIT,
         urls = ["https://github.com/gabime/spdlog/archive/%s.tar.gz" % _SPDLOG_COMMIT],
+    )
+
+    http_archive(
+        name = "doctest",
+        sha256 = "d8d304db5a2e6d42e290b23a08a68db05478755e64db57b067cd805738e2c56f",
+        build_file = "@scip_clang//third_party:doctest.BUILD",
+        strip_prefix = "doctest-%s" % _DOCTEST_VERSION,
+        urls = ["https://github.com/doctest/doctest/archive/%s.zip" % _DOCTEST_VERSION],
+    )
+
+    http_archive(
+        name = "dtl",
+        build_file = "@scip_clang//third_party:dtl.BUILD",
+        strip_prefix = "dtl-%s" % _DTL_VERSION,
+        urls = ["https://github.com/cubicdaiya/dtl/archive/v%s.tar.gz" % _DTL_VERSION],
     )

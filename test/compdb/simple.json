@@ -1,0 +1,18 @@
+[
+  {
+    "command": "arg1 arg2 -X=\"arg3\"",
+    "directory": "d1",
+    "file": "f1"
+  },
+  {
+    "arguments": ["arg1", "arg2", "-X=\"arg3\""],
+    "directory": "d2",
+    "file": "f2",
+    "output": "out2"
+  },
+  {
+    "command": "-Y=\"dq\\\"dq\" -Z='blah' '-W=ww'",
+    "directory": "d3",
+    "file": "f3"
+  }
+]
