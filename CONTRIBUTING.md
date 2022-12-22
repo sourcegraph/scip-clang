@@ -18,6 +18,27 @@ If you are more paranoid, instead use
 `--experimental_reuse_sandbox_directories` which cuts down
 on build times by 2x-3x, while maintaining sandboxing.
 
+Add `--config=dbg` if you want a debug build for stepping through
+with a debugger.
+
+## Running tests
+
+Run all tests:
+
+```
+bazel test //test --sandbox_strategy=local
+```
+
+Update snapshot tests:
+
+```
+bazel test //update --sandbox_strategy=local
+```
+
+## Reformat code and config files
+
+Run `./tools/reformat.sh`.
+
 ## IDE Integration
 
 Run `./tools/regen_compdb.sh` to generate a compilation database
