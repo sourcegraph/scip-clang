@@ -1,7 +1,6 @@
 #ifndef SCIP_CLANG_DRIVER_WORKER_COMMS_H
 #define SCIP_CLANG_DRIVER_WORKER_COMMS_H
 
-#include <_types/_uint64_t.h>
 #include <chrono>
 #include <cstdint>
 #include <variant>
