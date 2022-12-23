@@ -69,14 +69,14 @@ SERIALIZABLE(EmitIndexJobDetails)
 // over a tag.
 
 struct IndexJob {
-  // See also NOTE(ref: avoiding-unions)
-
   enum class Kind {
     SemanticAnalysis,
     EmitIndex,
   } kind;
   SemanticAnalysisJobDetails semanticAnalysis;
   EmitIndexJobDetails emitIndex;
+
+  // See also NOTE(ref: avoiding-unions)
 };
 SERIALIZABLE(IndexJob::Kind)
 SERIALIZABLE(IndexJob)
@@ -109,12 +109,10 @@ struct EmitIndexJobResult {
 SERIALIZABLE(EmitIndexJobResult)
 
 struct IndexJobResult {
-  // See also: NOTE(ref: avoiding-unions)
-
   IndexJob::Kind kind;
-
   SemanticAnalysisJobResult semanticAnalysis;
   EmitIndexJobResult emitIndex;
+  // See also: NOTE(ref: avoiding-unions)
 };
 SERIALIZABLE(IndexJobResult)
 
