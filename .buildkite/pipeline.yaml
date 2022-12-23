@@ -5,6 +5,8 @@ steps:
       queue: bazel
     key: build
     command: |
+      lsb_release -a
+      set +x
       curl -L https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
       add-apt-repository 'deb http://apt.llvm.org/focal/  llvm-toolchain-focal-15 main'
       apt-get install -y clang-15
