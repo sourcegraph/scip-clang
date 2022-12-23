@@ -161,28 +161,30 @@ public:
   }
 
   FileGuard openCompilationDatabase() {
-    auto currentPath = std::filesystem::current_path();
-    auto compdbPath = currentPath.append("compile_commands.json").string();
+    auto compdbPath =
+        std::filesystem::current_path().append("compile_commands.json");
 
-    FILE *compDbFile = std::fopen(compdbPath.c_str(), "rb");
-    if (!compDbFile) {
+    std::error_code error;
+    auto compdbFile = compdb::CompilationDatabaseFile::open(compdbPath, error);
+    if (!compdbFile.file) {
       spdlog::error("failed to open compile_commands.json: {}",
                     std::strerror(errno));
-      std::exit(1);
-    }
-    auto fileSize =
-        std::filesystem::file_size(std::filesystem::path(compdbPath));
-
-    spdlog::info("total {} compilation jobs", this->totalJobCount);
-    if (this->totalJobCount == 0) {
-      spdlog::error("compilation database has zero command objects");
       std::exit(EXIT_FAILURE);
     }
+    if (error) {
+      spdlog::error("failed to read file size for compile_commands.json: {}", error.message());
+      std::exit(EXIT_FAILURE);
+    }
+    if (compdbFile.numJobs == 0) {
+      spdlog::error("compile_commands.json has 0 objects in outermost array; "
+                    "nothing to index");
+      std::exit(EXIT_FAILURE);
+    }
+    this->totalJobCount = compdbFile.numJobs;
+    spdlog::debug("total {} compilation jobs", this->totalJobCount);
 
-    this->compdbParser.initialize(fileSize, this->totalJobCount, compDbFile,
-                                  this->refillCount());
-
-    return FileGuard(compDbFile);
+    this->compdbParser.initialize(compdbFile, this->refillCount());
+    return FileGuard(compdbFile.file);
   }
 
 private:

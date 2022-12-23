@@ -1,7 +1,15 @@
+#include <cstdint>
+#include <filesystem>
+#include <memory>
 #include <string>
+#include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/rapidjson.h"
+#include "rapidjson/reader.h"
+#include "spdlog/fmt/fmt.h"
 
 #include "indexer/CompilationDatabase.h"
 #include "indexer/LLVMCommandLineParsing.h"
@@ -229,7 +237,13 @@ public:
   }
 };
 
-size_t validateAndCountJobs(size_t fileSize, FILE *compDbFile) {
+// Validates a compilation database, counting the number of jobs along the
+// way to allow for better planning.
+//
+// Uses the global logger and exits if the compilation database is invalid.
+//
+// Returns the number of jobs in the database.
+static size_t validateAndCountJobs(size_t fileSize, FILE *compDbFile) {
   struct ArrayCountHandler
       : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>,
                                             ArrayCountHandler> {
@@ -324,20 +338,39 @@ bool CommandObjectHandler::reachedLimit() const {
   return this->commands.size() == this->parseLimit;
 }
 
-void ResumableParser::initialize(size_t fileSize, size_t totalJobs,
-                                 FILE *compDbFile, size_t refillCount) {
-  auto averageJobSize = fileSize / totalJobs;
+CompilationDatabaseFile
+CompilationDatabaseFile::open(const std::filesystem::path &path,
+                              std::error_code &ec) {
+  CompilationDatabaseFile compdbFile{};
+  compdbFile.file = std::fopen(path.c_str(), "rb");
+  if (!compdbFile.file) {
+    return compdbFile;
+  }
+  auto size = std::filesystem::file_size(path, ec);
+  if (ec) {
+    return compdbFile;
+  }
+  compdbFile.sizeInBytes = size;
+  compdbFile.numJobs =
+      validateAndCountJobs(compdbFile.sizeInBytes, compdbFile.file);
+  return compdbFile;
+}
+
+void ResumableParser::initialize(CompilationDatabaseFile compdb,
+                                 size_t refillCount) {
+  auto averageJobSize = compdb.sizeInBytes / compdb.numJobs;
   // Some customers have averageJobSize = 150KiB.
   // If numWorkers == 300 (very high core count machine),
   // then the computed hint will be ~88MiB. The 128MiB is rounded up from 88MiB.
   // The fudge factor of 2 is to allow for oversized jobs.
   auto bufferSize =
       std::min(size_t(128 * 1024 * 1024), averageJobSize * 2 * refillCount);
-  std::fseek(compDbFile, 0, SEEK_SET);
+  std::fseek(compdb.file, 0, SEEK_SET);
   this->handler = CommandObjectHandler(refillCount);
   this->jsonStreamBuffer.resize(bufferSize);
-  this->compDbStream = rapidjson::FileReadStream(
-      compDbFile, this->jsonStreamBuffer.data(), this->jsonStreamBuffer.size());
+  this->compDbStream =
+      rapidjson::FileReadStream(compdb.file, this->jsonStreamBuffer.data(),
+                                this->jsonStreamBuffer.size());
   this->reader.IterativeParseInit();
 }
 

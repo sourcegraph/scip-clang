@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
+#include <memory>
 #include <string>
 
 #include "absl/container/flat_hash_set.h"
@@ -14,16 +16,16 @@
 #include "clang/Tooling/CompilationDatabase.h"
 
 namespace scip_clang {
-
 namespace compdb {
 
-// Validates a compilation database, counting the number of jobs along the
-// way to allow for better planning.
-//
-// Uses the global logger and exits if the compilation database is invalid.
-//
-// Returns the number of jobs in the database.
-size_t validateAndCountJobs(size_t fileSize, FILE *compDbFile);
+struct CompilationDatabaseFile {
+  FILE *file;
+  size_t sizeInBytes;
+  size_t numJobs;
+
+  static CompilationDatabaseFile open(const std::filesystem::path &path,
+                                      std::error_code &ec);
+};
 
 // Key to identify fields in a command object
 enum class Key : uint32_t {
@@ -68,8 +70,7 @@ public:
   ResumableParser(const ResumableParser &) = delete;
   ResumableParser &operator=(const ResumableParser &) = delete;
 
-  void initialize(size_t fileSize, size_t totalJobs, FILE *compDbFile,
-                  size_t refillCount);
+  void initialize(CompilationDatabaseFile compdb, size_t refillCount);
 
   // Parses at most refillCount elements from the compilation database
   // passed during initialization.
@@ -77,7 +78,6 @@ public:
 };
 
 } // namespace compdb
-
 } // namespace scip_clang
 
 #endif // SCIP_CLANG_COMPILATION_DATABASE_H

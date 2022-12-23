@@ -108,22 +108,23 @@ TEST_CASE("COMPDB_PARSING") {
   for (auto &testCase : testCases) {
     std::filesystem::path jsonFilepath = dataDir;
     jsonFilepath.append(testCase.jsonFilename);
-    FILE *jsonFile = std::fopen(jsonFilepath.c_str(), "rb");
-    if (!jsonFile) {
-      spdlog::error("missing JSON file at path {}", jsonFilepath.c_str());
-      REQUIRE(jsonFile);
-    }
-    auto fileSize = std::filesystem::file_size(jsonFilepath);
 
-    size_t jobCount =
-        scip_clang::compdb::validateAndCountJobs(fileSize, jsonFile);
-    CHECK_MESSAGE(jobCount == testCase.checkCount,
-                  fmt::format("counted {} jobs but expected {} in {}", jobCount,
-                              testCase.checkCount, jsonFilepath.string()));
+    std::error_code ec;
+    auto compdbFile = compdb::CompilationDatabaseFile::open(jsonFilepath, ec);
+    REQUIRE(!ec);
+    if (!compdbFile.file) {
+      spdlog::error("missing JSON file at path {}", jsonFilepath.c_str());
+      REQUIRE(compdbFile.file);
+    }
+    REQUIRE(compdbFile.sizeInBytes);
+    CHECK_MESSAGE(compdbFile.numJobs == testCase.checkCount,
+                  fmt::format("counted {} jobs but expected {} in {}",
+                              compdbFile.numJobs, testCase.checkCount,
+                              jsonFilepath.string()));
 
     for (auto refillCount : testCase.refillCountsToTry) {
       compdb::ResumableParser parser{};
-      parser.initialize(fileSize, jobCount, jsonFile, refillCount);
+      parser.initialize(compdbFile, refillCount);
       std::vector<std::vector<clang::tooling::CompileCommand>> commandGroups;
       std::string buffer;
       llvm::raw_string_ostream outStr(buffer);
