@@ -32,6 +32,7 @@
 namespace boost_ip = boost::interprocess;
 
 namespace scip_clang {
+namespace {
 
 // Type representing the driver<->worker queues, as used by the driver;
 struct MessageQueues {
@@ -312,6 +313,8 @@ private:
   }
 };
 
+} // namespace
+
 int driverMain(int argc, char *argv[]) {
   pid_t driverPid = ::getpid();
   auto driverId = fmt::format("{}", driverPid);
@@ -339,4 +342,4 @@ int driverMain(int argc, char *argv[]) {
   return 0;
 }
 
-} // end namespace scip_clang
+} // namespace scip_clang

@@ -127,6 +127,6 @@ SERIALIZABLE(IndexJobResponse)
 
 #undef SERIALIZABLE
 
-} // end namespace scip_clang
+} // namespace scip_clang
 
 #endif // SCIP_CLANG_DRIVER_WORKER_COMMS_H

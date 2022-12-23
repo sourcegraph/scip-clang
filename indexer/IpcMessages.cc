@@ -186,4 +186,4 @@ bool fromJSON(const llvm::json::Value &value, IndexJobResponse &r,
          && mapper.map("jobId", r.jobId) && mapper.map("result", r.result);
 }
 
-} // end namespace scip_clang
+} // namespace scip_clang

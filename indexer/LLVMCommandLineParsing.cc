@@ -20,10 +20,11 @@
 // So I've copied the code so that we're 100% compatible with Clang's own
 // parsing.
 
-namespace scip_clang {
-
 using JSONCommandLineSyntax = clang::tooling::JSONCommandLineSyntax;
 using StringRef = llvm::StringRef;
+
+namespace scip_clang {
+namespace {
 
 /// A parser for escaped strings of command line arguments.
 ///
@@ -122,6 +123,8 @@ private:
   StringRef::iterator Position;
   std::vector<std::string> CommandLine;
 };
+
+} // namespace
 
 std::vector<std::string> unescapeCommandLine(JSONCommandLineSyntax Syntax,
                                              StringRef EscapedCommandLine) {

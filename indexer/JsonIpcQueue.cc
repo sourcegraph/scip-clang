@@ -24,7 +24,7 @@ void JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
   }
 }
 
-boost::posix_time::ptime fromNow(uint64_t durationMillis) {
+static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
   auto now = boost::posix_time::microsec_clock::local_time();
   auto after = now + boost::posix_time::milliseconds(durationMillis);
   return after;
@@ -45,4 +45,4 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   return llvm::make_error<TimeoutError>();
 }
 
-} // end namespace scip_clang
+} // namespace scip_clang

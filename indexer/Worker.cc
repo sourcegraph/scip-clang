@@ -16,6 +16,8 @@ namespace boost_ip = boost::interprocess;
 
 namespace scip_clang {
 
+namespace {
+
 // Type representing the driver<->worker queues, as used by a worker.
 struct MessageQueuePair {
   JsonIpcQueue driverToWorker;
@@ -32,6 +34,8 @@ struct MessageQueuePair {
             boost_ip::open_only, w2d.c_str()));
   }
 };
+
+} // namespace
 
 int workerMain(int argc, char *argv[]) {
   assert(argc >= 6);
@@ -88,4 +92,4 @@ int workerMain(int argc, char *argv[]) {
   return 0;
 }
 
-} // end namespace scip_clang
+} // namespace scip_clang

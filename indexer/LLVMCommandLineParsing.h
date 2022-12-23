@@ -13,6 +13,6 @@ std::vector<std::string>
 unescapeCommandLine(clang::tooling::JSONCommandLineSyntax Syntax,
                     llvm::StringRef EscapedCommandLine);
 
-}
+} // namespace scip_clang
 
 #endif // SCIP_CLANG_LLVM_COMMAND_LINE_PARSING_H

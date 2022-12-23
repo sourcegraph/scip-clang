@@ -15,8 +15,8 @@
 #include "indexer/LLVMCommandLineParsing.h"
 
 namespace scip_clang {
-
 namespace compdb {
+namespace {
 
 // Handler to validate a compilation database in a streaming fashion.
 //
@@ -237,6 +237,8 @@ public:
   }
 };
 
+} // namespace
+
 // Validates a compilation database, counting the number of jobs along the
 // way to allow for better planning.
 //
@@ -400,5 +402,4 @@ void ResumableParser::parseMore(
 }
 
 } // namespace compdb
-
 } // namespace scip_clang
