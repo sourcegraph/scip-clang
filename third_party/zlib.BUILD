@@ -58,6 +58,7 @@ cc_library(
     copts = [
         "-Wno-unused-variable",
         "-Wno-implicit-function-declaration",
+        "-Wno-deprecated-non-prototype",
     ],
     includes = ["zlib/include/"],
 )

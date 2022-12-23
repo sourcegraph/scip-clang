@@ -5,11 +5,12 @@ steps:
       queue: bazel
     key: build
     command: |
-      apt-get update -y && apt-get install -y gcc-10 gcc-10-base g++-10 libstdc++-10-dev
-      update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 --slave /usr/bin/gcov gcov /usr/bin/gcov-10
-      echo "--- gcc"
-      gcc -v
-      echo "--- gcc"
+      curl -L https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+      add-apt-repository 'deb http://apt.llvm.org/focal/  llvm-toolchain-focal-15 main'
+      apt-get install -y clang-15
+      export CC=clang-15
+      export CXX=clang++-15
+      "$CC" --version
 
       bazel build //...
 
