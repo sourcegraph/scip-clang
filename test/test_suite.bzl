@@ -1,5 +1,4 @@
 def scip_clang_test_suite(compdb_data):
-    print("compdb_data = %s" % compdb_data)
     native.sh_test(
         name = "test_compdb",
         srcs = ["test_main.sh"],

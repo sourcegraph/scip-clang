@@ -102,6 +102,7 @@ def scip_clang_rule_repositories():
 
     http_archive(
         name = "dtl",
+        sha256 = "579f81bca88f4b9760a59d99c5a95bd8dd5dc2f20f33f1f9b5f64cb08979f54d",
         build_file = "@scip_clang//third_party:dtl.BUILD",
         strip_prefix = "dtl-%s" % _DTL_VERSION,
         urls = ["https://github.com/cubicdaiya/dtl/archive/v%s.tar.gz" % _DTL_VERSION],
