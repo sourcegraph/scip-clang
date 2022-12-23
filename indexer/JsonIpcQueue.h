@@ -11,7 +11,7 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "indexer/DriverWorkerComms.h"
+#include "indexer/IpcMessages.h"
 
 namespace scip_clang {
 

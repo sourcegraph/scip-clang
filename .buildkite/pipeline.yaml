@@ -1,6 +1,8 @@
 $schema: "http://json.schemastore.org/buildkite"
 steps:
-  - label: ":bazel: Build"
+  - label: ":bazel: Build and Test"
+    agents:
+      queue: bazel
     key: build
     command: |
       apt-get update -y && apt-get install -y gcc-10 gcc-10-base g++-10 libstdc++-10-dev
@@ -8,13 +10,8 @@ steps:
       echo "--- gcc"
       gcc -v
       echo "--- gcc"
+
       bazel build //...
-  # TODO: Uncomment this after adding tests -- this fails with exit code 4
-  # otherwise
-  # - label: ":bazel: Test"
-  #   key: test
-  #   depends_on: build
-  #   command: |
-  #     apt-get update -y && apt-get install -y gcc-10 gcc-10-base g++-10 libstdc++-10-dev
-  #     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10 --slave /usr/bin/gcov gcov /usr/bin/gcov-10
-  #     bazel test //...
+
+      # Don't use //... as that will also try to update snapshots
+      bazel test //test

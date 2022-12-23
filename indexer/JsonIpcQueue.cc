@@ -24,7 +24,7 @@ void JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
   }
 }
 
-boost::posix_time::ptime fromNow(uint64_t durationMillis) {
+static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
   auto now = boost::posix_time::microsec_clock::local_time();
   auto after = now + boost::posix_time::milliseconds(durationMillis);
   return after;
@@ -36,7 +36,7 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   readBuffer.resize(IPC_BUFFER_MAX_SIZE);
   size_t recvCount;
   unsigned recvPriority;
-  spdlog::info("will wait for atmost {}ms", waitMillis);
+  spdlog::debug("will wait for atmost {}ms", waitMillis);
   if (this->queue->timed_receive(readBuffer.data(), readBuffer.size(),
                                  recvCount, recvPriority,
                                  fromNow(waitMillis))) {
@@ -45,4 +45,4 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   return llvm::make_error<TimeoutError>();
 }
 
-} // end namespace scip_clang
+} // namespace scip_clang

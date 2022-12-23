@@ -2,8 +2,8 @@
 #include "indexer/Worker.h"
 
 int main(int argc, char *argv[]) {
-  // TODO: Make a logger here!
-  // TODO: Do argument parsing here
+  // FIXME(def: cli-args) Do argument parsing here, allowing
+  // configuration for timeouts, log level, and number of jobs.
 
   if (argc == 1) {
     return scip_clang::driverMain(argc, argv);
