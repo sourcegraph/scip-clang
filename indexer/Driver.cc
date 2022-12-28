@@ -217,6 +217,9 @@ private:
           spdlog::info("killing worker {}, pid {}", i,
                        workerInfo.processHandle.id());
           workerInfo.processHandle.terminate();
+          auto oldJob = workerInfo.currentlyProcessing.value();
+          this->wipJobs.erase(oldJob);
+          spdlog::warn("skipping job {} due to worker timeout", oldJob.id());
           this->spawnWorker(i);
         }
       }
@@ -272,6 +275,8 @@ private:
   }
 
   void assignJobToWorker(WorkerId workerId, JobId jobId) {
+    // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
+    spdlog::info("assigning jobId {} to worker {}", jobId.id(), workerId);
     this->wipJobs.insert(jobId);
     this->markWorkerBusy(workerId, jobId);
     auto it = this->allJobList.find(jobId);
@@ -291,9 +296,6 @@ private:
       this->pendingJobs.pop_front();
       unsigned nextWorkerId = this->availableWorkers.front();
       this->availableWorkers.pop_front();
-      // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
-      spdlog::info("assigning jobId {} to worker {}", nextJob.id(),
-                   nextWorkerId);
       this->assignJobToWorker(nextWorkerId, nextJob);
     }
   }
