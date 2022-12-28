@@ -58,7 +58,9 @@ cc_library(
     copts = [
         "-Wno-unused-variable",
         "-Wno-implicit-function-declaration",
-        "-Wno-deprecated-non-prototype",
+        # Uncomment this flag once we start using Clang 15 for builds.
+        # Right now, the latest Xcode (14) uses Apple Clang 14.
+        # "-Wno-deprecated-non-prototype",
     ],
     includes = ["zlib/include/"],
 )
