@@ -1,6 +1,7 @@
 cc_library(
     name = "scip-clang-lib",
     srcs = [
+        "CliOptions.h",
         "CompilationDatabase.cc",
         "CompilationDatabase.h",
         "Driver.cc",
@@ -26,6 +27,7 @@ cc_library(
         "@boost//:date_time",
         "@boost//:interprocess",
         "@boost//:process",
+        "@cxxopts",
         "@spdlog",
         "@rapidjson",
         "@llvm-project//llvm:Support",
@@ -33,6 +35,9 @@ cc_library(
         # one backend to be set. Figure out if we can somehow
         # not build any backends at all, which would save on
         # build time.
+        "@llvm-project//clang:sema",
+        "@llvm-project//clang:ast",
+        "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
     ],
 )

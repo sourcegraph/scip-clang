@@ -6,6 +6,7 @@
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
 
+#include "indexer/CliOptions.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/LLVMAdapter.h"
@@ -37,25 +38,16 @@ struct MessageQueuePair {
 
 } // namespace
 
-int workerMain(int argc, char *argv[]) {
-  assert(argc >= 6);
-  assert(std::string(argv[1]) == "worker");
-  assert(std::string(argv[2]) == "--driver-id");
-  auto driverId = std::string(argv[3]);
-  assert(std::string(argv[4]) == "--worker-id");
-  auto workerId = std::stoul(argv[5]);
 
-  scip_clang::initialize_global_logger(fmt::format("worker {}", workerId));
 
+int workerMain(CliOptions &&cliOptions) {
   BOOST_TRY {
-    MessageQueuePair mq(driverId, workerId);
+    MessageQueuePair mq(cliOptions.driverId, cliOptions.workerId);
 
     while (true) {
       IndexJobRequest request{};
-      using namespace std::chrono_literals;
-      // FIXME(ref: cli-args) Allow configuring the timeout here from outside.
-      // 1s is probably too little.
-      auto recvError = mq.driverToWorker.timedReceive(request, 1s);
+      auto recvError =
+          mq.driverToWorker.timedReceive(request, cliOptions.receiveTimeout);
       if (recvError.isA<TimeoutError>()) {
         spdlog::error(
             "timeout in worker; is the driver dead?... shutting down");
@@ -79,7 +71,8 @@ int workerMain(int argc, char *argv[]) {
         result.semanticAnalysis = SemanticAnalysisJobResult{};
         break;
       }
-      mq.workerToDriver.send(IndexJobResponse{workerId, request.id, result});
+      mq.workerToDriver.send(
+          IndexJobResponse{cliOptions.workerId, request.id, result});
     }
   }
   BOOST_CATCH(boost_ip::interprocess_exception & ex) {

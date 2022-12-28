@@ -21,6 +21,7 @@
 #include "spdlog/sinks/stdout_sinks.h"
 #include "spdlog/spdlog.h"
 
+#include "indexer/CliOptions.h"
 #include "indexer/CompilationDatabase.h"
 #include "indexer/Driver.h"
 #include "indexer/FileSystem.h"
@@ -90,6 +91,7 @@ class Driver {
                                          // available in FIFO order.
 
   MessageQueues queues;
+  std::chrono::duration<uint64_t> receiveTimeout;
 
   uint64_t nextJobId = 0;
   absl::flat_hash_map<JobId, IndexJob> allJobList;
@@ -106,10 +108,11 @@ public:
   Driver(const Driver &) = delete;
   Driver &operator=(const Driver &) = delete;
 
-  Driver(size_t numWorkers, const char *workerExecutablePath)
+  Driver(size_t numWorkers, std::string workerExecutablePath,
+         std::chrono::duration<uint64_t> receiveTimeout)
       : id(fmt::format("{}", ::getpid())),
         workerExecutablePath(workerExecutablePath), numWorkers(numWorkers),
-        compdbParser() {
+        receiveTimeout(receiveTimeout), compdbParser() {
     MessageQueues::deleteIfPresent(this->id, numWorkers);
     this->queues = MessageQueues(this->id, numWorkers,
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
@@ -242,19 +245,16 @@ private:
 
   void processOneJobResult() {
     using namespace std::chrono_literals;
-    // FIXME(ref: cli-args): Make this timeout configurable
-    auto workerTimeoutLimit = 2s;
-    // NOTE: Wait duration has to be longer than the timeout.
-    auto waitDuration = workerTimeoutLimit + 1s;
+    auto workerTimeout = this->receiveTimeout;
 
     IndexJobResponse response;
     auto recvError =
-        this->queues.workerToDriver.timedReceive(response, waitDuration);
+        this->queues.workerToDriver.timedReceive(response, workerTimeout);
     if (recvError.isA<TimeoutError>()) {
       // All workers which are working have been doing so for too long,
-      // because waitDuration is always longer than the timeout.
+      // because TimeoutError means we already exceeded the timeout limit.
       auto now = std::chrono::steady_clock::now();
-      this->killLongRunningWorkersAndRespawn(now - workerTimeoutLimit);
+      this->killLongRunningWorkersAndRespawn(now - workerTimeout);
     } else if (recvError) {
       spdlog::error("received malformed message: {}",
                     scip_clang::formatLLVM(recvError));
@@ -270,7 +270,7 @@ private:
       assert(erased);
 
       auto now = std::chrono::steady_clock::now();
-      this->killLongRunningWorkersAndRespawn(now - workerTimeoutLimit);
+      this->killLongRunningWorkersAndRespawn(now - workerTimeout);
     }
   }
 
@@ -317,19 +317,15 @@ private:
 
 } // namespace
 
-int driverMain(int argc, char *argv[]) {
+int driverMain(CliOptions &&cliOptions) {
   pid_t driverPid = ::getpid();
   auto driverId = fmt::format("{}", driverPid);
-
-  scip_clang::initialize_global_logger("driver");
-
-  // FIXME(ref: cli-args): Allow configuring number of workers
-  size_t numWorkers = 2;
-
+  size_t numWorkers = cliOptions.numWorkers;
   BOOST_TRY {
     MessageQueues::deleteIfPresent(driverId, numWorkers);
 
-    Driver driver(numWorkers, argv[0]);
+    Driver driver(numWorkers, cliOptions.scipClangExecutablePath,
+                  cliOptions.receiveTimeout);
     auto compdbGuard = driver.openCompilationDatabase();
     driver.spawnWorkers();
     driver.runJobsTillCompletionAndShutdownWorkers();

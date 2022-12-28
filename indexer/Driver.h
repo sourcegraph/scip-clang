@@ -3,8 +3,10 @@
 
 namespace scip_clang {
 
-int driverMain(int argc, char *argv[]);
+struct CliOptions;
 
-}
+int driverMain(CliOptions &&);
+
+} // namespace scip_clang
 
 #endif // SCIP_CLANG_DRIVER_H
