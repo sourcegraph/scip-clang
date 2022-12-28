@@ -5,7 +5,6 @@
 
 namespace scip_clang {
 
-void initialize_global_logger(std::string name);
 
 } // namespace scip_clang
 

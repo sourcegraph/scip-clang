@@ -3,7 +3,9 @@
 
 namespace scip_clang {
 
-int workerMain(int argc, char *argv[]);
+struct CliOptions;
+
+int workerMain(CliOptions &&);
 
 } // namespace scip_clang
 
