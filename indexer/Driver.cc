@@ -282,6 +282,9 @@ private:
       // for printing jobs for debugging.
       spdlog::debug("received job from worker {}", response.workerId);
 
+      // FIXME(def: add-driver-logic): We need to check the kind of the result
+      // and potentially reassign a job to the worker.
+
       this->markWorkerFree(response.workerId);
       bool erased = wipJobs.erase(response.jobId);
       // FIXME(ref: add-enforce)

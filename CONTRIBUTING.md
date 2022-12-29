@@ -46,6 +46,19 @@ at the root of the repository. It will be automatically
 picked up by clangd-based editor extensions (you may
 need to reload the editor).
 
+## Debugging
+
+### Inspecting Clang ASTs
+
+Print the AST nodes:
+
+```
+clang -Xclang -ast-dump file.c
+clang -Xclang -ast-dump=json file.c
+```
+
+Another option is to use clang-query ([tutorial](https://devblogs.microsoft.com/cppblog/exploring-clang-tooling-part-2-examining-the-clang-ast-with-clang-query/)).
+
 ## Implementation Notes
 
 <!-- NOTE(def: based-on-sorbet) -->
