@@ -52,8 +52,8 @@ public:
     ParseSuccess,
   };
 
-  template <typename T, typename Rep>
-  llvm::Error timedReceive(T &t, std::chrono::duration<Rep> waitDuration) {
+  template <typename T>
+  llvm::Error timedReceive(T &t, std::chrono::seconds waitDuration) {
     auto durationMillis =
         std::chrono::duration_cast<std::chrono::milliseconds>(waitDuration)
             .count();
