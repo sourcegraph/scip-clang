@@ -63,6 +63,7 @@ int workerMain(CliOptions &&cliOptions) {
         break;
       }
       IndexJobResult result;
+      result.kind = request.job.kind;
       switch (request.job.kind) {
       case IndexJob::Kind::EmitIndex:
         result.emitIndex = EmitIndexJobResult{"lol"};

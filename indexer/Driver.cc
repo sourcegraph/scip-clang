@@ -118,9 +118,10 @@ public:
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
   }
 
+  // NOTE: openCompilationDatabase should be called before this method.
   void spawnWorkers() {
-    this->workers.resize(numWorkers);
-    for (unsigned i = 0; i < numWorkers; i++) {
+    this->workers.resize(this->numWorkers);
+    for (unsigned i = 0; i < this->numWorkers; i++) {
       this->spawnWorker(i);
     }
   }
@@ -185,6 +186,7 @@ public:
       std::exit(EXIT_FAILURE);
     }
     this->totalJobCount = compdbFile.numJobs;
+    this->numWorkers = std::min(this->totalJobCount, this->numWorkers);
     spdlog::debug("total {} compilation jobs", this->totalJobCount);
 
     this->compdbParser.initialize(compdbFile, this->refillCount());
