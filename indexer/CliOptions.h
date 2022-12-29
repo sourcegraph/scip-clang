@@ -12,9 +12,10 @@
 namespace scip_clang {
 
 struct CliOptions {
+  std::string compdbPath;
   std::string scipClangExecutablePath;
 
-  std::chrono::duration<uint64_t> receiveTimeout;
+  std::chrono::seconds receiveTimeout;
   uint32_t numWorkers;
 
   spdlog::level::level_enum logLevel;

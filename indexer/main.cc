@@ -1,11 +1,14 @@
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
+#include <iostream>
 #include <string>
 #include <sys/types.h>
 #include <thread>
 
 #include "cxxopts.hpp"
 #include "spdlog/fmt/fmt.h"
+#include "spdlog/fmt/ranges.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
 
@@ -17,57 +20,79 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   scip_clang::CliOptions cliOptions;
   cliOptions.scipClangExecutablePath = argv[0];
   using namespace std::chrono_literals;
-  cliOptions.receiveTimeout = 120s;
+  auto defaultReceiveTimeoutSeconds = "120";
+  // cxxopts will print '(default: 10)' without context that it is based
+  // on ncpus, so set the default here instead and print it separately.
   cliOptions.numWorkers = std::thread::hardware_concurrency();
-  cliOptions.logLevel = spdlog::level::level_enum::info;
+  auto defaultLogLevel = "info";
+  auto defaultCompdbPath = "compile_commands.json";
 
-  cxxopts::Options options("scip-clang", "SCIP indexer for C-based languages");
-  options.add_options("")("j,jobs",
-                          fmt::format("How many indexing processes to run in "
-                                      "parallel? (default: NCPUs = {})",
-                                      cliOptions.numWorkers),
-                          cxxopts::value<uint32_t>(cliOptions.numWorkers));
-  options.add_options("")(
-      "log-level", "One of 'debug', 'info' (default), 'warning' or 'error'",
-      cxxopts::value<std::string>());
-  options.add_options("advanced")(
-      "receive-timeout-seconds",
-      fmt::format("How long the driver should wait for a worker before marking "
-                  "it as timed out? (default: {}s)",
-                  std::chrono::duration_cast<std::chrono::seconds>(
-                      cliOptions.receiveTimeout)
-                      .count()),
-      cxxopts::value<uint32_t>());
-  options.add_options("internal")("worker",
-                                  "[worker-only] Spawn an indexing worker "
-                                  "instead of invoking the driver directly",
-                                  cxxopts::value<bool>(cliOptions.isWorker));
-  options.add_options("internal")(
-      "driver-pid", "[worker-only] An opaque ID for the driver.",
+  cxxopts::Options parser("scip-clang", "SCIP indexer for C-based languages");
+  // clang-format off
+  parser.add_options("")(
+    "compdb-path",
+    fmt::format("Path to JSON compilation database", defaultCompdbPath),
+    cxxopts::value<std::string>(cliOptions.compdbPath)->default_value(defaultCompdbPath));
+  parser.add_options("")(
+    "j,jobs",
+    fmt::format("How many indexing processes to run in parallel? (default: NCPUs = {})", cliOptions.numWorkers),
+    cxxopts::value<uint32_t>(cliOptions.numWorkers));
+  parser.add_options("")(
+    "log-level",
+    fmt::format("One of 'debug', 'info', 'warning' or 'error'", defaultLogLevel),
+    cxxopts::value<std::string>()->default_value(defaultLogLevel));
+  parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
+  parser.add_options("Advanced")(
+    "receive-timeout-seconds",
+    fmt::format("How long the driver should wait for a worker before marking "
+                "it as timed out?", defaultReceiveTimeoutSeconds),
+    cxxopts::value<uint32_t>()->default_value(defaultReceiveTimeoutSeconds));
+  parser.add_options("Internal")(
+    "worker",
+    "[worker-only] Spawn an indexing worker instead of invoking the driver directly",
+    cxxopts::value<bool>(cliOptions.isWorker));
+  parser.add_options("Internal")(
+      "driver-id",
+      "[worker-only] An opaque ID for the driver.",
       cxxopts::value<std::string>(cliOptions.driverId));
-  options.add_options("internal")(
-      "worker-pid", "[worker-only] An opaque ID for the worker itself.",
+  parser.add_options("Internal")(
+      "worker-id",
+      "[worker-only] An opaque ID for the worker itself.",
       cxxopts::value<uint64_t>(cliOptions.workerId));
-  cxxopts::ParseResult result = options.parse(argc, argv);
+  // clang-format on
 
-  if (result.count("log-level") > 0) {
-    auto level = result["log-level"].as<std::string>();
-    if (level == "debug") {
-      cliOptions.logLevel = spdlog::level::level_enum::debug;
-    } else if (level == "warning") {
-      cliOptions.logLevel = spdlog::level::level_enum::warn;
-    } else if (level == "error") {
-      cliOptions.logLevel = spdlog::level::level_enum::err;
-    } else if (level != "info") {
-      spdlog::warn("unknown argument '{}' for --log-level; use 'debug', "
-                   "'info', 'warning' or 'error'",
-                   level);
-    }
+  parser.allow_unrecognised_options();
+
+  cxxopts::ParseResult result = parser.parse(argc, argv);
+
+  if (result.count("help") || result.count("h")) {
+    fmt::print("{}\n", parser.help());
+    std::exit(EXIT_SUCCESS);
   }
-  if (result.count("receive-timeout-seconds") > 0) {
-    cliOptions.receiveTimeout =
-        std::chrono::seconds(result["receive-timeout-seconds"].as<uint32_t>());
+
+  if (!result.unmatched().empty()) {
+    fmt::print(stderr, "error: unknown argument(s) {}\n", result.unmatched());
+    fmt::print(stderr, "{}\n", parser.help());
+    std::exit(EXIT_FAILURE);
   }
+
+  auto level = result["log-level"].as<std::string>();
+  if (level == "debug") {
+    cliOptions.logLevel = spdlog::level::level_enum::debug;
+  } else if (level == "info") {
+    cliOptions.logLevel = spdlog::level::level_enum::info;
+  } else if (level == "warning") {
+    cliOptions.logLevel = spdlog::level::level_enum::warn;
+  } else if (level == "error") {
+    cliOptions.logLevel = spdlog::level::level_enum::err;
+  } else {
+    spdlog::warn("unknown argument '{}' for --log-level; see scip-clang "
+                 "--help for recognized levels",
+                 level);
+  }
+
+  cliOptions.receiveTimeout =
+      std::chrono::seconds(result["receive-timeout-seconds"].as<uint32_t>());
 
   return cliOptions;
 }

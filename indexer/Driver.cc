@@ -85,13 +85,15 @@ class Driver {
   std::string id;
   std::string workerExecutablePath;
 
+  std::filesystem::path compdbPath;
+
   size_t numWorkers;
   std::vector<WorkerInfo> workers;
   std::deque<unsigned> availableWorkers; // Keep track of workers which are
                                          // available in FIFO order.
 
   MessageQueues queues;
-  std::chrono::duration<uint64_t> receiveTimeout;
+  std::chrono::seconds receiveTimeout;
 
   uint64_t nextJobId = 0;
   absl::flat_hash_map<JobId, IndexJob> allJobList;
@@ -108,11 +110,19 @@ public:
   Driver(const Driver &) = delete;
   Driver &operator=(const Driver &) = delete;
 
-  Driver(size_t numWorkers, std::string workerExecutablePath,
-         std::chrono::duration<uint64_t> receiveTimeout)
+  Driver(std::string compdbPath, size_t numWorkers,
+         std::string workerExecutablePath, std::chrono::seconds receiveTimeout)
       : id(fmt::format("{}", ::getpid())),
         workerExecutablePath(workerExecutablePath), numWorkers(numWorkers),
         receiveTimeout(receiveTimeout), compdbParser() {
+    auto p = std::filesystem::path(compdbPath);
+    if (p.is_absolute()) {
+      this->compdbPath = p;
+    } else {
+      this->compdbPath = std::filesystem::current_path();
+      this->compdbPath /= p;
+    }
+
     MessageQueues::deleteIfPresent(this->id, numWorkers);
     this->queues = MessageQueues(this->id, numWorkers,
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
@@ -165,18 +175,17 @@ public:
   }
 
   FileGuard openCompilationDatabase() {
-    auto compdbPath =
-        std::filesystem::current_path().append("compile_commands.json");
-
     std::error_code error;
-    auto compdbFile = compdb::CompilationDatabaseFile::open(compdbPath, error);
+    auto compdbFile =
+        compdb::CompilationDatabaseFile::open(this->compdbPath, error);
     if (!compdbFile.file) {
       spdlog::error("failed to open compile_commands.json: {}",
                     std::strerror(errno));
       std::exit(EXIT_FAILURE);
     }
     if (error) {
-      spdlog::error("failed to read file size for compile_commands.json: {}", error.message());
+      spdlog::error("failed to read file size for compile_commands.json: {}",
+                    error.message());
       std::exit(EXIT_FAILURE);
     }
     if (compdbFile.numJobs == 0) {
@@ -195,11 +204,16 @@ private:
   void spawnWorker(WorkerId workerId) {
     std::vector<std::string> args;
     args.push_back(std::string(workerExecutablePath));
-    args.push_back("worker");
-    args.push_back("--driver-id");
-    args.push_back(this->id);
-    args.push_back("--worker-id");
-    args.push_back(fmt::format("{}", workerId));
+    args.push_back("--worker");
+    args.push_back(fmt::format("--driver-id={}", this->id));
+    args.push_back(fmt::format("--worker-id={}", workerId));
+    args.push_back(fmt::format(
+        "--log-level={}", spdlog::level::to_string_view(spdlog::get_level())));
+    args.push_back(fmt::format(
+        "--receive-timeout-seconds={}",
+        std::chrono::duration_cast<std::chrono::seconds>(this->receiveTimeout)
+            .count()));
+
     boost::process::child worker(args, boost::process::std_out > stdout);
     spdlog::debug("worker info running {}, pid = {}", worker.running(),
                   worker.id());
@@ -324,7 +338,8 @@ int driverMain(CliOptions &&cliOptions) {
   BOOST_TRY {
     MessageQueues::deleteIfPresent(driverId, numWorkers);
 
-    Driver driver(numWorkers, cliOptions.scipClangExecutablePath,
+    Driver driver(cliOptions.compdbPath, numWorkers,
+                  cliOptions.scipClangExecutablePath,
                   cliOptions.receiveTimeout);
     auto compdbGuard = driver.openCompilationDatabase();
     driver.spawnWorkers();
