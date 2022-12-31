@@ -10,6 +10,7 @@ cc_library(
         "Exception.cc",
         "Exception.h",
         "FileSystem.h",
+        "Hash.h",
         "IpcMessages.cc",
         "IpcMessages.h",
         "JsonIpcQueue.cc",
@@ -37,6 +38,7 @@ cc_library(
         "@cxxopts",
         "@spdlog",
         "@rapidjson",
+        "@wyhash",
         "@llvm-project//llvm:Support",
         # FIXME: The tooling target seems to require at least
         # one backend to be set. Figure out if we can somehow
