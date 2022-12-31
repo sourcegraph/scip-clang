@@ -48,6 +48,16 @@ need to reload the editor).
 
 ## Debugging
 
+### Building with ASan
+
+
+Add `--copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-Wno-macro-redefined"`
+to the Bazel invocation.
+
+At the time of writing, using ASan triggers
+a noisy macro redefinition warning inside LLVM,
+so I recommend suppressing it.
+
 ### Inspecting Clang ASTs
 
 Print the AST nodes:
