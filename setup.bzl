@@ -1,8 +1,9 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 _BAZEL_SKYLIB_VERSION = "1.3.0"
+_PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
 _RULES_BOOST_COMMIT = "e83dfef18d91a3e35c8eac9b9aeb1444473c0efd"
-_LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec"
+_LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec"  # Keep in sync with Version.h
 _ABSL_COMMIT = "9a2c7bf98fa2482d0cbba727dcc4499e6e7c5ee2"
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
@@ -21,6 +22,13 @@ def scip_clang_rule_repositories():
             "https://github.com/bazelbuild/bazel-skylib/releases/download/{0}/bazel-skylib-{0}.tar.gz".format(_BAZEL_SKYLIB_VERSION),
             "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/{0}/bazel-skylib-{0}.tar.gz".format(_BAZEL_SKYLIB_VERSION),
         ],
+    )
+
+    http_archive(
+        name = "platforms",
+        sha256 = "b4a3b45dc4202e2b3e34e3bc49d2b5b37295fc23ea58d88fb9e01f3642ad9b55",
+        strip_prefix = "platforms-%s" % _PLATFORMS_COMMIT,
+        urls = ["https://github.com/bazelbuild/platforms/archive/%s.zip" % _PLATFORMS_COMMIT],
     )
 
     http_archive(

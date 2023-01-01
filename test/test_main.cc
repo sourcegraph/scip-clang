@@ -20,8 +20,8 @@ using namespace scip_clang;
 
 // Perform a line-wise diff of expected vs actual.
 //
-// This function implementation was originally in Sorbet's expectations.cc
-// named as CHECK_EQ_DIFF
+// NOTE(ref: based-on-sorbet): This function implementation was originally
+// in Sorbet's expectations.cc named as CHECK_EQ_DIFF
 void compareDiff(std::string_view expected, std::string_view actual,
                  std::string_view errorMessage) {
   if (expected == actual) {

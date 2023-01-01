@@ -38,8 +38,6 @@ struct MessageQueuePair {
 
 } // namespace
 
-
-
 int workerMain(CliOptions &&cliOptions) {
   BOOST_TRY {
     MessageQueuePair mq(cliOptions.driverId, cliOptions.workerId);
