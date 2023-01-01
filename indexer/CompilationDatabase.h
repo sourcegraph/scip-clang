@@ -7,6 +7,8 @@
 #include <memory>
 #include <string>
 
+#include "indexer/Enforce.h" // defines ENFORCE used by rapidjson headers
+
 #include "absl/container/flat_hash_set.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/reader.h"

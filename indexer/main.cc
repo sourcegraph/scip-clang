@@ -14,6 +14,7 @@
 
 #include "indexer/CliOptions.h"
 #include "indexer/Driver.h"
+#include "indexer/Enforce.h"
 #include "indexer/Worker.h"
 
 static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
@@ -106,6 +107,7 @@ static void initializeGlobalLogger(std::string name,
 }
 
 int main(int argc, char *argv[]) {
+  scip_clang::initializeSymbolizer(argv[0]);
   auto cliOptions = parseArguments(argc, argv);
   auto loggerName = cliOptions.isWorker
                         ? fmt::format("worker {}", cliOptions.workerId)

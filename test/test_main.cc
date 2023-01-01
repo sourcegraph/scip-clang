@@ -15,6 +15,7 @@
 #include "llvm/Support/YAMLTraits.h"
 
 #include "indexer/CompilationDatabase.h"
+#include "indexer/Enforce.h"
 
 using namespace scip_clang;
 
@@ -152,6 +153,8 @@ TEST_CASE("COMPDB_PARSING") {
 }
 
 int main(int argc, char *argv[]) {
+  scip_clang::initializeSymbolizer(argv[0]);
+
   cxxopts::Options options("test_main", "Test runner for scip-clang");
   options.add_options()("compdb-tests",
                         "Run the compilation database related tests",

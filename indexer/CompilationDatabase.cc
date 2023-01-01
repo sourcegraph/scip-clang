@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "indexer/Enforce.h" // Defines ENFORCE used by rapidjson headers
+
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "rapidjson/error/en.h"
@@ -286,7 +288,7 @@ bool CommandObjectHandler::String(const char *str, rapidjson::SizeType length,
   switch (this->previousKey) {
   case Key::Unset:
     // FIXME(ref: add-enforce)
-    assert(false && "Unexpected input");
+    ENFORCE(false, "unexpected input");
     return false;
   case Key::Directory:
     this->wipCommand.Directory = std::string(str, length);
@@ -323,8 +325,7 @@ bool CommandObjectHandler::Key(const char *str, rapidjson::SizeType length,
   } else if (key == "arguments") {
     this->previousKey = Key::Arguments;
   } else {
-    // FIXME(ref: add-enforce)
-    assert(false && "unexpected key should've been caught by validation");
+    ENFORCE(false, "unexpected key should've been caught by validation");
   }
   return true;
 }
@@ -387,8 +388,8 @@ void ResumableParser::parseMore(
     }
     return;
   }
-  assert(this->handler && "missed call to initialize");
-  assert(this->compDbStream && "missed call to initialize");
+  ENFORCE(this->handler, "should've been handled by initializer method");
+  ENFORCE(this->compDbStream, "should've been handled by initializer method");
 
   while (!this->handler->reachedLimit()
          && !this->reader.IterativeParseComplete()) {

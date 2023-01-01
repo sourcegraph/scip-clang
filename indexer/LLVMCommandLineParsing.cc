@@ -6,6 +6,7 @@
 #include "llvm/Support/StringSaver.h"
 
 #include "indexer/LLVMCommandLineParsing.h"
+#include "indexer/Enforce.h"
 
 // ----------------------------------- ATTENTION
 // --------------------------------- The code in this file is vendored from
@@ -145,7 +146,7 @@ std::vector<std::string> unescapeCommandLine(JSONCommandLineSyntax Syntax,
     std::vector<std::string> Result(T.begin(), T.end());
     return Result;
   }
-  assert(Syntax == JSONCommandLineSyntax::Gnu);
+  ENFORCE(Syntax == JSONCommandLineSyntax::Gnu, "Already handled other cases earlier");
   CommandLineArgumentParser parser(EscapedCommandLine);
   return parser.parse();
 }
