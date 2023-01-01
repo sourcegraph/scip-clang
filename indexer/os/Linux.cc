@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -95,7 +96,7 @@ bool amIBeingDebugged() {
   return false;
 }
 
-bool setCurrentThreadName(string_view name) {
+bool setCurrentThreadName(std::string_view name) {
   const size_t maxLen =
       16 - 1; // Pthreads limits it to 16 bytes including trailing '\0'
   auto truncatedName = std::string(name.substr(0, maxLen));
