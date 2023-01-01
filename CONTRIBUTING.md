@@ -45,3 +45,18 @@ Run `./tools/regen_compdb.sh` to generate a compilation database
 at the root of the repository. It will be automatically
 picked up by clangd-based editor extensions (you may
 need to reload the editor).
+
+## Implementation Notes
+
+<!-- NOTE(def: based-on-sorbet) -->
+Some useful non-indexer specific logic is adapted from the Sorbet
+codebase and is marked with a `NOTE(ref: based-on-sorbet)`.
+
+In particular, we reuse the infrastructure for `ENFORCE` macros,
+which are essentially assertions which are instrumented so
+that the cost can be measured easily.
+We could technically have used `assert`,
+but having a separate macro makes it easier to change
+the behavior in scip-clang exclusively, whereas there is a
+greater chance of mistakes if we want to separate out the
+cost of assertions in Clang itself vs in our code.

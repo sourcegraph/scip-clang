@@ -15,13 +15,14 @@
 #include "llvm/Support/YAMLTraits.h"
 
 #include "indexer/CompilationDatabase.h"
+#include "indexer/Enforce.h"
 
 using namespace scip_clang;
 
 // Perform a line-wise diff of expected vs actual.
 //
-// This function implementation was originally in Sorbet's expectations.cc
-// named as CHECK_EQ_DIFF
+// NOTE(ref: based-on-sorbet): This function implementation was originally
+// in Sorbet's expectations.cc named as CHECK_EQ_DIFF
 void compareDiff(std::string_view expected, std::string_view actual,
                  std::string_view errorMessage) {
   if (expected == actual) {
@@ -152,6 +153,8 @@ TEST_CASE("COMPDB_PARSING") {
 }
 
 int main(int argc, char *argv[]) {
+  scip_clang::initializeSymbolizer(argv[0]);
+
   cxxopts::Options options("test_main", "Test runner for scip-clang");
   options.add_options()("compdb-tests",
                         "Run the compilation database related tests",

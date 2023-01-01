@@ -8,6 +8,7 @@ compilation_database(
     testonly = True,
     output_base = OUTPUT_BASE,
     targets = [
+        "//indexer/os",
         "//indexer:scip-clang",
         "//indexer:scip-clang-lib",
         "//test:test_main",

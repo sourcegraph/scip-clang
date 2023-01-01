@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 
+#include "indexer/Enforce.h" // Defines ENFORCE required by rapidjson headers
+
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -283,7 +285,7 @@ private:
       this->markWorkerFree(response.workerId);
       bool erased = wipJobs.erase(response.jobId);
       // FIXME(ref: add-enforce)
-      assert(erased);
+      ENFORCE(erased, "received response for job not marked WIP");
 
       auto now = std::chrono::steady_clock::now();
       this->killLongRunningWorkersAndRespawn(now - workerTimeout);
@@ -296,8 +298,7 @@ private:
     this->wipJobs.insert(jobId);
     this->markWorkerBusy(workerId, jobId);
     auto it = this->allJobList.find(jobId);
-    // FIXME(ref: add-enforce)
-    assert(it != this->allJobList.end());
+    ENFORCE(it != this->allJobList.end(), "trying to assign unknown job");
     this->queues.driverToWorker[workerId].send(
         IndexJobRequest{it->first, it->second});
   }
@@ -306,7 +307,7 @@ private:
     auto numJobsToAssign =
         std::min(this->availableWorkers.size(), this->pendingJobs.size());
     // FIXME(ref: add-enforce)
-    assert(numJobsToAssign >= 1);
+    ENFORCE(numJobsToAssign >= 1, "no workers or pending jobs");
     for (unsigned i = 0; i < numJobsToAssign; ++i) {
       JobId nextJob = this->pendingJobs.front();
       this->pendingJobs.pop_front();
@@ -317,7 +318,8 @@ private:
   }
 
   void shutdownAllWorkers() {
-    assert(this->availableWorkers.size() == this->numWorkers);
+    ENFORCE(this->availableWorkers.size() == this->numWorkers,
+      "shutdown should only happen after all workers finish processing");
     for (unsigned i = 0; i < numWorkers; ++i) {
       this->queues.driverToWorker[i].send(
           IndexJobRequest{JobId::Shutdown(), {}});
