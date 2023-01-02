@@ -1,8 +1,8 @@
 #ifndef SCIP_CLANG_DEBUG_HELPERS_H
 #define SCIP_CLANG_DEBUG_HELPERS_H
 
-#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/FileEntry.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/StringRef.h"
 

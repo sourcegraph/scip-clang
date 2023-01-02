@@ -1,6 +1,6 @@
 
-#include "clang/Basic/SourceManager.h"
 #include "clang/Basic/FileEntry.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -37,6 +37,6 @@ llvm::StringRef tryGetPath(const clang::SourceManager &sourceManager,
   }
   return "<invalid-FileID>";
 }
-   
+
 } // namespace debug
 } // namespace scip_clang
