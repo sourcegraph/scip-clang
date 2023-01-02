@@ -88,6 +88,15 @@ SERIALIZABLE(HeaderFilter)
 struct SemanticAnalysisJobDetails {
   clang::tooling::CompileCommand command;
   HeaderFilter recordHistoryFilter;
+
+  static SemanticAnalysisJobDetails
+  clone(const SemanticAnalysisJobDetails &self) {
+    SemanticAnalysisJobDetails clone;
+    clone.command = self.command;
+    clone.recordHistoryFilter =
+        HeaderFilter(self.recordHistoryFilter.regexText());
+    return clone;
+  }
 };
 SERIALIZABLE(SemanticAnalysisJobDetails)
 
@@ -112,6 +121,15 @@ struct IndexJob {
   EmitIndexJobDetails emitIndex;
 
   // See also NOTE(ref: avoiding-unions)
+
+  static IndexJob clone(const IndexJob &self) {
+    IndexJob j;
+    j.kind = self.kind;
+    j.semanticAnalysis =
+        SemanticAnalysisJobDetails::clone(self.semanticAnalysis);
+    j.emitIndex = self.emitIndex;
+    return j;
+  }
 };
 SERIALIZABLE(IndexJob::Kind)
 SERIALIZABLE(IndexJob)

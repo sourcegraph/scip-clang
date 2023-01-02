@@ -303,8 +303,7 @@ private:
     auto it = this->allJobList.find(jobId);
     ENFORCE(it != this->allJobList.end(), "trying to assign unknown job");
     this->queues.driverToWorker[workerId].send(
-        IndexJobRequest{it->first, std::move(it->second)});
-    this->allJobList.erase(it);
+        IndexJobRequest{it->first, IndexJob::clone(it->second)});
   }
 
   void assignJobsToAvailableWorkers() {
