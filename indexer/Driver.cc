@@ -156,7 +156,7 @@ public:
   void queueJob(IndexJob &&j) {
     auto jobId = JobId(this->nextJobId);
     this->nextJobId++;
-    this->allJobList.insert({jobId, j});
+    this->allJobList.insert({jobId, std::move(j)});
     this->pendingJobs.push_back(jobId);
   }
 
@@ -182,7 +182,7 @@ public:
     auto compdbFile =
         compdb::CompilationDatabaseFile::open(this->compdbPath, error);
     if (!compdbFile.file) {
-      spdlog::error("failed to open compile_commands.json: {}",
+      spdlog::error("failed to open {}: {}", this->compdbPath.string(),
                     std::strerror(errno));
       std::exit(EXIT_FAILURE);
     }
@@ -269,6 +269,7 @@ private:
     auto recvError =
         this->queues.workerToDriver.timedReceive(response, workerTimeout);
     if (recvError.isA<TimeoutError>()) {
+      spdlog::error("timeout from driver");
       // All workers which are working have been doing so for too long,
       // because TimeoutError means we already exceeded the timeout limit.
       auto now = std::chrono::steady_clock::now();
@@ -287,7 +288,6 @@ private:
 
       this->markWorkerFree(response.workerId);
       bool erased = wipJobs.erase(response.jobId);
-      // FIXME(ref: add-enforce)
       ENFORCE(erased, "received response for job not marked WIP");
 
       auto now = std::chrono::steady_clock::now();
@@ -297,19 +297,19 @@ private:
 
   void assignJobToWorker(WorkerId workerId, JobId jobId) {
     // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
-    spdlog::info("assigning jobId {} to worker {}", jobId.id(), workerId);
+    spdlog::debug("assigning jobId {} to worker {}", jobId.id(), workerId);
     this->wipJobs.insert(jobId);
     this->markWorkerBusy(workerId, jobId);
     auto it = this->allJobList.find(jobId);
     ENFORCE(it != this->allJobList.end(), "trying to assign unknown job");
     this->queues.driverToWorker[workerId].send(
-        IndexJobRequest{it->first, it->second});
+        IndexJobRequest{it->first, std::move(it->second)});
+    this->allJobList.erase(it);
   }
 
   void assignJobsToAvailableWorkers() {
     auto numJobsToAssign =
         std::min(this->availableWorkers.size(), this->pendingJobs.size());
-    // FIXME(ref: add-enforce)
     ENFORCE(numJobsToAssign >= 1, "no workers or pending jobs");
     for (unsigned i = 0; i < numJobsToAssign; ++i) {
       JobId nextJob = this->pendingJobs.front();
@@ -322,7 +322,7 @@ private:
 
   void shutdownAllWorkers() {
     ENFORCE(this->availableWorkers.size() == this->numWorkers,
-      "shutdown should only happen after all workers finish processing");
+            "shutdown should only happen after all workers finish processing");
     for (unsigned i = 0; i < numWorkers; ++i) {
       this->queues.driverToWorker[i].send(
           IndexJobRequest{JobId::Shutdown(), {}});

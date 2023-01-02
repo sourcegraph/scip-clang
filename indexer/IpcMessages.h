@@ -3,10 +3,14 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <variant>
 
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/Regex.h"
+
+#include "indexer/Hash.h"
 
 namespace scip_clang {
 
@@ -51,8 +55,39 @@ public:
 };
 SERIALIZABLE(JobId)
 
+class HeaderFilter final {
+  // The original text of the regex, because llvm::Regex doesn't expose
+  // an API for serializing to a string.
+  std::string _regexText;
+  std::optional<llvm::Regex> matcher;
+
+public:
+  HeaderFilter() = default;
+  HeaderFilter(HeaderFilter &&) = default;
+  HeaderFilter &operator=(HeaderFilter &&) = default;
+
+  HeaderFilter(std::string &&regexText);
+
+  bool isMatch(std::string_view data) const {
+    if (matcher && matcher->match(llvm::StringRef(data))) {
+      return true;
+    }
+    return false;
+  }
+
+  bool isIdentity() const {
+    return this->regexText().empty();
+  }
+
+  std::string regexText() const {
+    return this->_regexText;
+  }
+};
+SERIALIZABLE(HeaderFilter)
+
 struct SemanticAnalysisJobDetails {
   clang::tooling::CompileCommand command;
+  HeaderFilter recordHistoryFilter;
 };
 SERIALIZABLE(SemanticAnalysisJobDetails)
 
@@ -87,19 +122,52 @@ struct IndexJobRequest {
 };
 SERIALIZABLE(IndexJobRequest)
 
-struct Sha256Hash {
-  std::array<uint8_t, 256 / 8> value;
-};
-SERIALIZABLE(Sha256Hash)
+SERIALIZABLE(HashValue)
 
 struct HeaderInfo {
   std::string headerPath;
-  Sha256Hash hashValue;
+  HashValue hashValue;
+
+  friend bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs) {
+    if (lhs.hashValue < rhs.hashValue) {
+      return true;
+    }
+    if (lhs.hashValue == rhs.hashValue) {
+      return lhs.headerPath < rhs.headerPath;
+    }
+    return false;
+  }
 };
 SERIALIZABLE(HeaderInfo)
 
+struct HeaderInfoMulti {
+  std::string headerPath;
+  std::vector<HashValue> hashValues;
+
+  friend bool operator<(const HeaderInfoMulti &lhs,
+                        const HeaderInfoMulti &rhs) {
+    auto cmp = std::strcmp(lhs.headerPath.c_str(), rhs.headerPath.c_str());
+    if (cmp < 0) {
+      return true;
+    }
+    if (cmp == 0) {
+      return lhs.hashValues < rhs.hashValues;
+    }
+    return false;
+  }
+};
+SERIALIZABLE(HeaderInfoMulti)
+
 struct SemanticAnalysisJobResult {
-  std::vector<HeaderInfo> headersProcessed;
+  std::vector<HeaderInfo> singlyExpandedHeaders;
+  std::vector<HeaderInfoMulti> multiplyExpandedHeaders;
+
+  SemanticAnalysisJobResult() = default;
+  SemanticAnalysisJobResult(SemanticAnalysisJobResult &&) = default;
+  SemanticAnalysisJobResult &operator=(SemanticAnalysisJobResult &&) = default;
+  SemanticAnalysisJobResult(const SemanticAnalysisJobResult &) = delete;
+  SemanticAnalysisJobResult &
+  operator=(const SemanticAnalysisJobResult &) = delete;
 };
 SERIALIZABLE(SemanticAnalysisJobResult)
 

@@ -287,7 +287,6 @@ bool CommandObjectHandler::String(const char *str, rapidjson::SizeType length,
                                   bool copy) {
   switch (this->previousKey) {
   case Key::Unset:
-    // FIXME(ref: add-enforce)
     ENFORCE(false, "unexpected input");
     return false;
   case Key::Directory:

@@ -1,6 +1,7 @@
 #include <type_traits>
 
 #include "spdlog/fmt/fmt.h"
+#include "spdlog/spdlog.h"
 
 #include "llvm/Support/JSON.h"
 
@@ -27,6 +28,33 @@ bool fromJSON(const llvm::json::Value &value, JobId &jobId,
     return true;
   }
   path.report("expected uint64_t for job");
+  return false;
+}
+
+HeaderFilter::HeaderFilter(std::string &&re) : _regexText(re) {
+  if (this->_regexText.empty()) {
+    this->matcher = {};
+    return;
+  }
+  this->matcher = {llvm::Regex(this->_regexText)};
+  std::string errMsg;
+  if (matcher->isValid(errMsg)) {
+    spdlog::error("ill-formed regex for recording headers: {}", errMsg);
+    std::exit(EXIT_FAILURE);
+  }
+}
+
+llvm::json::Value toJSON(const HeaderFilter &filter) {
+  return llvm::json::Value(filter.regexText());
+}
+
+bool fromJSON(const llvm::json::Value &jsonValue, HeaderFilter &filter,
+              llvm::json::Path path) {
+  if (auto s = jsonValue.getAsString()) {
+    filter = HeaderFilter(s.value().str());
+    return true;
+  }
+  path.report("expected string for HeaderFilter");
   return false;
 }
 
@@ -99,29 +127,16 @@ bool fromJSON(const llvm::json::Value &jsonValue, IndexJobResult &job,
   return fromJSONIndexJob(jsonValue, job, path);
 }
 
-llvm::json::Value toJSON(const Sha256Hash &h) {
-  return llvm::json::Array(h.value);
+llvm::json::Value toJSON(const HashValue &h) {
+  return llvm::json::Value(h.rawValue);
 }
-bool fromJSON(const llvm::json::Value &jsonValue, Sha256Hash &h,
+bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
               llvm::json::Path path) {
-  if (auto v = jsonValue.getAsArray()) {
-    if (v->size() == sizeof(decltype(h.value))) {
-      for (size_t i = 0; i < v->size(); i++) {
-        if (auto u = (*v)[i].getAsUINT64()) {
-          if (u.value() <= uint64_t(UINT8_MAX)) {
-            h.value[i] = u.value();
-            continue;
-          }
-        }
-        path.report("expected uint8 in array");
-        return false;
-      }
-      return true;
-    }
-    path.report("expected array with size 32");
-    return false;
+  if (auto v = jsonValue.getAsUINT64()) {
+    h.rawValue = v.value();
+    return true;
   }
-  path.report("expected array<uint8_t> for header hash");
+  path.report("expected uint64_t for HashValue");
   return false;
 }
 
@@ -136,7 +151,6 @@ bool fromJSON(const llvm::json::Value &jsonValue, Sha256Hash &h,
     llvm::json::ObjectMapper mapper(jsonValue, path);     \
     return mapper && mapper.map(#F1, t.F1);               \
   }
-DERIVE_SERIALIZE(scip_clang::SemanticAnalysisJobResult, headersProcessed)
 DERIVE_SERIALIZE(scip_clang::EmitIndexJobResult, indexPartPath)
 #undef DERIVE_SERIALIZE
 
@@ -154,15 +168,19 @@ DERIVE_SERIALIZE(scip_clang::EmitIndexJobResult, indexPartPath)
   }
 
 DERIVE_SERIALIZE(scip_clang::HeaderInfo, headerPath, hashValue)
+DERIVE_SERIALIZE(scip_clang::HeaderInfoMulti, headerPath, hashValues)
 DERIVE_SERIALIZE(scip_clang::EmitIndexJobDetails, headersToBeEmitted,
                  outputDirectory)
 DERIVE_SERIALIZE(scip_clang::IndexJobRequest, id, job)
+DERIVE_SERIALIZE(scip_clang::SemanticAnalysisJobResult, singlyExpandedHeaders,
+                 multiplyExpandedHeaders)
 
 llvm::json::Value toJSON(const SemanticAnalysisJobDetails &val) {
   return llvm::json::Object{{"workdir", val.command.Directory},
                             {"file", val.command.Filename},
                             {"output", val.command.Output},
-                            {"args", val.command.CommandLine}};
+                            {"args", val.command.CommandLine},
+                            {"recordHistoryFilter", val.recordHistoryFilter}};
 }
 
 bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
@@ -171,7 +189,8 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
   return mapper && mapper.map("workdir", d.command.Directory)
          && mapper.map("file", d.command.Filename)
          && mapper.map("output", d.command.Output)
-         && mapper.map("args", d.command.CommandLine);
+         && mapper.map("args", d.command.CommandLine)
+         && mapper.map("recordHistoryFilter", d.recordHistoryFilter);
 }
 
 llvm::json::Value toJSON(const IndexJobResponse &r) {

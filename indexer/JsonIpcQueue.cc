@@ -27,6 +27,9 @@ void JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
 static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
   auto now = boost::posix_time::microsec_clock::local_time();
   auto after = now + boost::posix_time::milliseconds(durationMillis);
+  // spdlog::debug("now = {}; after = {}",
+  // boost::posix_time::to_simple_string(now),
+  //   boost::posix_time::to_simple_string(after));
   return after;
 }
 
@@ -37,6 +40,8 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   size_t recvCount;
   unsigned recvPriority;
   spdlog::debug("will wait for atmost {}ms", waitMillis);
+  // FIXME: It looks like the timeout doesn't work. For example, if I put
+  // a sleep in the worker, the driver doesn't kill the worker...
   if (this->queue->timed_receive(readBuffer.data(), readBuffer.size(),
                                  recvCount, recvPriority,
                                  fromNow(waitMillis))) {
