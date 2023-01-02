@@ -414,11 +414,6 @@ public:
   IndexerFrontendActionFactory(const IndexerPPConfig &config,
                                SemanticAnalysisJobResult &result)
       : config(config), result(result) {}
-  // /// Invokes the compiler with a FrontendAction created by create().
-  // bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
-  //                    FileManager *Files,
-  //                    std::shared_ptr<PCHContainerOperations> PCHContainerOps,
-  //                    DiagnosticConsumer *DiagConsumer) override;
 
   virtual std::unique_ptr<clang::FrontendAction> create() override {
     return std::make_unique<IndexerFrontendAction>(config, result);
