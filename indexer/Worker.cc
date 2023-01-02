@@ -54,6 +54,8 @@ struct MessageQueuePair {
   }
 };
 
+// A type to keep track of the "transcript" (in Kythe terminology)
+// of an #include being processed.
 class HashValueBuilder {
   // The hash value calculated so far for preprocessor effects.
   HashValue runningHash;
@@ -82,6 +84,9 @@ public:
     }
   }
 
+  // Deliberately not named mix(..); we should avoid constructing temporary
+  // strings which will be immediately be destroyed after the bytes are mixed
+  // into the running hash value.
   void mixString(std::string &&text) {
     this->mix(llvm::StringRef(text));
   }
@@ -471,6 +476,17 @@ performSemanticAnalysis(SemanticAnalysisJobDetails &&job) {
   {
     LogTimerRAII timer(fmt::format("invocation for {}", job.command.Filename));
     bool ranSuccessfully = Invocation.run();
+    // FIXME(def: delay-ast-traversal): Right now, IIUC, this will run the
+    // pre-processor, and then run the AST traversal directly. However,
+    // after the preprocessor is done, we want to perform some extra logic
+    // which sends a message to the driver, gets back some information,
+    // which then customizes the AST traversal. I'm not 100% sure on the
+    // best way to do this, but one idea is to pass down a callback
+    // (call it 'setTraversalConfig') to IndexerPPCallbacks.
+    // 'setTraversalConfig' can be invoked during 'EndOfMainFile' which
+    // is the last overriden method to be called. Later, that state
+    // can be read by IndexerASTConsumer in InitializeSema.
+
     (void)ranSuccessfully; // FIXME(ref: surface-diagnostics)
   }
 
