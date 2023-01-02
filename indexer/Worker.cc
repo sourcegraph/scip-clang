@@ -105,28 +105,12 @@ public:
   }
 
 struct HeaderInfoBuilder final {
-  const clang::FileID fileId;
   HashValueBuilder hashValueBuilder;
-};
-
-struct MultiHashValue {
-  const HashValue hashValue;
-  bool isMultiple;
+  const clang::FileID fileId;
 };
 
 class IndexerPPStack final {
-public:
   std::vector<HeaderInfoBuilder> state;
-  // Headers which we've seen only expand in a single way.
-  // The extra bit inside the MultiHashValue struct indicates
-  // if should look in the finishedProcessingMulti map instead.
-  absl::flat_hash_map<LLVMToAbslHashAdapter<clang::FileID>, MultiHashValue>
-      finishedProcessing;
-  // Headers which expand in at least 2 different ways.
-  // The values have size() >= 2.
-  absl::flat_hash_map<LLVMToAbslHashAdapter<clang::FileID>,
-                      absl::flat_hash_set<HashValue>>
-      finishedProcessingMulti;
 
 public:
   bool empty() {
@@ -136,47 +120,16 @@ public:
     ENFORCE(!this->empty());
     return this->state.back().hashValueBuilder;
   }
-
-  void enterInclude(clang::FileID fileId, bool recordHistory) {
-    this->state.emplace_back(
-        HeaderInfoBuilder{fileId, HashValueBuilder(recordHistory)});
-  }
-  std::optional<HashValue>
-  exitInclude(clang::FileID fileId, const clang::SourceManager &sourceManager) {
-    if (fileId.isInvalid()) {
+  std::optional<HeaderInfoBuilder> pop() {
+    if (this->state.empty()) {
       return {};
     }
-    ENFORCE(!this->state.empty(), "missing matching enterInclude for exit");
-    auto headerInfo = std::move(this->state.back());
+    auto info = std::move(this->state.back());
     this->state.pop_back();
-    bool fileIdMatchesTopOfStack = headerInfo.fileId == fileId;
-    if (!fileIdMatchesTopOfStack) {
-      ENFORCE(fileIdMatchesTopOfStack,
-              "fileId mismatch:\ntop of stack: {}\nexitInclude: {}",
-              debug::tryGetPath(sourceManager, headerInfo.fileId),
-              debug::tryGetPath(sourceManager, fileId));
-    }
-
-    auto key = LLVMToAbslHashAdapter<clang::FileID>{headerInfo.fileId};
-    auto it = this->finishedProcessing.find(key);
-    auto hashValue = headerInfo.hashValueBuilder.finish();
-    if (it == this->finishedProcessing.end()) {
-      this->finishedProcessing.insert({key, MultiHashValue{hashValue, false}});
-    } else if (it->second.isMultiple) {
-      auto itMulti = this->finishedProcessingMulti.find(key);
-      ENFORCE(itMulti != this->finishedProcessingMulti.end(),
-              "isMultiple = true but key missing from finishedProcessingMulti");
-      itMulti->second.insert(hashValue);
-    } else if (it->second.hashValue != hashValue) {
-      it->second.isMultiple = true;
-      auto oldHash = it->second.hashValue;
-      auto newHash = hashValue;
-      auto [_, inserted] =
-          this->finishedProcessingMulti.insert({key, {oldHash, newHash}});
-      ENFORCE(inserted, "isMultiple = false, but key already present is "
-                        "finishedProcessingMulti");
-    }
-    return hashValue;
+    return info;
+  }
+  void push(HeaderInfoBuilder &&info) {
+    this->state.emplace_back(std::move(info));
   }
 };
 
@@ -192,17 +145,33 @@ struct IndexerPPConfig {
 };
 
 class IndexerPPCallbacks final : public clang::PPCallbacks {
+  const IndexerPPConfig &config;
+  SemanticAnalysisJobResult &result;
+
   clang::SourceManager &sourceManager;
   IndexerPPStack stack;
 
-  const IndexerPPConfig &config;
-  SemanticAnalysisJobResult &result;
+  struct MultiHashValue {
+    const HashValue hashValue;
+    bool isMultiple;
+  };
+  // Headers which we've seen only expand in a single way.
+  // The extra bit inside the MultiHashValue struct indicates
+  // if should look in the finishedProcessingMulti map instead.
+  absl::flat_hash_map<LLVMToAbslHashAdapter<clang::FileID>, MultiHashValue>
+      finishedProcessing;
+  // Headers which expand in at least 2 different ways.
+  // The values have size() >= 2.
+  absl::flat_hash_map<LLVMToAbslHashAdapter<clang::FileID>,
+                      absl::flat_hash_set<HashValue>>
+      finishedProcessingMulti;
 
 public:
   IndexerPPCallbacks(clang::SourceManager &sourceManager,
                      const IndexerPPConfig &config,
                      SemanticAnalysisJobResult &result)
-      : sourceManager(sourceManager), stack(), config(config), result(result) {}
+      : config(config), result(result), sourceManager(sourceManager), stack(),
+        finishedProcessing(), finishedProcessingMulti() {}
 
   ~IndexerPPCallbacks() {
     auto getAbsPath = [&](clang::FileID fileId) -> std::optional<AbsolutePath> {
@@ -229,7 +198,7 @@ public:
       return optAbsPath;
     };
     {
-      auto &headerHashes = this->stack.finishedProcessing;
+      auto &headerHashes = this->finishedProcessing;
 
       for (auto it = headerHashes.begin(), end = headerHashes.end(); it != end;
            ++it) {
@@ -249,7 +218,7 @@ public:
       }
     }
     {
-      auto &headerHashes = this->stack.finishedProcessingMulti;
+      auto &headerHashes = this->finishedProcessingMulti;
       std::vector<HashValue> buf;
       for (auto it = headerHashes.begin(), end = headerHashes.end(); it != end;
            ++it) {
@@ -267,6 +236,49 @@ public:
         absl::c_sort(result.multiplyExpandedHeaders);
       }
     }
+  }
+
+  void enterInclude(bool recordHistory, clang::FileID enteredFileId) {
+    this->stack.push(
+        HeaderInfoBuilder{HashValueBuilder(recordHistory), enteredFileId});
+  }
+
+  std::optional<HashValue> exitInclude(clang::FileID fileId) {
+    if (fileId.isInvalid()) {
+      return {};
+    }
+    auto optHeaderInfo = this->stack.pop();
+    ENFORCE(optHeaderInfo.has_value(),
+            "missing matching enterInclude for exit");
+    auto headerInfo = std::move(optHeaderInfo.value());
+    bool fileIdMatchesTopOfStack = headerInfo.fileId == fileId;
+    if (!fileIdMatchesTopOfStack) {
+      ENFORCE(fileIdMatchesTopOfStack,
+              "fileId mismatch:\ntop of stack: {}\nexitInclude: {}",
+              debug::tryGetPath(this->sourceManager, headerInfo.fileId),
+              debug::tryGetPath(this->sourceManager, fileId));
+    }
+
+    auto key = LLVMToAbslHashAdapter<clang::FileID>{headerInfo.fileId};
+    auto it = this->finishedProcessing.find(key);
+    auto hashValue = headerInfo.hashValueBuilder.finish();
+    if (it == this->finishedProcessing.end()) {
+      this->finishedProcessing.insert({key, MultiHashValue{hashValue, false}});
+    } else if (it->second.isMultiple) {
+      auto itMulti = this->finishedProcessingMulti.find(key);
+      ENFORCE(itMulti != this->finishedProcessingMulti.end(),
+              "isMultiple = true but key missing from finishedProcessingMulti");
+      itMulti->second.insert(hashValue);
+    } else if (it->second.hashValue != hashValue) {
+      it->second.isMultiple = true;
+      auto oldHash = it->second.hashValue;
+      auto newHash = hashValue;
+      auto [_, inserted] =
+          this->finishedProcessingMulti.insert({key, {oldHash, newHash}});
+      ENFORCE(inserted, "isMultiple = false, but key already present is "
+                        "finishedProcessingMulti");
+    }
+    return hashValue;
   }
 
   // START overrides from PPCallbacks
@@ -291,50 +303,48 @@ public:
               clang::PPCallbacks::FileChangeReason reason,
               clang::SrcMgr::CharacteristicKind fileType,
               clang::FileID previousFileId = clang::FileID()) override {
-    // 1. For every header, store a list of locations where it is consumed.
     using Reason = clang::PPCallbacks::FileChangeReason;
     switch (reason) {
     case Reason::SystemHeaderPragma:
     case Reason::RenameFile:
       return;
     case Reason::ExitFile: {
-      if (auto optHash =
-              stack.exitInclude(previousFileId, this->sourceManager)) {
-        if (!this->stack.empty()) {
-          MIX_WITH_KEY(this->stack.topHash(),
-                       fmt::format("hash for #include {}",
-                                   debug::tryGetPath(this->sourceManager,
-                                                     previousFileId)),
-                       optHash->rawValue);
-        }
+      auto optHash = this->exitInclude(previousFileId);
+      if (!optHash || this->stack.empty()) {
+        break;
       }
+      MIX_WITH_KEY(
+          this->stack.topHash(),
+          fmt::format("hash for #include {}",
+                      debug::tryGetPath(this->sourceManager, previousFileId)),
+          optHash->rawValue);
       break;
     }
-    case Reason::EnterFile:
-      if (sourceLoc.isValid()) {
-        // TODO(ref: add-enforce): Enforce that we have a FileId here.
-        if (sourceLoc.isFileID()) {
-          auto enteredFileId = this->sourceManager.getFileID(sourceLoc);
-          if (enteredFileId.isValid()) {
-            ENFORCE(this->sourceManager.getSLocEntry(enteredFileId).isFile(),
-                    "sourceLoc.isFileID() is true, but sloc isFile() is false");
-            bool recordHistory = false;
-            if (!this->config.recordHistoryFilter.isIdentity()) {
-              if (auto enteredFileEntry =
-                      this->sourceManager.getFileEntryForID(enteredFileId)) {
-                auto path = enteredFileEntry->tryGetRealPathName();
-                recordHistory = !path.empty()
-                                && this->config.recordHistoryFilter.isMatch(
-                                    toStringView(path));
-              }
-            }
-            this->stack.enterInclude(enteredFileId, recordHistory);
-            MIX_WITH_KEY(this->stack.topHash(), "self path",
-                         debug::tryGetPath(this->sourceManager, enteredFileId));
-          }
+    case Reason::EnterFile: {
+      if (!sourceLoc.isValid()) {
+        break;
+      }
+      ENFORCE(sourceLoc.isFileID(), "EnterFile called on a non-FileID");
+      auto enteredFileId = this->sourceManager.getFileID(sourceLoc);
+      if (!enteredFileId.isValid()) {
+        break;
+      }
+      bool recordHistory = false;
+      if (!this->config.recordHistoryFilter.isIdentity()) {
+        if (auto enteredFileEntry =
+                this->sourceManager.getFileEntryForID(enteredFileId)) {
+          auto path = enteredFileEntry->tryGetRealPathName();
+          recordHistory =
+              !path.empty()
+              && this->config.recordHistoryFilter.isMatch(toStringView(path));
         }
       }
+      this->enterInclude(recordHistory, enteredFileId);
+      MIX_WITH_KEY(this->stack.topHash(), "self path",
+                   debug::tryGetPath(this->sourceManager, enteredFileId));
+
       break;
+    }
     }
   }
 
