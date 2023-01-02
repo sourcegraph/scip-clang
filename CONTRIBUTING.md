@@ -50,12 +50,8 @@ need to reload the editor).
 
 ### Building with ASan
 
-Add `--copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-Wno-macro-redefined"`
-to the Bazel invocation.
-
-At the time of writing, using ASan triggers
-a noisy macro redefinition warning inside LLVM,
-so I recommend suppressing it.
+Use `--config:asan` or manually add the `build:asan` settings
+from `.bazelrc` to your Bazel invocation.
 
 ### Inspecting Clang ASTs
 
