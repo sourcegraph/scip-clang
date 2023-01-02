@@ -16,6 +16,7 @@
 
 #include "indexer/CompilationDatabase.h"
 #include "indexer/Enforce.h"
+#include "indexer/IpcMessages.h"
 
 using namespace scip_clang;
 
@@ -47,6 +48,7 @@ enum class SnapshotTestMode {
 };
 
 struct CliOptions {
+  bool runUnitTests;
   bool runCompDbTests;
   SnapshotTestMode testMode;
 };
@@ -91,6 +93,37 @@ template <> struct llvm::yaml::MappingTraits<clang::tooling::CompileCommand> {
 template <>
 struct llvm::yaml::SequenceElementTraits<clang::tooling::CompileCommand> {
   static const bool flow = false;
+};
+
+TEST_CASE("UNIT_TESTS") {
+  if (!cliOptions.runUnitTests) {
+    return;
+  }
+  struct HeaderFilterTestCase {
+    std::string regex;
+    std::vector<std::string> matchTrue;
+    std::vector<std::string> matchFalse;
+  };
+  std::vector<HeaderFilterTestCase> testCases{
+      {R"(.+\.h.*)", {"a.h", "a.hpp", "a.hxx"}, {"a.c", "a.cpp", "a.cxx"}},
+      {"foo.h", {"foo.h"}, {"foo.hpp", "foo.hxx", "bar.h"}},
+      {R"((foo|bar).h)", {"foo.h", "bar.h"}, {"qux.h"}},
+  };
+
+  for (auto &testCase : testCases) {
+    std::string regexCopy = testCase.regex;
+    scip_clang::HeaderFilter filter(std::move(testCase.regex));
+    for (auto &shouldMatch : testCase.matchTrue) {
+      CHECK_MESSAGE(
+          filter.isMatch(shouldMatch),
+          fmt::format("expected regex {} to match {}", regexCopy, shouldMatch));
+    }
+    for (auto &shouldntMatch : testCase.matchFalse) {
+      CHECK_MESSAGE(!filter.isMatch(shouldntMatch),
+                    fmt::format("expected regex {} to not match {}", regexCopy,
+                                shouldntMatch));
+    }
+  }
 };
 
 TEST_CASE("COMPDB_PARSING") {
@@ -156,6 +189,9 @@ int main(int argc, char *argv[]) {
   scip_clang::initializeSymbolizer(argv[0]);
 
   cxxopts::Options options("test_main", "Test runner for scip-clang");
+  options.add_options()("unit-tests",
+                        "Run unit tests for smaller functionality",
+                        cxxopts::value<bool>(cliOptions.runUnitTests));
   options.add_options()("compdb-tests",
                         "Run the compilation database related tests",
                         cxxopts::value<bool>());

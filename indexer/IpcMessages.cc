@@ -31,15 +31,17 @@ bool fromJSON(const llvm::json::Value &value, JobId &jobId,
   return false;
 }
 
-HeaderFilter::HeaderFilter(std::string &&re) : _regexText(re) {
-  if (this->_regexText.empty()) {
+HeaderFilter::HeaderFilter(std::string &&re) {
+  if (re.empty()) {
     this->matcher = {};
     return;
   }
+  this->_regexText = fmt::format("^({})$", re);
   this->matcher = {llvm::Regex(this->_regexText)};
   std::string errMsg;
-  if (matcher->isValid(errMsg)) {
-    spdlog::error("ill-formed regex for recording headers: {}", errMsg);
+  if (!matcher->isValid(errMsg)) {
+    spdlog::error("ill-formed regex {} for recording headers: {}",
+                  this->_regexText, errMsg);
     std::exit(EXIT_FAILURE);
   }
 }

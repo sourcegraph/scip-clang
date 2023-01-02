@@ -1,5 +1,12 @@
 def scip_clang_test_suite(compdb_data):
     native.sh_test(
+        name = "test_unit",
+        srcs = ["test_main.sh"],
+        args = ["--unit-tests"],
+        data = ["//test:test_main"],
+        size = "small",
+    )
+    native.sh_test(
         name = "test_compdb",
         srcs = ["test_main.sh"],
         args = ["--compdb-tests"],
@@ -15,7 +22,7 @@ def scip_clang_test_suite(compdb_data):
     )
     native.test_suite(
         name = "test",
-        tests = ["test_compdb"],
+        tests = ["test_unit", "test_compdb"],
     )
     native.test_suite(
         name = "update",
