@@ -27,9 +27,7 @@ void JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
 static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
   auto now = boost::posix_time::microsec_clock::local_time();
   auto after = now + boost::posix_time::milliseconds(durationMillis);
-  // spdlog::debug("now = {}; after = {}",
-  // boost::posix_time::to_simple_string(now),
-  //   boost::posix_time::to_simple_string(after));
+  // Hint: Use boost::posix_time::to_simple_string to debug if needed.
   return after;
 }
 
