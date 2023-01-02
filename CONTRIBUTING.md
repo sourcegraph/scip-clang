@@ -50,7 +50,6 @@ need to reload the editor).
 
 ### Building with ASan
 
-
 Add `--copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-Wno-macro-redefined"`
 to the Bazel invocation.
 
@@ -83,3 +82,14 @@ but having a separate macro makes it easier to change
 the behavior in scip-clang exclusively, whereas there is a
 greater chance of mistakes if we want to separate out the
 cost of assertions in Clang itself vs in our code.
+
+## Notes on Clang internals
+
+- A `FileID`, unlike the name suggests, can refer to a File or
+  a macro expansion.
+- A valid `FileID` always has a corresponding `SLocEntry`.
+- A `FileEntry` is only present for a File-representing `FileID`
+  if it corresponds to an actual file. It will be missing
+  if the `FileID` corresponds to an imaginary file
+  (e.g. builtins). Thus, `sourceManager.getFileEntryForID` can
+  return null for certain valid FileIDs.
