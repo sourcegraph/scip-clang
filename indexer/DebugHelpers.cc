@@ -1,3 +1,9 @@
+
+#include "clang/Basic/SourceManager.h"
+#include "clang/Basic/FileEntry.h"
+#include "clang/Lex/PPCallbacks.h"
+#include "llvm/ADT/StringRef.h"
+
 #include "indexer/DebugHelpers.h"
 
 namespace scip_clang {
