@@ -18,7 +18,7 @@
 #include "indexer/Worker.h"
 
 static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
-  scip_clang::CliOptions cliOptions;
+  scip_clang::CliOptions cliOptions{};
   cliOptions.scipClangExecutablePath = argv[0];
   using namespace std::chrono_literals;
   auto defaultReceiveTimeoutSeconds = "120";
@@ -48,6 +48,18 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     fmt::format("How long the driver should wait for a worker before marking "
                 "it as timed out?", defaultReceiveTimeoutSeconds),
     cxxopts::value<uint32_t>()->default_value(defaultReceiveTimeoutSeconds));
+  parser.add_options("Advanced")(
+    "deterministic",
+    "Try to run everything in a deterministic fashion as much as possible.",
+    cxxopts::value<bool>(cliOptions.deterministic));
+  parser.add_options("Internal")(
+    "record-history",
+    "Regex for identifying headers for which textual descriptions of preprocessor"
+    " effects should be recorded while computing transcripts, instead of"
+    " only maintaining a running hash value. Meant to be used in conjunction"
+    " with a not-yet-implemented flag for dumping these transcripts.",
+    // TODO(ref: transcript-record-output)
+    cxxopts::value<std::string>(cliOptions.recordHistoryRegex)->default_value(""));
   parser.add_options("Internal")(
     "worker",
     "[worker-only] Spawn an indexing worker instead of invoking the driver directly",

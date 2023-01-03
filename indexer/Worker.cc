@@ -264,6 +264,8 @@ public:
               debug::tryGetPath(this->sourceManager, fileId));
     }
 
+    // TODO(def: transcript-record-output): Implement functionality for
+    // outputting the transcript history to one or more files.
     auto key = LLVMToAbslHashAdapter<clang::FileID>{headerInfo.fileId};
     auto it = this->finishedProcessing.find(key);
     auto hashValue = headerInfo.hashValueBuilder.finish();
@@ -447,61 +449,84 @@ public:
 
 } // namespace
 
-static SemanticAnalysisJobResult
-performSemanticAnalysis(SemanticAnalysisJobDetails &&job) {
-  clang::FileSystemOptions fileSystemOptions;
-  fileSystemOptions.WorkingDir = std::move(job.command.Directory);
+struct WorkerOptions {
+  std::chrono::seconds receiveTimeout;
+  spdlog::level::level_enum logLevel;
+  bool deterministic;
+  std::string recordHistoryRegex;
+  std::string driverId;
+  uint64_t workerId;
 
-  llvm::IntrusiveRefCntPtr<clang::FileManager> fileManager(
-      new clang::FileManager(fileSystemOptions, nullptr));
+  WorkerOptions(const CliOptions &cliOptions)
+      : receiveTimeout(cliOptions.receiveTimeout),
+        logLevel(cliOptions.logLevel), deterministic(cliOptions.deterministic),
+        recordHistoryRegex(cliOptions.recordHistoryRegex),
+        driverId(cliOptions.driverId), workerId(cliOptions.workerId) {}
+};
 
-  auto args = std::move(job.command.CommandLine);
-  args.push_back("-fsyntax-only");   // Only type-checking, no codegen.
-  args.push_back("-Wno-everything"); // Warnings aren't helpful.
-  // Should we add a CLI flag to pass through extra arguments here?
+class Worker {
+  WorkerOptions options;
 
-  auto projectRoot = std::filesystem::current_path().string();
-  IndexerPPConfig config{
-      AbsolutePath::tryFrom(std::string_view(projectRoot)).value(),
-      HeaderFilter(), false};
-  SemanticAnalysisJobResult result{};
-  auto frontendActionFactory = IndexerFrontendActionFactory(config, result);
+  MessageQueuePair messageQueues;
 
-  clang::tooling::ToolInvocation Invocation(
-      std::move(args), &frontendActionFactory, fileManager.get(),
-      std::make_shared<clang::PCHContainerOperations>());
+public:
+  Worker(WorkerOptions &&options)
+      : options(std::move(options)),
+        messageQueues(
+            MessageQueuePair(this->options.driverId, this->options.workerId)) {}
 
-  IndexerDiagnosticConsumer diagnosticConsumer;
-  Invocation.setDiagnosticConsumer(&diagnosticConsumer);
+  void performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
+                               SemanticAnalysisJobResult &result) {
+    clang::FileSystemOptions fileSystemOptions;
+    fileSystemOptions.WorkingDir = std::move(job.command.Directory);
 
-  {
-    LogTimerRAII timer(fmt::format("invocation for {}", job.command.Filename));
-    bool ranSuccessfully = Invocation.run();
-    // FIXME(def: delay-ast-traversal): Right now, IIUC, this will run the
-    // pre-processor, and then run the AST traversal directly. However,
-    // after the preprocessor is done, we want to perform some extra logic
-    // which sends a message to the driver, gets back some information,
-    // which then customizes the AST traversal. I'm not 100% sure on the
-    // best way to do this, but one idea is to pass down a callback
-    // (call it 'setTraversalConfig') to IndexerPPCallbacks.
-    // 'setTraversalConfig' can be invoked during 'EndOfMainFile' which
-    // is the last overriden method to be called. Later, that state
-    // can be read by IndexerASTConsumer in InitializeSema.
+    llvm::IntrusiveRefCntPtr<clang::FileManager> fileManager(
+        new clang::FileManager(fileSystemOptions, nullptr));
 
-    (void)ranSuccessfully; // FIXME(ref: surface-diagnostics)
+    auto args = std::move(job.command.CommandLine);
+    args.push_back("-fsyntax-only");   // Only type-checking, no codegen.
+    args.push_back("-Wno-everything"); // Warnings aren't helpful.
+    // Should we add a CLI flag to pass through extra arguments here?
+
+    auto projectRoot = std::filesystem::current_path().string();
+    IndexerPPConfig config{
+        AbsolutePath::tryFrom(std::string_view(projectRoot)).value(),
+        HeaderFilter(std::string(this->options.recordHistoryRegex)),
+        this->options.deterministic};
+    auto frontendActionFactory = IndexerFrontendActionFactory(config, result);
+
+    clang::tooling::ToolInvocation Invocation(
+        std::move(args), &frontendActionFactory, fileManager.get(),
+        std::make_shared<clang::PCHContainerOperations>());
+
+    IndexerDiagnosticConsumer diagnosticConsumer;
+    Invocation.setDiagnosticConsumer(&diagnosticConsumer);
+
+    {
+      LogTimerRAII timer(
+          fmt::format("invocation for {}", job.command.Filename));
+      bool ranSuccessfully = Invocation.run();
+      // FIXME(def: delay-ast-traversal): Right now, IIUC, this will run the
+      // pre-processor, and then run the AST traversal directly. However,
+      // after the preprocessor is done, we want to perform some extra logic
+      // which sends a message to the driver, gets back some information,
+      // which then customizes the AST traversal. I'm not 100% sure on the
+      // best way to do this, but one idea is to pass down a callback
+      // (call it 'setTraversalConfig') to IndexerPPCallbacks.
+      // 'setTraversalConfig' can be invoked during 'EndOfMainFile' which
+      // is the last overriden method to be called. Later, that state
+      // can be read by IndexerASTConsumer in InitializeSema.
+
+      (void)ranSuccessfully; // FIXME(ref: surface-diagnostics)
+    }
   }
 
-  return result;
-}
-
-int workerMain(CliOptions &&cliOptions) {
-  BOOST_TRY {
-    MessageQueuePair mq(cliOptions.driverId, cliOptions.workerId);
-
+  void run() {
+    auto &mq = this->messageQueues;
     while (true) {
       IndexJobRequest request{};
       auto recvError =
-          mq.driverToWorker.timedReceive(request, cliOptions.receiveTimeout);
+          mq.driverToWorker.timedReceive(request, this->options.receiveTimeout);
       if (recvError.isA<TimeoutError>()) {
         spdlog::error(
             "timeout in worker; is the driver dead?... shutting down");
@@ -523,13 +548,20 @@ int workerMain(CliOptions &&cliOptions) {
         result.emitIndex = EmitIndexJobResult{"lol"};
         break;
       case IndexJob::Kind::SemanticAnalysis:
-        result.semanticAnalysis = scip_clang::performSemanticAnalysis(
-            std::move(request.job.semanticAnalysis));
+        this->performSemanticAnalysis(std::move(request.job.semanticAnalysis),
+                                      result.semanticAnalysis);
         break;
       }
-      mq.workerToDriver.send(
-          IndexJobResponse{cliOptions.workerId, request.id, std::move(result)});
+      mq.workerToDriver.send(IndexJobResponse{this->options.workerId,
+                                              request.id, std::move(result)});
     }
+  }
+};
+
+int workerMain(CliOptions &&cliOptions) {
+  BOOST_TRY {
+    Worker worker((WorkerOptions(cliOptions)));
+    worker.run();
   }
   BOOST_CATCH(boost_ip::interprocess_exception & ex) {
     // Don't delete queue from worker; let driver handle that.

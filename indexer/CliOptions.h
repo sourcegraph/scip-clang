@@ -20,6 +20,11 @@ struct CliOptions {
 
   spdlog::level::level_enum logLevel;
 
+  bool deterministic;
+  std::string recordHistoryRegex;
+
+  // Worker-specific options
+
   bool isWorker;
 
   // An opaque ID provided by the driver for a worker to identify the
