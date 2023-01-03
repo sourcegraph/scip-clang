@@ -96,7 +96,10 @@ struct DriverOptions {
         compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
         receiveTimeout(cliOpts.numWorkers),
         deterministic(cliOpts.deterministic),
-        recordHistoryRegex(cliOpts.recordHistoryRegex) {}
+        recordHistoryRegex(cliOpts.recordHistoryRegex) {
+    // Eagerly check that the regex is well-formed
+    HeaderFilter _((std::string(this->recordHistoryRegex)));
+  }
 
   void addWorkerOptions(std::vector<std::string> &args) const {
     args.push_back(fmt::format(
@@ -335,7 +338,7 @@ private:
     auto it = this->allJobList.find(jobId);
     ENFORCE(it != this->allJobList.end(), "trying to assign unknown job");
     this->queues.driverToWorker[workerId].send(
-        IndexJobRequest{it->first, IndexJob::clone(it->second)});
+        IndexJobRequest{it->first, it->second});
   }
 
   void assignJobsToAvailableWorkers() {

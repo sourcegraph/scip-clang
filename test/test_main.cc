@@ -14,9 +14,9 @@
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/YAMLTraits.h"
 
+#include "indexer/CliOptions.h"
 #include "indexer/CompilationDatabase.h"
 #include "indexer/Enforce.h"
-#include "indexer/IpcMessages.h"
 
 using namespace scip_clang;
 
@@ -47,17 +47,17 @@ enum class SnapshotTestMode {
   Update,
 };
 
-struct CliOptions {
+struct TestCliOptions {
   bool runUnitTests;
   bool runCompDbTests;
   SnapshotTestMode testMode;
 };
 
-static CliOptions cliOptions{};
+static TestCliOptions testCliOptions{};
 
 void compareOrUpdate(std::string_view actual,
                      std::filesystem::path snapshotFilepath) {
-  switch (cliOptions.testMode) {
+  switch (testCliOptions.testMode) {
   case SnapshotTestMode::Compare: {
     std::ifstream in(snapshotFilepath.c_str(),
                      std::ios_base::in | std::ios_base::binary);
@@ -96,7 +96,7 @@ struct llvm::yaml::SequenceElementTraits<clang::tooling::CompileCommand> {
 };
 
 TEST_CASE("UNIT_TESTS") {
-  if (!cliOptions.runUnitTests) {
+  if (!testCliOptions.runUnitTests) {
     return;
   }
   struct HeaderFilterTestCase {
@@ -127,7 +127,7 @@ TEST_CASE("UNIT_TESTS") {
 };
 
 TEST_CASE("COMPDB_PARSING") {
-  if (!cliOptions.runCompDbTests) {
+  if (!testCliOptions.runCompDbTests) {
     return;
   }
 
@@ -191,23 +191,19 @@ int main(int argc, char *argv[]) {
   cxxopts::Options options("test_main", "Test runner for scip-clang");
   options.add_options()("unit-tests",
                         "Run unit tests for smaller functionality",
-                        cxxopts::value<bool>(cliOptions.runUnitTests));
+                        cxxopts::value<bool>(testCliOptions.runUnitTests));
   options.add_options()("compdb-tests",
                         "Run the compilation database related tests",
-                        cxxopts::value<bool>());
+                        cxxopts::value<bool>(testCliOptions.runCompDbTests));
   options.add_options()("update",
                         "Should snapshots be updated instead of comparing?",
                         cxxopts::value<bool>());
 
   auto result = options.parse(argc, argv);
 
-  if (result.count("compdb-tests") > 0) {
-    cliOptions.runCompDbTests = true;
-  }
-
-  cliOptions.testMode = SnapshotTestMode::Compare;
+  testCliOptions.testMode = SnapshotTestMode::Compare;
   if (result.count("update") > 0) {
-    cliOptions.testMode = SnapshotTestMode::Update;
+    testCliOptions.testMode = SnapshotTestMode::Update;
   }
 
   doctest::Context context(argc, argv);

@@ -31,35 +31,6 @@ bool fromJSON(const llvm::json::Value &value, JobId &jobId,
   return false;
 }
 
-HeaderFilter::HeaderFilter(std::string &&re) {
-  if (re.empty()) {
-    this->matcher = {};
-    return;
-  }
-  this->_regexText = fmt::format("^({})$", re);
-  this->matcher = {llvm::Regex(this->_regexText)};
-  std::string errMsg;
-  if (!matcher->isValid(errMsg)) {
-    spdlog::error("ill-formed regex {} for recording headers: {}",
-                  this->_regexText, errMsg);
-    std::exit(EXIT_FAILURE);
-  }
-}
-
-llvm::json::Value toJSON(const HeaderFilter &filter) {
-  return llvm::json::Value(filter.regexText());
-}
-
-bool fromJSON(const llvm::json::Value &jsonValue, HeaderFilter &filter,
-              llvm::json::Path path) {
-  if (auto s = jsonValue.getAsString()) {
-    filter = HeaderFilter(s.value().str());
-    return true;
-  }
-  path.report("expected string for HeaderFilter");
-  return false;
-}
-
 llvm::json::Value toJSON(const IndexJob::Kind &kind) {
   switch (kind) {
   case IndexJob::Kind::SemanticAnalysis:
@@ -181,8 +152,7 @@ llvm::json::Value toJSON(const SemanticAnalysisJobDetails &val) {
   return llvm::json::Object{{"workdir", val.command.Directory},
                             {"file", val.command.Filename},
                             {"output", val.command.Output},
-                            {"args", val.command.CommandLine},
-                            {"recordHistoryFilter", val.recordHistoryFilter}};
+                            {"args", val.command.CommandLine}};
 }
 
 bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
@@ -191,8 +161,7 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
   return mapper && mapper.map("workdir", d.command.Directory)
          && mapper.map("file", d.command.Filename)
          && mapper.map("output", d.command.Output)
-         && mapper.map("args", d.command.CommandLine)
-         && mapper.map("recordHistoryFilter", d.recordHistoryFilter);
+         && mapper.map("args", d.command.CommandLine);
 }
 
 llvm::json::Value toJSON(const IndexJobResponse &r) {

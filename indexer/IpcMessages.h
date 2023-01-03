@@ -10,6 +10,7 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Regex.h"
 
+#include "indexer/CliOptions.h"
 #include "indexer/Derive.h"
 #include "indexer/Hash.h"
 
@@ -50,48 +51,8 @@ public:
 };
 SERIALIZABLE(JobId)
 
-class HeaderFilter final {
-  // The original text of the regex, because llvm::Regex doesn't expose
-  // an API for serializing to a string.
-  std::string _regexText;
-  std::optional<llvm::Regex> matcher;
-
-public:
-  HeaderFilter() = default;
-  HeaderFilter(HeaderFilter &&) = default;
-  HeaderFilter &operator=(HeaderFilter &&) = default;
-
-  HeaderFilter(std::string &&regexText);
-
-  bool isMatch(std::string_view data) const {
-    if (matcher && matcher->match(llvm::StringRef(data))) {
-      return true;
-    }
-    return false;
-  }
-
-  bool isIdentity() const {
-    return this->regexText().empty();
-  }
-
-  std::string regexText() const {
-    return this->_regexText;
-  }
-};
-SERIALIZABLE(HeaderFilter)
-
 struct SemanticAnalysisJobDetails {
   clang::tooling::CompileCommand command;
-  HeaderFilter recordHistoryFilter;
-
-  static SemanticAnalysisJobDetails
-  clone(const SemanticAnalysisJobDetails &self) {
-    SemanticAnalysisJobDetails clone;
-    clone.command = self.command;
-    clone.recordHistoryFilter =
-        HeaderFilter(self.recordHistoryFilter.regexText());
-    return clone;
-  }
 };
 SERIALIZABLE(SemanticAnalysisJobDetails)
 
@@ -116,15 +77,6 @@ struct IndexJob {
   EmitIndexJobDetails emitIndex;
 
   // See also NOTE(ref: avoiding-unions)
-
-  static IndexJob clone(const IndexJob &self) {
-    IndexJob j;
-    j.kind = self.kind;
-    j.semanticAnalysis =
-        SemanticAnalysisJobDetails::clone(self.semanticAnalysis);
-    j.emitIndex = self.emitIndex;
-    return j;
-  }
 };
 SERIALIZABLE(IndexJob::Kind)
 SERIALIZABLE(IndexJob)

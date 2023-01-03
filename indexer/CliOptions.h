@@ -5,9 +5,14 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <sys/types.h>
+#include <utility>
 
 #include "spdlog/fwd.h"
+
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Regex.h"
 
 namespace scip_clang {
 
@@ -36,6 +41,37 @@ struct CliOptions {
   // itself when sending results, guaranteed to be unique within an
   // indexing job at a given instant.
   uint64_t workerId;
+};
+
+class HeaderFilter final {
+  /// The original text of the regex, because \c llvm::Regex doesn't expose
+  /// an API for serializing to a string.
+  std::string _regexText;
+  std::optional<llvm::Regex> matcher;
+
+public:
+  HeaderFilter() = default;
+  HeaderFilter(HeaderFilter &&) = default;
+  HeaderFilter &operator=(HeaderFilter &&) = default;
+
+  /// Try to initialize a HeaderFilter from \p regexText.
+  /// Logs an error and exits the program if \p regexText is ill-formed.
+  HeaderFilter(std::string &&regexText);
+
+  bool isMatch(std::string_view data) const {
+    if (matcher && matcher->match(llvm::StringRef(data))) {
+      return true;
+    }
+    return false;
+  }
+
+  bool isIdentity() const {
+    return this->regexText().empty();
+  }
+
+  const std::string &regexText() const {
+    return this->_regexText;
+  }
 };
 
 } // namespace scip_clang
