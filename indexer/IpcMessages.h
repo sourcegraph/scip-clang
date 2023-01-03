@@ -10,6 +10,7 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Regex.h"
 
+#include "indexer/Derive.h"
 #include "indexer/Hash.h"
 
 namespace scip_clang {
@@ -37,13 +38,7 @@ public:
   JobId &operator=(const JobId &) = default;
   JobId(uint64_t id) : _id(id) {}
 
-  template <typename H> friend H AbslHashValue(H h, const JobId &x) {
-    return H::combine(std::move(h), x.id());
-  }
-
-  bool operator==(const JobId &other) const {
-    return this->id() == other.id();
-  }
+  DERIVE_HASH_EQ_1(JobId, self._id)
 
   uint64_t id() const {
     return this->_id;

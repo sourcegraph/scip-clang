@@ -7,6 +7,8 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include "indexer/Derive.h"
+
 namespace scip_clang {
 
 // Non-owning absolute path which is not necessarily null-terminated.
@@ -28,16 +30,7 @@ public:
     return AbsolutePath::tryFrom(std::string_view(path.data(), path.size()));
   }
 
-  template <typename H> friend H AbslHashValue(H h, const AbsolutePath &x) {
-    return H::combine(std::move(h), x._data);
-  }
-
-  friend bool operator==(const AbsolutePath &lhs, const AbsolutePath &rhs) {
-    return lhs.data() == rhs.data();
-  }
-  friend bool operator!=(const AbsolutePath &lhs, const AbsolutePath &rhs) {
-    return !(lhs == rhs);
-  }
+  DERIVE_HASH_EQ_1(AbsolutePath, self._data)
 
   std::string_view data() const {
     return this->_data;

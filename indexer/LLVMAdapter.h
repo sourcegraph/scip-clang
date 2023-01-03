@@ -9,6 +9,8 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "indexer/Derive.h"
+
 namespace scip_clang {
 
 template <typename T> std::string formatLLVM(const T &llvmValue) {
@@ -25,18 +27,8 @@ inline std::string_view toStringView(llvm::StringRef sref) {
 template <typename T> struct LLVMToAbslHashAdapter final {
   T data;
 
-  template <typename H>
-  friend H AbslHashValue(H h, const LLVMToAbslHashAdapter<T> &x) {
-    return H::combine(std::move(h), x.data.getHashValue());
-  }
-  friend bool operator==(const LLVMToAbslHashAdapter<T> &lhs,
-                         const LLVMToAbslHashAdapter<T> &rhs) {
-    return lhs.data == rhs.data;
-  }
-  friend bool operator!=(const LLVMToAbslHashAdapter<T> &lhs,
-                         const LLVMToAbslHashAdapter<T> &rhs) {
-    return !(lhs == rhs);
-  }
+  DERIVE_HASH_1(LLVMToAbslHashAdapter<T>, self.data.getHashValue())
+  DERIVE_EQ_1(LLVMToAbslHashAdapter<T>, self.data)
 };
 
 } // namespace scip_clang
