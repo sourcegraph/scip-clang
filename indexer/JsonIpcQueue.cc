@@ -38,8 +38,10 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   size_t recvCount;
   unsigned recvPriority;
   spdlog::debug("will wait for atmost {}ms", waitMillis);
-  // FIXME: It looks like the timeout doesn't work. For example, if I put
-  // a sleep in the worker, the driver doesn't kill the worker...
+  // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/20)
+  // The timeout doesn't work reliably. For example, if I put a sleep(long_time)
+  // in the worker, the driver doesn't kill the worker. This is a problem if the
+  // worker crashes.
   if (this->queue->timed_receive(readBuffer.data(), readBuffer.size(),
                                  recvCount, recvPriority,
                                  fromNow(waitMillis))) {

@@ -353,7 +353,8 @@ public:
     }
   }
 
-  // FIXME: Add overrides for
+  // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/21):
+  // Add overrides for
   // - MacroExpands
   // - MacroDefined
   // - MacroUndefined
