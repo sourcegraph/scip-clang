@@ -14,9 +14,8 @@ namespace scip_clang {
 struct HashValue {
   uint64_t rawValue;
 
-  HashValue mix(const uint8_t *key, size_t data) {
-    return HashValue{
-        wyhash(key, data, this->rawValue, /*default secret*/ _wyp)};
+  void mix(const uint8_t *key, size_t data) {
+    this->rawValue = wyhash(key, data, this->rawValue, /*default secret*/ _wyp);
   };
 
   DERIVE_HASH_CMP_1(HashValue, self.rawValue)
