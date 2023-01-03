@@ -52,26 +52,33 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "deterministic",
     "Try to run everything in a deterministic fashion as much as possible.",
     cxxopts::value<bool>(cliOptions.deterministic));
-  parser.add_options("Internal")(
-    "record-history",
+  parser.add_options("Advanced")(
+    "preprocessor-record-history-filter",
     "Regex for identifying headers for which textual descriptions of preprocessor"
     " effects should be recorded while computing transcripts, instead of"
-    " only maintaining a running hash value. Meant to be used in conjunction"
-    " with a not-yet-implemented flag for dumping these transcripts.",
+    " only maintaining a running hash value.",
     // TODO(ref: transcript-record-output)
-    cxxopts::value<std::string>(cliOptions.recordHistoryRegex)->default_value(""));
+    cxxopts::value<std::string>(cliOptions.preprocessorRecordHistoryFilterRegex));
+  parser.add_options("Advanced")(
+    "supplementary-output-dir",
+    "Path to directory for recording supplementary outputs, such as various log files.",
+    cxxopts::value<std::string>(cliOptions.supplementaryOutputDir)->default_value("scip-clang-misc-output"));
+  parser.add_options("Internal")(
+    "preprocessor-history-log-path",
+    "[worker-only] Path to log preprocessor history, if applicable.",
+    cxxopts::value<std::string>(cliOptions.preprocessorHistoryLogPath));
   parser.add_options("Internal")(
     "worker",
     "[worker-only] Spawn an indexing worker instead of invoking the driver directly",
     cxxopts::value<bool>(cliOptions.isWorker));
   parser.add_options("Internal")(
-      "driver-id",
-      "[worker-only] An opaque ID for the driver.",
-      cxxopts::value<std::string>(cliOptions.driverId));
+    "driver-id",
+    "[worker-only] An opaque ID for the driver.",
+    cxxopts::value<std::string>(cliOptions.driverId));
   parser.add_options("Internal")(
-      "worker-id",
-      "[worker-only] An opaque ID for the worker itself.",
-      cxxopts::value<uint64_t>(cliOptions.workerId));
+    "worker-id",
+    "[worker-only] An opaque ID for the worker itself.",
+    cxxopts::value<uint64_t>(cliOptions.workerId));
   // clang-format on
 
   parser.allow_unrecognised_options();

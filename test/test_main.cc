@@ -107,7 +107,7 @@ TEST_CASE("UNIT_TESTS") {
   std::vector<HeaderFilterTestCase> testCases{
       {R"(.+\.h.*)", {"a.h", "a.hpp", "a.hxx"}, {"a.c", "a.cpp", "a.cxx"}},
       {"foo.h", {"foo.h"}, {"foo.hpp", "foo.hxx", "bar.h"}},
-      {R"((foo|bar).h)", {"foo.h", "bar.h"}, {"qux.h"}},
+      {"(foo|bar).h", {"foo.h", "bar.h"}, {"qux.h"}},
   };
 
   for (auto &testCase : testCases) {

@@ -89,19 +89,37 @@ struct DriverOptions {
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
   bool deterministic;
-  std::string recordHistoryRegex;
+  std::string preprocessorRecordHistoryFilterRegex;
+  std::filesystem::path supplementaryOutputDir;
 
   explicit DriverOptions(const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
         compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
         receiveTimeout(cliOpts.numWorkers),
         deterministic(cliOpts.deterministic),
-        recordHistoryRegex(cliOpts.recordHistoryRegex) {
-    // Eagerly check that the regex is well-formed
-    HeaderFilter _((std::string(this->recordHistoryRegex)));
+        preprocessorRecordHistoryFilterRegex(
+            cliOpts.preprocessorRecordHistoryFilterRegex),
+        supplementaryOutputDir(cliOpts.supplementaryOutputDir) {
+    // NOTE: Constructor eagerly checks that the regex is well-formed
+    HeaderFilter filter(
+        (std::string(this->preprocessorRecordHistoryFilterRegex)));
+    bool hasSupplementaryOutputs = !filter.isIdentity();
+    if (!hasSupplementaryOutputs) {
+      return;
+    }
+    std::error_code error;
+    std::filesystem::create_directories(this->supplementaryOutputDir, error);
+    if (!error) {
+      return;
+    }
+    spdlog::error("failed to create supplementary output directory at '{}'",
+                  this->supplementaryOutputDir.c_str());
+    spdlog::error("I/O error: {}", error.message());
+    std::exit(EXIT_FAILURE);
   }
 
-  void addWorkerOptions(std::vector<std::string> &args) const {
+  void addWorkerOptions(std::vector<std::string> &args,
+                        WorkerId workerId) const {
     args.push_back(fmt::format(
         "--log-level={}", spdlog::level::to_string_view(spdlog::get_level())));
     static_assert(std::is_same<decltype(this->receiveTimeout),
@@ -111,9 +129,14 @@ struct DriverOptions {
     if (this->deterministic) {
       args.push_back("--deterministic");
     }
-    if (!this->recordHistoryRegex.empty()) {
+    if (!this->preprocessorRecordHistoryFilterRegex.empty()) {
+      args.push_back(fmt::format("--preprocessor-record-history-filter={}",
+                                 this->preprocessorRecordHistoryFilterRegex));
+      auto logPath = this->supplementaryOutputDir;
+      logPath.append(
+          fmt::format("preprocessor-history-worker-{}.yaml", workerId));
       args.push_back(
-          fmt::format("--record-history={}", this->recordHistoryRegex));
+          fmt::format("--preprocessor-history-log-path={}", logPath.c_str()));
     }
   }
 };
@@ -251,7 +274,7 @@ private:
     args.push_back("--worker");
     args.push_back(fmt::format("--driver-id={}", this->id));
     args.push_back(fmt::format("--worker-id={}", workerId));
-    this->options.addWorkerOptions(args);
+    this->options.addWorkerOptions(args, workerId);
 
     boost::process::child worker(args, boost::process::std_out > stdout);
     spdlog::debug("worker info running {}, pid = {}", worker.running(),

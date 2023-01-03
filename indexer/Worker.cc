@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <iterator>
 #include <memory>
@@ -20,6 +21,7 @@
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/YAMLTraits.h"
 
 #include "indexer/CliOptions.h"
 #include "indexer/DebugHelpers.h"
@@ -57,17 +59,24 @@ struct MessageQueuePair {
 // A type to keep track of the "transcript" (in Kythe terminology)
 // of an #include being processed.
 class HashValueBuilder {
+public:
+  using History = std::vector<std::string>;
+
+private:
   // The hash value calculated so far for preprocessor effects.
   HashValue runningHash;
+
   // Optional field to track all the inputs that went into computing
-  // a hash, meant for debugging.
-  std::unique_ptr<std::vector<std::string>> history;
+  // a hash, meant for debugging. We buffer all the history for a
+  // header instead of directly writing to a stream because if there
+  // are multiple headers which match, having the output be interleaved
+  // (due to the ~DAG nature of includes) would be confusing.
+  std::unique_ptr<History> history;
 
 public:
   HashValueBuilder(bool recordHistory)
       : runningHash(),
-        history(recordHistory ? std::make_unique<std::vector<std::string>>()
-                              : nullptr) {}
+        history(recordHistory ? std::make_unique<History>() : nullptr) {}
 
   void mix(llvm::StringRef text) {
     this->runningHash.mix(reinterpret_cast<const uint8_t *>(text.data()),
@@ -91,8 +100,8 @@ public:
     this->mix(llvm::StringRef(text));
   }
 
-  HashValue finish() const {
-    return this->runningHash;
+  std::pair<HashValue, std::unique_ptr<History>> finish() {
+    return {this->runningHash, std::move(this->history)};
   }
 
   bool isRecordingHistory() {
@@ -114,7 +123,7 @@ struct HeaderInfoBuilder final {
   const clang::FileID fileId;
 };
 
-class IndexerPPStack final {
+class IndexerPreprocessorStack final {
   std::vector<HeaderInfoBuilder> state;
 
 public:
@@ -138,23 +147,47 @@ public:
   }
 };
 
-struct IndexerPPConfig {
+struct PreprocessorHistoryRecorder {
+  HeaderFilter filter;
+  llvm::yaml::Output yamlStream;
+};
+
+struct IndexerPreprocessorOptions {
   AbsolutePath projectRoot;
 
   // Debugging-related
-  // Option to turn on history recording for header transcripts.
-  HeaderFilter recordHistoryFilter;
+  PreprocessorHistoryRecorder *recorder;
 
   // Sort for deterministic output while running the preprocessor.
   bool ensureDeterminism;
 };
 
+struct PreprocessorHistoryEntry {
+  llvm::StringRef path;
+  HashValueBuilder::History &history;
+};
+
+} // namespace
+} // namespace scip_clang
+
+template <>
+struct llvm::yaml::MappingTraits<scip_clang::PreprocessorHistoryEntry> {
+  static void mapping(llvm::yaml::IO &io,
+                      scip_clang::PreprocessorHistoryEntry &entry) {
+    io.mapRequired("path", entry.path);
+    io.mapRequired("history", entry.history);
+  }
+};
+
+namespace scip_clang {
+namespace {
+
 class IndexerPPCallbacks final : public clang::PPCallbacks {
-  const IndexerPPConfig &config;
+  const IndexerPreprocessorOptions &options;
   SemanticAnalysisJobResult &result;
 
   clang::SourceManager &sourceManager;
-  IndexerPPStack stack;
+  IndexerPreprocessorStack stack;
 
   struct MultiHashValue {
     const HashValue hashValue;
@@ -173,9 +206,9 @@ class IndexerPPCallbacks final : public clang::PPCallbacks {
 
 public:
   IndexerPPCallbacks(clang::SourceManager &sourceManager,
-                     const IndexerPPConfig &config,
+                     const IndexerPreprocessorOptions &options,
                      SemanticAnalysisJobResult &result)
-      : config(config), result(result), sourceManager(sourceManager), stack(),
+      : options(options), result(result), sourceManager(sourceManager), stack(),
         finishedProcessing(), finishedProcessingMulti() {}
 
   ~IndexerPPCallbacks() {
@@ -218,7 +251,7 @@ public:
               HeaderInfo{std::string(absPath.data()), hashValue});
         }
       }
-      if (this->config.ensureDeterminism) {
+      if (this->options.ensureDeterminism) {
         absl::c_sort(result.singlyExpandedHeaders);
       }
     }
@@ -237,7 +270,7 @@ public:
               HeaderInfoMulti{std::string(absPath.data()), std::move(buf)});
         }
       }
-      if (this->config.ensureDeterminism) {
+      if (this->options.ensureDeterminism) {
         absl::c_sort(result.multiplyExpandedHeaders);
       }
     }
@@ -264,11 +297,9 @@ public:
               debug::tryGetPath(this->sourceManager, fileId));
     }
 
-    // TODO(def: transcript-record-output): Implement functionality for
-    // outputting the transcript history to one or more files.
     auto key = LLVMToAbslHashAdapter<clang::FileID>{headerInfo.fileId};
     auto it = this->finishedProcessing.find(key);
-    auto hashValue = headerInfo.hashValueBuilder.finish();
+    auto [hashValue, history] = headerInfo.hashValueBuilder.finish();
     if (it == this->finishedProcessing.end()) {
       this->finishedProcessing.insert({key, MultiHashValue{hashValue, false}});
     } else if (it->second.isMultiple) {
@@ -284,6 +315,14 @@ public:
           this->finishedProcessingMulti.insert({key, {oldHash, newHash}});
       ENFORCE(inserted, "isMultiple = false, but key already present is "
                         "finishedProcessingMulti");
+    }
+    if (history) {
+      ENFORCE(this->options.recorder,
+              "Recorded history even though output stream is missing 🤔");
+      auto &log = this->options.recorder->yamlStream;
+      auto path = debug::tryGetPath(this->sourceManager, headerInfo.fileId);
+      PreprocessorHistoryEntry entry{path, *history.get()};
+      log << entry;
     }
     return hashValue;
   }
@@ -337,19 +376,17 @@ public:
         break;
       }
       bool recordHistory = false;
-      if (!this->config.recordHistoryFilter.isIdentity()) {
+      if (this->options.recorder) {
         if (auto enteredFileEntry =
                 this->sourceManager.getFileEntryForID(enteredFileId)) {
           auto path = enteredFileEntry->tryGetRealPathName();
           recordHistory =
-              !path.empty()
-              && this->config.recordHistoryFilter.isMatch(toStringView(path));
+              !path.empty() && this->options.recorder->filter.isMatch(path);
         }
       }
       this->enterInclude(recordHistory, enteredFileId);
       MIX_WITH_KEY(this->stack.topHash(), "self path",
                    debug::tryGetPath(this->sourceManager, enteredFileId));
-
       break;
     }
     }
@@ -400,14 +437,14 @@ public:
 };
 
 class IndexerFrontendAction : public clang::ASTFrontendAction {
-  const IndexerPPConfig &config;
+  const IndexerPreprocessorOptions &options;
   SemanticAnalysisJobResult &result;
   // ^ These fields are just for passing down information
   // down to the IndexerPPCallbacks value.
 public:
-  IndexerFrontendAction(const IndexerPPConfig &config,
+  IndexerFrontendAction(const IndexerPreprocessorOptions &options,
                         SemanticAnalysisJobResult &result)
-      : config(config), result(result) {}
+      : options(options), result(result) {}
 
   bool usesPreprocessorOnly() const override {
     return false;
@@ -418,23 +455,23 @@ public:
                     llvm::StringRef filepath) override {
     auto &preprocessor = compilerInstance.getPreprocessor();
     preprocessor.addPPCallbacks(std::make_unique<IndexerPPCallbacks>(
-        compilerInstance.getSourceManager(), config, result));
+        compilerInstance.getSourceManager(), options, result));
     return std::make_unique<IndexerASTConsumer>(compilerInstance, filepath);
   }
 };
 
 class IndexerFrontendActionFactory
     : public clang::tooling::FrontendActionFactory {
-  const IndexerPPConfig &config;
+  const IndexerPreprocessorOptions &options;
   SemanticAnalysisJobResult &result;
 
 public:
-  IndexerFrontendActionFactory(const IndexerPPConfig &config,
+  IndexerFrontendActionFactory(const IndexerPreprocessorOptions &options,
                                SemanticAnalysisJobResult &result)
-      : config(config), result(result) {}
+      : options(options), result(result) {}
 
   virtual std::unique_ptr<clang::FrontendAction> create() override {
-    return std::make_unique<IndexerFrontendAction>(config, result);
+    return std::make_unique<IndexerFrontendAction>(options, result);
   }
 };
 
@@ -454,26 +491,59 @@ struct WorkerOptions {
   spdlog::level::level_enum logLevel;
   bool deterministic;
   std::string recordHistoryRegex;
+  std::string preprocessorHistoryLogPath;
   std::string driverId;
   uint64_t workerId;
 
   WorkerOptions(const CliOptions &cliOptions)
       : receiveTimeout(cliOptions.receiveTimeout),
         logLevel(cliOptions.logLevel), deterministic(cliOptions.deterministic),
-        recordHistoryRegex(cliOptions.recordHistoryRegex),
+        recordHistoryRegex(cliOptions.preprocessorRecordHistoryFilterRegex),
+        preprocessorHistoryLogPath(cliOptions.preprocessorHistoryLogPath),
         driverId(cliOptions.driverId), workerId(cliOptions.workerId) {}
 };
 
 class Worker {
   WorkerOptions options;
-
   MessageQueuePair messageQueues;
+
+  /// The llvm::yaml::Output object doesn't take ownership
+  /// of the underlying stream, so hold it separately.
+  ///
+  /// The stream is wrapped in an extra unique_ptr because
+  /// \c llvm::raw_fd_ostream doesn't have a move constructor
+  /// for some reason.
+  std::optional<std::pair<std::unique_ptr<llvm::raw_fd_ostream>,
+                          PreprocessorHistoryRecorder>>
+      recorder;
 
 public:
   Worker(WorkerOptions &&options)
       : options(std::move(options)),
         messageQueues(
-            MessageQueuePair(this->options.driverId, this->options.workerId)) {}
+            MessageQueuePair(this->options.driverId, this->options.workerId)),
+        recorder() {
+    HeaderFilter filter(std::string(this->options.recordHistoryRegex));
+    if (filter.isIdentity()) {
+      return;
+    }
+    ENFORCE(!this->options.preprocessorHistoryLogPath.empty());
+    std::error_code error;
+    auto ostream = std::make_unique<llvm::raw_fd_ostream>(
+        llvm::StringRef(this->options.preprocessorHistoryLogPath), error);
+    if (error) {
+      spdlog::error(
+          "failed to open file for recording preprocessor history at '{}'",
+          this->options.preprocessorHistoryLogPath);
+      spdlog::error("I/O error: {}", error.message());
+      std::exit(EXIT_FAILURE);
+    }
+    llvm::yaml::Output yamlStream(*ostream.get());
+    PreprocessorHistoryRecorder recorder{std::move(filter),
+                                         std::move(yamlStream)};
+    this->recorder.emplace(
+        std::make_pair(std::move(ostream), std::move(recorder)));
+  }
 
   void performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
                                SemanticAnalysisJobResult &result) {
@@ -489,11 +559,11 @@ public:
     // Should we add a CLI flag to pass through extra arguments here?
 
     auto projectRoot = std::filesystem::current_path().string();
-    IndexerPPConfig config{
+    IndexerPreprocessorOptions options{
         AbsolutePath::tryFrom(std::string_view(projectRoot)).value(),
-        HeaderFilter(std::string(this->options.recordHistoryRegex)),
+        this->recorder.has_value() ? &this->recorder->second : nullptr,
         this->options.deterministic};
-    auto frontendActionFactory = IndexerFrontendActionFactory(config, result);
+    auto frontendActionFactory = IndexerFrontendActionFactory(options, result);
 
     clang::tooling::ToolInvocation Invocation(
         std::move(args), &frontendActionFactory, fileManager.get(),
@@ -512,12 +582,31 @@ public:
       // which sends a message to the driver, gets back some information,
       // which then customizes the AST traversal. I'm not 100% sure on the
       // best way to do this, but one idea is to pass down a callback
-      // (call it 'setTraversalConfig') to IndexerPPCallbacks.
-      // 'setTraversalConfig' can be invoked during 'EndOfMainFile' which
+      // (call it 'setTraversalOptions') to IndexerPPCallbacks.
+      // 'setTraversalOptions' can be invoked during 'EndOfMainFile' which
       // is the last overriden method to be called. Later, that state
       // can be read by IndexerASTConsumer in InitializeSema.
 
       (void)ranSuccessfully; // FIXME(ref: surface-diagnostics)
+    }
+  }
+
+  void processRequest(IndexJobRequest &&request, IndexJobResult &result) {
+    result.kind = request.job.kind;
+    switch (request.job.kind) {
+    case IndexJob::Kind::EmitIndex:
+      result.emitIndex = EmitIndexJobResult{"lol"};
+      break;
+    case IndexJob::Kind::SemanticAnalysis:
+      this->performSemanticAnalysis(std::move(request.job.semanticAnalysis),
+                                    result.semanticAnalysis);
+      break;
+    }
+  }
+
+  void flushStreams() {
+    if (this->recorder) {
+      this->recorder->first->flush();
     }
   }
 
@@ -541,19 +630,12 @@ public:
         spdlog::debug("shutting down");
         break;
       }
+      auto requestId = request.id;
       IndexJobResult result;
-      result.kind = request.job.kind;
-      switch (request.job.kind) {
-      case IndexJob::Kind::EmitIndex:
-        result.emitIndex = EmitIndexJobResult{"lol"};
-        break;
-      case IndexJob::Kind::SemanticAnalysis:
-        this->performSemanticAnalysis(std::move(request.job.semanticAnalysis),
-                                      result.semanticAnalysis);
-        break;
-      }
-      mq.workerToDriver.send(IndexJobResponse{this->options.workerId,
-                                              request.id, std::move(result)});
+      this->processRequest(std::move(request), result);
+      mq.workerToDriver.send(IndexJobResponse{this->options.workerId, requestId,
+                                              std::move(result)});
+      this->flushStreams();
     }
   }
 };

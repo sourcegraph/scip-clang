@@ -26,11 +26,14 @@ struct CliOptions {
   spdlog::level::level_enum logLevel;
 
   bool deterministic;
-  std::string recordHistoryRegex;
+  std::string preprocessorRecordHistoryFilterRegex;
+  std::string supplementaryOutputDir;
 
   // Worker-specific options
 
   bool isWorker;
+
+  std::string preprocessorHistoryLogPath;
 
   // An opaque ID provided by the driver for a worker to identify the
   // correct named memory map, guaranteed to be unique across
