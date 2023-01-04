@@ -47,9 +47,14 @@ enum class SnapshotTestMode {
   Update,
 };
 
+enum class TestKind {
+  UnitTests,
+  CompdbTests,
+  PreprocessorTests,
+};
+
 struct TestCliOptions {
-  bool runUnitTests;
-  bool runCompDbTests;
+  TestKind testKind;
   SnapshotTestMode testMode;
 };
 
@@ -96,7 +101,7 @@ struct llvm::yaml::SequenceElementTraits<clang::tooling::CompileCommand> {
 };
 
 TEST_CASE("UNIT_TESTS") {
-  if (!testCliOptions.runUnitTests) {
+  if (testCliOptions.testKind != TestKind::UnitTests) {
     return;
   }
   struct HeaderFilterTestCase {
@@ -127,7 +132,7 @@ TEST_CASE("UNIT_TESTS") {
 };
 
 TEST_CASE("COMPDB_PARSING") {
-  if (!testCliOptions.runCompDbTests) {
+  if (testCliOptions.testKind != TestKind::CompdbTests) {
     return;
   }
 
@@ -185,21 +190,40 @@ TEST_CASE("COMPDB_PARSING") {
   return;
 }
 
+TEST_CASE("PREPROCESSING") {
+  if (testCliOptions.testKind != TestKind::PreprocessorTests) {
+    return;
+  }
+}
+
 int main(int argc, char *argv[]) {
   scip_clang::initializeSymbolizer(argv[0]);
 
   cxxopts::Options options("test_main", "Test runner for scip-clang");
-  options.add_options()("unit-tests",
-                        "Run unit tests for smaller functionality",
-                        cxxopts::value<bool>(testCliOptions.runUnitTests));
-  options.add_options()("compdb-tests",
-                        "Run the compilation database related tests",
-                        cxxopts::value<bool>(testCliOptions.runCompDbTests));
+  std::string testKind;
+  options.add_options()("test-kind",
+                        "One of 'unit', 'compdb' or 'preprocessor'",
+                        cxxopts::value<std::string>(testKind));
   options.add_options()("update",
                         "Should snapshots be updated instead of comparing?",
                         cxxopts::value<bool>());
 
   auto result = options.parse(argc, argv);
+
+  if (testKind.empty()) {
+    fmt::print(stderr, "Missing --test-kind argument to test runner");
+    std::exit(EXIT_FAILURE);
+  }
+  if (testKind == "unit") {
+    testCliOptions.testKind = TestKind::UnitTests;
+  } else if (testKind == "compdb") {
+    testCliOptions.testKind = TestKind::CompdbTests;
+  } else if (testKind == "preprocessor") {
+    testCliOptions.testKind = TestKind::PreprocessorTests;
+  } else {
+    fmt::print(stderr, "Unknown value for --test-kind");
+    std::exit(EXIT_FAILURE);
+  }
 
   testCliOptions.testMode = SnapshotTestMode::Compare;
   if (result.count("update") > 0) {
