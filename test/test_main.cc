@@ -17,6 +17,7 @@
 #include "indexer/CliOptions.h"
 #include "indexer/CompilationDatabase.h"
 #include "indexer/Enforce.h"
+#include "indexer/Worker.h"
 
 using namespace scip_clang;
 

@@ -37,24 +37,18 @@
 namespace boost_ip = boost::interprocess;
 
 namespace scip_clang {
+
+MessageQueuePair::MessageQueuePair(std::string_view driverId,
+                                   WorkerId workerId) {
+  auto d2w = scip_clang::driverToWorkerQueueName(driverId, workerId);
+  auto w2d = scip_clang::workerToDriverQueueName(driverId);
+  this->driverToWorker = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
+      boost_ip::open_only, d2w.c_str()));
+  this->workerToDriver = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
+      boost_ip::open_only, w2d.c_str()));
+}
+
 namespace {
-
-// Type representing the driver<->worker queues, as used by a worker.
-struct MessageQueuePair {
-  JsonIpcQueue driverToWorker;
-  JsonIpcQueue workerToDriver;
-
-  MessageQueuePair(std::string_view driverId, WorkerId workerId) {
-    auto d2w = scip_clang::driverToWorkerQueueName(driverId, workerId);
-    auto w2d = scip_clang::workerToDriverQueueName(driverId);
-    this->driverToWorker =
-        JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
-            boost_ip::open_only, d2w.c_str()));
-    this->workerToDriver =
-        JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
-            boost_ip::open_only, w2d.c_str()));
-  }
-};
 
 // A type to keep track of the "transcript" (in Kythe terminology)
 // of an #include being processed.
@@ -145,11 +139,6 @@ public:
   void push(HeaderInfoBuilder &&info) {
     this->state.emplace_back(std::move(info));
   }
-};
-
-struct PreprocessorHistoryRecorder {
-  HeaderFilter filter;
-  llvm::yaml::Output yamlStream;
 };
 
 struct IndexerPreprocessorOptions {
@@ -486,159 +475,131 @@ public:
 
 } // namespace
 
-struct WorkerOptions {
-  std::chrono::seconds receiveTimeout;
-  spdlog::level::level_enum logLevel;
-  bool deterministic;
-  std::string recordHistoryRegex;
-  std::string preprocessorHistoryLogPath;
-  std::string driverId;
-  uint64_t workerId;
+WorkerOptions::WorkerOptions(const CliOptions &cliOptions)
+    : receiveTimeout(cliOptions.receiveTimeout), logLevel(cliOptions.logLevel),
+      deterministic(cliOptions.deterministic),
+      recordHistoryRegex(cliOptions.preprocessorRecordHistoryFilterRegex),
+      preprocessorHistoryLogPath(cliOptions.preprocessorHistoryLogPath),
+      driverId(cliOptions.driverId), workerId(cliOptions.workerId) {}
 
-  WorkerOptions(const CliOptions &cliOptions)
-      : receiveTimeout(cliOptions.receiveTimeout),
-        logLevel(cliOptions.logLevel), deterministic(cliOptions.deterministic),
-        recordHistoryRegex(cliOptions.preprocessorRecordHistoryFilterRegex),
-        preprocessorHistoryLogPath(cliOptions.preprocessorHistoryLogPath),
-        driverId(cliOptions.driverId), workerId(cliOptions.workerId) {}
-};
-
-class Worker {
-  WorkerOptions options;
-  MessageQueuePair messageQueues;
-
-  /// The llvm::yaml::Output object doesn't take ownership
-  /// of the underlying stream, so hold it separately.
-  ///
-  /// The stream is wrapped in an extra unique_ptr because
-  /// \c llvm::raw_fd_ostream doesn't have a move constructor
-  /// for some reason.
-  std::optional<std::pair<std::unique_ptr<llvm::raw_fd_ostream>,
-                          PreprocessorHistoryRecorder>>
-      recorder;
-
-public:
-  Worker(WorkerOptions &&options)
-      : options(std::move(options)),
-        messageQueues(
-            MessageQueuePair(this->options.driverId, this->options.workerId)),
-        recorder() {
-    HeaderFilter filter(std::string(this->options.recordHistoryRegex));
-    if (filter.isIdentity()) {
-      return;
-    }
-    ENFORCE(!this->options.preprocessorHistoryLogPath.empty());
-    std::error_code error;
-    auto ostream = std::make_unique<llvm::raw_fd_ostream>(
-        llvm::StringRef(this->options.preprocessorHistoryLogPath), error);
-    if (error) {
-      spdlog::error(
-          "failed to open file for recording preprocessor history at '{}'",
-          this->options.preprocessorHistoryLogPath);
-      spdlog::error("I/O error: {}", error.message());
-      std::exit(EXIT_FAILURE);
-    }
-    llvm::yaml::Output yamlStream(*ostream.get());
-    PreprocessorHistoryRecorder recorder{std::move(filter),
-                                         std::move(yamlStream)};
-    this->recorder.emplace(
-        std::make_pair(std::move(ostream), std::move(recorder)));
+Worker::Worker(WorkerOptions &&options)
+    : options(std::move(options)),
+      messageQueues(
+          MessageQueuePair(this->options.driverId, this->options.workerId)),
+      recorder() {
+  HeaderFilter filter(std::string(this->options.recordHistoryRegex));
+  if (filter.isIdentity()) {
+    return;
   }
-
-  void performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
-                               SemanticAnalysisJobResult &result) {
-    clang::FileSystemOptions fileSystemOptions;
-    fileSystemOptions.WorkingDir = std::move(job.command.Directory);
-
-    llvm::IntrusiveRefCntPtr<clang::FileManager> fileManager(
-        new clang::FileManager(fileSystemOptions, nullptr));
-
-    auto args = std::move(job.command.CommandLine);
-    args.push_back("-fsyntax-only");   // Only type-checking, no codegen.
-    args.push_back("-Wno-everything"); // Warnings aren't helpful.
-    // Should we add a CLI flag to pass through extra arguments here?
-
-    auto projectRoot = std::filesystem::current_path().string();
-    IndexerPreprocessorOptions options{
-        AbsolutePath::tryFrom(std::string_view(projectRoot)).value(),
-        this->recorder.has_value() ? &this->recorder->second : nullptr,
-        this->options.deterministic};
-    auto frontendActionFactory = IndexerFrontendActionFactory(options, result);
-
-    clang::tooling::ToolInvocation Invocation(
-        std::move(args), &frontendActionFactory, fileManager.get(),
-        std::make_shared<clang::PCHContainerOperations>());
-
-    IndexerDiagnosticConsumer diagnosticConsumer;
-    Invocation.setDiagnosticConsumer(&diagnosticConsumer);
-
-    {
-      LogTimerRAII timer(
-          fmt::format("invocation for {}", job.command.Filename));
-      bool ranSuccessfully = Invocation.run();
-      // FIXME(def: delay-ast-traversal): Right now, IIUC, this will run the
-      // pre-processor, and then run the AST traversal directly. However,
-      // after the preprocessor is done, we want to perform some extra logic
-      // which sends a message to the driver, gets back some information,
-      // which then customizes the AST traversal. I'm not 100% sure on the
-      // best way to do this, but one idea is to pass down a callback
-      // (call it 'setTraversalOptions') to IndexerPPCallbacks.
-      // 'setTraversalOptions' can be invoked during 'EndOfMainFile' which
-      // is the last overriden method to be called. Later, that state
-      // can be read by IndexerASTConsumer in InitializeSema.
-
-      (void)ranSuccessfully; // FIXME(ref: surface-diagnostics)
-    }
+  ENFORCE(!this->options.preprocessorHistoryLogPath.empty());
+  std::error_code error;
+  auto ostream = std::make_unique<llvm::raw_fd_ostream>(
+      llvm::StringRef(this->options.preprocessorHistoryLogPath), error);
+  if (error) {
+    spdlog::error(
+        "failed to open file for recording preprocessor history at '{}'",
+        this->options.preprocessorHistoryLogPath);
+    spdlog::error("I/O error: {}", error.message());
+    std::exit(EXIT_FAILURE);
   }
+  llvm::yaml::Output yamlStream(*ostream.get());
+  PreprocessorHistoryRecorder recorder{std::move(filter),
+                                       std::move(yamlStream)};
+  this->recorder.emplace(
+      std::make_pair(std::move(ostream), std::move(recorder)));
+}
 
-  void processRequest(IndexJobRequest &&request, IndexJobResult &result) {
-    result.kind = request.job.kind;
-    switch (request.job.kind) {
-    case IndexJob::Kind::EmitIndex:
-      result.emitIndex = EmitIndexJobResult{"lol"};
-      break;
-    case IndexJob::Kind::SemanticAnalysis:
-      this->performSemanticAnalysis(std::move(request.job.semanticAnalysis),
-                                    result.semanticAnalysis);
+void Worker::performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
+                                     SemanticAnalysisJobResult &result) {
+  clang::FileSystemOptions fileSystemOptions;
+  fileSystemOptions.WorkingDir = std::move(job.command.Directory);
+
+  llvm::IntrusiveRefCntPtr<clang::FileManager> fileManager(
+      new clang::FileManager(fileSystemOptions, nullptr));
+
+  auto args = std::move(job.command.CommandLine);
+  args.push_back("-fsyntax-only");   // Only type-checking, no codegen.
+  args.push_back("-Wno-everything"); // Warnings aren't helpful.
+  // Should we add a CLI flag to pass through extra arguments here?
+
+  auto projectRoot = std::filesystem::current_path().string();
+  IndexerPreprocessorOptions options{
+      AbsolutePath::tryFrom(std::string_view(projectRoot)).value(),
+      this->recorder.has_value() ? &this->recorder->second : nullptr,
+      this->options.deterministic};
+  auto frontendActionFactory = IndexerFrontendActionFactory(options, result);
+
+  clang::tooling::ToolInvocation Invocation(
+      std::move(args), &frontendActionFactory, fileManager.get(),
+      std::make_shared<clang::PCHContainerOperations>());
+
+  IndexerDiagnosticConsumer diagnosticConsumer;
+  Invocation.setDiagnosticConsumer(&diagnosticConsumer);
+
+  {
+    LogTimerRAII timer(fmt::format("invocation for {}", job.command.Filename));
+    bool ranSuccessfully = Invocation.run();
+    // FIXME(def: delay-ast-traversal): Right now, IIUC, this will run the
+    // pre-processor, and then run the AST traversal directly. However,
+    // after the preprocessor is done, we want to perform some extra logic
+    // which sends a message to the driver, gets back some information,
+    // which then customizes the AST traversal. I'm not 100% sure on the
+    // best way to do this, but one idea is to pass down a callback
+    // (call it 'setTraversalOptions') to IndexerPPCallbacks.
+    // 'setTraversalOptions' can be invoked during 'EndOfMainFile' which
+    // is the last overriden method to be called. Later, that state
+    // can be read by IndexerASTConsumer in InitializeSema.
+
+    (void)ranSuccessfully; // FIXME(ref: surface-diagnostics)
+  }
+}
+
+void Worker::processRequest(IndexJobRequest &&request, IndexJobResult &result) {
+  result.kind = request.job.kind;
+  switch (request.job.kind) {
+  case IndexJob::Kind::EmitIndex:
+    result.emitIndex = EmitIndexJobResult{"lol"};
+    break;
+  case IndexJob::Kind::SemanticAnalysis:
+    this->performSemanticAnalysis(std::move(request.job.semanticAnalysis),
+                                  result.semanticAnalysis);
+    break;
+  }
+}
+
+void Worker::flushStreams() {
+  if (this->recorder) {
+    this->recorder->first->flush();
+  }
+}
+
+void Worker::run() {
+  auto &mq = this->messageQueues;
+  while (true) {
+    IndexJobRequest request{};
+    auto recvError =
+        mq.driverToWorker.timedReceive(request, this->options.receiveTimeout);
+    if (recvError.isA<TimeoutError>()) {
+      spdlog::error("timeout in worker; is the driver dead?... shutting down");
       break;
     }
-  }
-
-  void flushStreams() {
-    if (this->recorder) {
-      this->recorder->first->flush();
+    if (recvError) {
+      spdlog::error("received malformed message: {}",
+                    scip_clang::formatLLVM(recvError));
+      continue;
     }
-  }
-
-  void run() {
-    auto &mq = this->messageQueues;
-    while (true) {
-      IndexJobRequest request{};
-      auto recvError =
-          mq.driverToWorker.timedReceive(request, this->options.receiveTimeout);
-      if (recvError.isA<TimeoutError>()) {
-        spdlog::error(
-            "timeout in worker; is the driver dead?... shutting down");
-        break;
-      }
-      if (recvError) {
-        spdlog::error("received malformed message: {}",
-                      scip_clang::formatLLVM(recvError));
-        continue;
-      }
-      if (request.id == JobId::Shutdown()) {
-        spdlog::debug("shutting down");
-        break;
-      }
-      auto requestId = request.id;
-      IndexJobResult result;
-      this->processRequest(std::move(request), result);
-      mq.workerToDriver.send(IndexJobResponse{this->options.workerId, requestId,
-                                              std::move(result)});
-      this->flushStreams();
+    if (request.id == JobId::Shutdown()) {
+      spdlog::debug("shutting down");
+      break;
     }
+    auto requestId = request.id;
+    IndexJobResult result;
+    this->processRequest(std::move(request), result);
+    mq.workerToDriver.send(
+        IndexJobResponse{this->options.workerId, requestId, std::move(result)});
+    this->flushStreams();
   }
-};
+}
 
 int workerMain(CliOptions &&cliOptions) {
   BOOST_TRY {
