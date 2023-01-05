@@ -70,8 +70,7 @@ static std::string readFileToString(const StdPath &path) {
                      std::istreambuf_iterator<char>());
 }
 
-void compareOrUpdate(std::string_view actual,
-                     std::filesystem::path snapshotFilepath) {
+void compareOrUpdate(std::string_view actual, StdPath snapshotFilepath) {
   switch (testCliOptions.testMode) {
   case SnapshotTestMode::Compare: {
     std::string expected(::readFileToString(snapshotFilepath));
@@ -152,7 +151,7 @@ TEST_CASE("COMPDB_PARSING") {
       std::filesystem::current_path().append("test").append("compdb");
 
   for (auto &testCase : testCases) {
-    std::filesystem::path jsonFilepath = dataDir;
+    StdPath jsonFilepath = dataDir;
     jsonFilepath.append(testCase.jsonFilename);
 
     std::error_code ec;
@@ -187,7 +186,7 @@ TEST_CASE("COMPDB_PARSING") {
       std::string yamlFilename = absl::StrReplaceAll(
           testCase.jsonFilename,
           {{".json", fmt::format("-{}.snapshot.yaml", refillCount)}});
-      std::filesystem::path yamlFilePath = dataDir;
+      StdPath yamlFilePath = dataDir;
       yamlFilePath.append(yamlFilename);
 
       compareOrUpdate(buffer, yamlFilePath);
@@ -197,9 +196,8 @@ TEST_CASE("COMPDB_PARSING") {
   return;
 }
 
-static std::vector<std::filesystem::path>
-listFilesRecursive(const std::filesystem::path &root) {
-  std::vector<std::filesystem::path> out;
+static std::vector<StdPath> listFilesRecursive(const StdPath &root) {
+  std::vector<StdPath> out;
   std::filesystem::recursive_directory_iterator it(root);
   for (auto &dirEntry : it) {
     if (!dirEntry.is_directory()) {
@@ -276,7 +274,7 @@ TEST_CASE("PREPROCESSING") {
 
   ENFORCE(testCliOptions.testName != "",
           "--test-name should be passed for preprocessor tests");
-  std::filesystem::path root = std::filesystem::current_path();
+  StdPath root = std::filesystem::current_path();
   root.append("test");
   root.append("preprocessor");
   root.append(testCliOptions.testName);

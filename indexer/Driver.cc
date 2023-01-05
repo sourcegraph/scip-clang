@@ -85,12 +85,12 @@ struct WorkerInfo {
 
 struct DriverOptions {
   std::string workerExecutablePath;
-  std::filesystem::path compdbPath;
+  StdPath compdbPath;
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
   bool deterministic;
   std::string preprocessorRecordHistoryFilterRegex;
-  std::filesystem::path supplementaryOutputDir;
+  StdPath supplementaryOutputDir;
 
   explicit DriverOptions(const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
@@ -185,7 +185,7 @@ public:
   size_t numWorkers() const {
     return this->options.numWorkers;
   }
-  const std::filesystem::path &compdbPath() const {
+  const StdPath &compdbPath() const {
     return this->options.compdbPath;
   }
   std::chrono::seconds receiveTimeout() const {

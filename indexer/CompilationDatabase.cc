@@ -14,6 +14,7 @@
 #include "spdlog/fmt/fmt.h"
 
 #include "indexer/CompilationDatabase.h"
+#include "indexer/FileSystem.h"
 #include "indexer/LLVMCommandLineParsing.h"
 
 namespace scip_clang {
@@ -340,9 +341,8 @@ bool CommandObjectHandler::reachedLimit() const {
   return this->commands.size() == this->parseLimit;
 }
 
-CompilationDatabaseFile
-CompilationDatabaseFile::open(const std::filesystem::path &path,
-                              std::error_code &ec) {
+CompilationDatabaseFile CompilationDatabaseFile::open(const StdPath &path,
+                                                      std::error_code &ec) {
   CompilationDatabaseFile compdbFile{};
   compdbFile.file = std::fopen(path.c_str(), "rb");
   if (!compdbFile.file) {
