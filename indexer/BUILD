@@ -1,9 +1,12 @@
 cc_library(
     name = "scip-clang-lib",
-    srcs = glob([
-        "*.h",
-        "*.cc",
-    ]),
+    srcs = glob(
+        [
+            "*.h",
+            "*.cc",
+        ],
+        exclude = ["main.cc"],
+    ),
     visibility = ["//visibility:public"],
     deps = [
         "//indexer/os",

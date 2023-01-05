@@ -38,10 +38,10 @@ namespace boost_ip = boost::interprocess;
 
 namespace scip_clang {
 
-MessageQueuePair::MessageQueuePair(std::string_view driverId,
-                                   WorkerId workerId) {
-  auto d2w = scip_clang::driverToWorkerQueueName(driverId, workerId);
-  auto w2d = scip_clang::workerToDriverQueueName(driverId);
+MessageQueuePair::MessageQueuePair(const IpcOptions &ipcOptions) {
+  auto d2w = scip_clang::driverToWorkerQueueName(ipcOptions.driverId,
+                                                 ipcOptions.workerId);
+  auto w2d = scip_clang::workerToDriverQueueName(ipcOptions.driverId);
   this->driverToWorker = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
       boost_ip::open_only, d2w.c_str()));
   this->workerToDriver = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
@@ -475,17 +475,22 @@ public:
 
 } // namespace
 
-WorkerOptions::WorkerOptions(const CliOptions &cliOptions)
-    : receiveTimeout(cliOptions.receiveTimeout), logLevel(cliOptions.logLevel),
-      deterministic(cliOptions.deterministic),
-      recordHistoryRegex(cliOptions.preprocessorRecordHistoryFilterRegex),
-      preprocessorHistoryLogPath(cliOptions.preprocessorHistoryLogPath),
-      driverId(cliOptions.driverId), workerId(cliOptions.workerId) {}
+WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
+  return WorkerOptions{
+      cliOptions.ipcOptions(),
+      cliOptions.logLevel,
+      cliOptions.deterministic,
+      cliOptions.preprocessorRecordHistoryFilterRegex,
+      cliOptions.preprocessorHistoryLogPath,
+  };
+}
 
 Worker::Worker(WorkerOptions &&options)
     : options(std::move(options)),
       messageQueues(
-          MessageQueuePair(this->options.driverId, this->options.workerId)),
+          this->options.ipcOptions.isTestingStub()
+              ? nullptr
+              : std::make_unique<MessageQueuePair>(this->options.ipcOptions)),
       recorder() {
   HeaderFilter filter(std::string(this->options.recordHistoryRegex));
   if (filter.isIdentity()) {
@@ -507,6 +512,10 @@ Worker::Worker(WorkerOptions &&options)
                                        std::move(yamlStream)};
   this->recorder.emplace(
       std::make_pair(std::move(ostream), std::move(recorder)));
+}
+
+const IpcOptions &Worker::ipcOptions() const {
+  return this->options.ipcOptions;
 }
 
 void Worker::performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
@@ -574,11 +583,13 @@ void Worker::flushStreams() {
 }
 
 void Worker::run() {
-  auto &mq = this->messageQueues;
+  ENFORCE(this->messageQueues,
+          "Called Worker::run() while initializing worker in testing");
+  auto &mq = *this->messageQueues.get();
   while (true) {
     IndexJobRequest request{};
-    auto recvError =
-        mq.driverToWorker.timedReceive(request, this->options.receiveTimeout);
+    auto recvError = mq.driverToWorker.timedReceive(
+        request, this->ipcOptions().receiveTimeout);
     if (recvError.isA<TimeoutError>()) {
       spdlog::error("timeout in worker; is the driver dead?... shutting down");
       break;
@@ -595,15 +606,15 @@ void Worker::run() {
     auto requestId = request.id;
     IndexJobResult result;
     this->processRequest(std::move(request), result);
-    mq.workerToDriver.send(
-        IndexJobResponse{this->options.workerId, requestId, std::move(result)});
+    mq.workerToDriver.send(IndexJobResponse{this->ipcOptions().workerId,
+                                            requestId, std::move(result)});
     this->flushStreams();
   }
 }
 
 int workerMain(CliOptions &&cliOptions) {
   BOOST_TRY {
-    Worker worker((WorkerOptions(cliOptions)));
+    Worker worker((WorkerOptions::fromCliOptions(cliOptions)));
     worker.run();
   }
   BOOST_CATCH(boost_ip::interprocess_exception & ex) {

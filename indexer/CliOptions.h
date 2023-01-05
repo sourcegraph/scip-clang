@@ -16,6 +16,15 @@
 
 namespace scip_clang {
 
+struct IpcOptions {
+  std::chrono::seconds receiveTimeout;
+  std::string driverId;
+  uint64_t workerId;
+
+  static IpcOptions testingStub;
+  bool isTestingStub() const;
+};
+
 struct CliOptions {
   std::string compdbPath;
   std::string scipClangExecutablePath;
@@ -44,6 +53,8 @@ struct CliOptions {
   // itself when sending results, guaranteed to be unique within an
   // indexing job at a given instant.
   uint64_t workerId;
+
+  IpcOptions ipcOptions() const;
 };
 
 class HeaderFilter final {

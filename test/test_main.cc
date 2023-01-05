@@ -11,12 +11,14 @@
 #include "dtl/dtl.hpp"
 #include "spdlog/fmt/fmt.h"
 
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/YAMLTraits.h"
 
 #include "indexer/CliOptions.h"
 #include "indexer/CompilationDatabase.h"
 #include "indexer/Enforce.h"
+#include "indexer/FileSystem.h"
 #include "indexer/Worker.h"
 
 using namespace scip_clang;
@@ -56,19 +58,23 @@ enum class TestKind {
 
 struct TestCliOptions {
   TestKind testKind;
+  std::string testName;
   SnapshotTestMode testMode;
 };
 
 static TestCliOptions testCliOptions{};
 
+static std::string readFileToString(const StdPath &path) {
+  std::ifstream in(path.c_str(), std::ios_base::in | std::ios_base::binary);
+  return std::string((std::istreambuf_iterator<char>(in)),
+                     std::istreambuf_iterator<char>());
+}
+
 void compareOrUpdate(std::string_view actual,
                      std::filesystem::path snapshotFilepath) {
   switch (testCliOptions.testMode) {
   case SnapshotTestMode::Compare: {
-    std::ifstream in(snapshotFilepath.c_str(),
-                     std::ios_base::in | std::ios_base::binary);
-    std::string expected((std::istreambuf_iterator<char>(in)),
-                         std::istreambuf_iterator<char>());
+    std::string expected(::readFileToString(snapshotFilepath));
     compareDiff(expected, actual, "comparison failed");
     return;
   }
@@ -191,10 +197,113 @@ TEST_CASE("COMPDB_PARSING") {
   return;
 }
 
+static std::vector<std::filesystem::path>
+listFilesRecursive(const std::filesystem::path &root) {
+  std::vector<std::filesystem::path> out;
+  std::filesystem::recursive_directory_iterator it(root);
+  for (auto &dirEntry : it) {
+    if (!dirEntry.is_directory()) {
+      out.push_back(dirEntry.path());
+    }
+  }
+  absl::c_sort(out);
+  return out;
+}
+
+class SnapshotTest final {
+  StdPath rootPath;
+  struct TranlationUnitInputOutput {
+    StdPath translationUnitMainFilePath;
+    StdPath snapshotPath;
+  };
+
+  std::vector<TranlationUnitInputOutput> inputOutputs;
+
+public:
+  SnapshotTest(StdPath &&root,
+               absl::FunctionRef<StdPath(const StdPath &)> tuPathToSnapshotPath)
+      : rootPath(root), inputOutputs() {
+    auto inputFiles = ::listFilesRecursive(this->rootPath);
+    for (auto &inputFile : inputFiles) {
+      if (SnapshotTest::isTuMainFilePath(inputFile)) {
+        auto snapshotPath = tuPathToSnapshotPath(inputFile);
+        this->inputOutputs.emplace_back(TranlationUnitInputOutput{
+            std::move(inputFile), std::move(snapshotPath)});
+      }
+    }
+  }
+
+  void testCompareOrUpdate(
+      absl::FunctionRef<std::string(clang::tooling::CompileCommand &&command)>
+          compute) {
+    for (auto &io : this->inputOutputs) {
+      clang::tooling::CompileCommand command{};
+      command.Directory = rootPath.string();
+      auto tuMainPath = io.translationUnitMainFilePath;
+      tuMainPath.lexically_relative(rootPath);
+      command.CommandLine = {
+          "clang",
+          "-I",
+          ".",
+          tuMainPath.string(),
+      };
+      command.Filename = tuMainPath.string();
+      auto output = compute(std::move(command));
+      ::compareOrUpdate(output, io.snapshotPath);
+    }
+  }
+
+private:
+  static bool isTuMainFilePath(const StdPath &p) {
+    auto ext = p.extension();
+    return ext == ".cc" || ext == ".c";
+  }
+};
+
+static std::function<StdPath(const StdPath &)>
+replaceExtension(std::string newExt) {
+  return [=](const StdPath &tuMainFilePath) -> StdPath {
+    StdPath snapshotPath = tuMainFilePath;
+    snapshotPath.replace_extension(newExt);
+    return snapshotPath;
+  };
+}
+
 TEST_CASE("PREPROCESSING") {
   if (testCliOptions.testKind != TestKind::PreprocessorTests) {
     return;
   }
+
+  ENFORCE(testCliOptions.testName != "",
+          "--test-name should be passed for preprocessor tests");
+  std::filesystem::path root = std::filesystem::current_path();
+  root.append("test");
+  root.append("preprocessor");
+  root.append(testCliOptions.testName);
+  ENFORCE(std::filesystem::exists(root), "missing test directory at {}",
+          root.c_str());
+
+  SnapshotTest(std::move(root),
+               ::replaceExtension(".preprocessor-history.yaml"))
+      .testCompareOrUpdate(
+          [](clang::tooling::CompileCommand &&command) -> std::string {
+            auto tmpYamlPath = std::filesystem::temp_directory_path();
+            tmpYamlPath.append(fmt::format("{}.yaml", testCliOptions.testName));
+            Worker worker(WorkerOptions{
+                IpcOptions::testingStub,
+                spdlog::level::level_enum::info,
+                true,
+                ".*",
+                tmpYamlPath,
+            });
+            SemanticAnalysisJobResult result{};
+            worker.performSemanticAnalysis(
+                SemanticAnalysisJobDetails{std::move(command)}, result);
+            worker.flushStreams();
+            std::string actual(::readFileToString(tmpYamlPath));
+            std::filesystem::remove(tmpYamlPath);
+            return actual;
+          });
 }
 
 int main(int argc, char *argv[]) {
@@ -205,6 +314,9 @@ int main(int argc, char *argv[]) {
   options.add_options()("test-kind",
                         "One of 'unit', 'compdb' or 'preprocessor'",
                         cxxopts::value<std::string>(testKind));
+  options.add_options()(
+      "test-name", "(Optional) Separate identifier for a specific test",
+      cxxopts::value<std::string>(testCliOptions.testName)->default_value(""));
   options.add_options()("update",
                         "Should snapshots be updated instead of comparing?",
                         cxxopts::value<bool>());

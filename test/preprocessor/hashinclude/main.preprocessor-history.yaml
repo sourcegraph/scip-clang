@@ -1,0 +1,23 @@
+---
+path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
+history:
+  - 'self path: /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
+...
+---
+path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
+history:
+  - 'self path: /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
+...
+---
+path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-2.h'
+history:
+  - 'self path: /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-2.h'
+  - 'hash for #include /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h: 14838620476983705257'
+...
+---
+path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1.h'
+history:
+  - 'self path: /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1.h'
+  - 'hash for #include /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h: 14838620476983705257'
+  - 'hash for #include /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-2.h: 12699314472347706846'
+...

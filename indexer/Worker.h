@@ -27,7 +27,7 @@ struct MessageQueuePair {
   JsonIpcQueue driverToWorker;
   JsonIpcQueue workerToDriver;
 
-  MessageQueuePair(std::string_view driverId, WorkerId workerId);
+  MessageQueuePair(const IpcOptions &);
 };
 
 struct PreprocessorHistoryRecorder {
@@ -36,20 +36,22 @@ struct PreprocessorHistoryRecorder {
 };
 
 struct WorkerOptions {
-  std::chrono::seconds receiveTimeout;
+  IpcOptions ipcOptions;
   spdlog::level::level_enum logLevel;
   bool deterministic;
   std::string recordHistoryRegex;
   std::string preprocessorHistoryLogPath;
-  std::string driverId;
-  uint64_t workerId;
 
-  WorkerOptions(const CliOptions &cliOptions);
+  // This is a static method instead of a constructor so that the
+  // implicit memberwise initializer is synthesized and available
+  // for test code.
+  static WorkerOptions fromCliOptions(const CliOptions &);
 };
 
-class Worker {
+class Worker final {
   WorkerOptions options;
-  MessageQueuePair messageQueues;
+  // Non-null in actual builds, null in testing.
+  std::unique_ptr<MessageQueuePair> messageQueues;
 
   /// The llvm::yaml::Output object doesn't take ownership
   /// of the underlying stream, so hold it separately.
@@ -64,12 +66,13 @@ class Worker {
 public:
   Worker(WorkerOptions &&options);
   void run();
-  void performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
-                               SemanticAnalysisJobResult &result);
+  void performSemanticAnalysis(SemanticAnalysisJobDetails &&,
+                               SemanticAnalysisJobResult &);
   void flushStreams();
 
 private:
-  void processRequest(IndexJobRequest &&request, IndexJobResult &result);
+  const IpcOptions &ipcOptions() const;
+  void processRequest(IndexJobRequest &&, IndexJobResult &);
 };
 
 } // namespace scip_clang
