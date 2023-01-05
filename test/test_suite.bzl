@@ -2,20 +2,23 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 
 def _snapshot_test(name, kind, data):
     suffix = kind + ("" if name == "" else "_" + name)
-    name_args = [] if name == "" else ["--test-name=" + name]
     test_name = "test_" + suffix
     update_name = "update_" + suffix
+    test_args = (
+        ["--test-kind=" + kind] +
+        ([] if name == "" else ["--test-name=" + name])
+    )
     native.sh_test(
         name = test_name,
         srcs = ["test_main.sh"],
-        args = ["--test-kind=" + kind] + name_args,
+        args = test_args,
         data = ["//test:test_main"] + data,
         size = "small",
     )
     native.sh_test(
         name = update_name,
         srcs = ["test_main.sh"],
-        args = ["--test-kind=" + kind, "--update"] + name_args,
+        args = test_args + ["--update"],
         data = ["//test:test_main"] + data,
         size = "small",
     )

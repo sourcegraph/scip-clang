@@ -1,23 +1,33 @@
 ---
 path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
 history:
-  - 'self path: /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
+  - value:           1-1.h
+    context:         self path
 ...
 ---
 path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
 history:
-  - 'self path: /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
+  - value:           1-1.h
+    context:         self path
 ...
 ---
 path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-2.h'
 history:
-  - 'self path: /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-2.h'
-  - 'hash for #include /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h: 14838620476983705257'
+  - value:           1-2.h
+    context:         self path
+  - value:           '14465082906237464057'
+    context:         'hash for #include'
+    contextPath:     1-1.h
 ...
 ---
 path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1.h'
 history:
-  - 'self path: /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1.h'
-  - 'hash for #include /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h: 14838620476983705257'
-  - 'hash for #include /Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-2.h: 12699314472347706846'
+  - value:           1.h
+    context:         self path
+  - value:           '14465082906237464057'
+    context:         'hash for #include'
+    contextPath:     1-1.h
+  - value:           '7303749561310912623'
+    context:         'hash for #include'
+    contextPath:     1-2.h
 ...

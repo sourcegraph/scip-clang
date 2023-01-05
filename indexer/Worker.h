@@ -33,14 +33,21 @@ struct MessageQueuePair {
 struct PreprocessorHistoryRecorder {
   HeaderFilter filter;
   llvm::yaml::Output yamlStream;
+  std::function<llvm::StringRef(llvm::StringRef)> normalizePath;
+};
+
+struct PreprocessorHistoryRecordingOptions {
+  std::string recordHistoryRegex;
+  std::string preprocessorHistoryLogPath;
+  bool preferRelativePaths;
+  std::string rootPath;
 };
 
 struct WorkerOptions {
   IpcOptions ipcOptions;
   spdlog::level::level_enum logLevel;
   bool deterministic;
-  std::string recordHistoryRegex;
-  std::string preprocessorHistoryLogPath;
+  PreprocessorHistoryRecordingOptions recordingOptions;
 
   // This is a static method instead of a constructor so that the
   // implicit memberwise initializer is synthesized and available

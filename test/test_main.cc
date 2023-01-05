@@ -57,6 +57,7 @@ enum class TestKind {
 };
 
 struct TestCliOptions {
+  std::string rootDirectory;
   TestKind testKind;
   std::string testName;
   SnapshotTestMode testMode;
@@ -267,6 +268,24 @@ replaceExtension(std::string newExt) {
   };
 }
 
+std::string deriveRootFromTUPath(const std::string &tuPath,
+                                 const std::string &virtualRoot) {
+  llvm::SmallString<64> realPathSmallStr;
+  llvm::sys::fs::real_path(tuPath, realPathSmallStr);
+  auto realPathStr = realPathSmallStr.str();
+  const char key[] = "test/preprocessor/";
+  auto startIdx = realPathStr.rfind(key);
+  ENFORCE(startIdx != std::string::npos);
+
+  auto scipClangRoot = realPathStr.slice(0, startIdx).str();
+
+  startIdx = virtualRoot.rfind(key);
+  ENFORCE(startIdx != std::string::npos);
+  auto testRelativeRoot = virtualRoot.substr(startIdx, virtualRoot.size());
+
+  return scipClangRoot + testRelativeRoot + "/";
+}
+
 TEST_CASE("PREPROCESSING") {
   if (testCliOptions.testKind != TestKind::PreprocessorTests) {
     return;
@@ -281,18 +300,29 @@ TEST_CASE("PREPROCESSING") {
   ENFORCE(std::filesystem::exists(root), "missing test directory at {}",
           root.c_str());
 
+  // auto rootPathString = root.string();
   SnapshotTest(std::move(root),
                ::replaceExtension(".preprocessor-history.yaml"))
       .testCompareOrUpdate(
           [](clang::tooling::CompileCommand &&command) -> std::string {
             auto tmpYamlPath = std::filesystem::temp_directory_path();
             tmpYamlPath.append(fmt::format("{}.yaml", testCliOptions.testName));
+
+            // HACK(def: derive-root-path)
+            // Get the real path to the file and compute the root relative
+            // to that, instead of using the synthetic sandbox root, because
+            // we want the root to be a prefix of the real path (the real path
+            // is used when tracking preprocessor history)
+            auto derivedRoot =
+                ::deriveRootFromTUPath(command.Filename, command.Directory);
+            fmt::print("derivedRoot = {}\n", derivedRoot);
+
             Worker worker(WorkerOptions{
                 IpcOptions::testingStub,
                 spdlog::level::level_enum::info,
                 true,
-                ".*",
-                tmpYamlPath,
+                PreprocessorHistoryRecordingOptions{".*", tmpYamlPath, true,
+                                                    derivedRoot},
             });
             SemanticAnalysisJobResult result{};
             worker.performSemanticAnalysis(

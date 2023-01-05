@@ -48,13 +48,19 @@ MessageQueuePair::MessageQueuePair(const IpcOptions &ipcOptions) {
       boost_ip::open_only, w2d.c_str()));
 }
 
+struct HistoryEntry {
+  std::string value;
+  std::string context;
+  std::string contextPath;
+};
+
 namespace {
 
 // A type to keep track of the "transcript" (in Kythe terminology)
 // of an #include being processed.
 class HashValueBuilder {
 public:
-  using History = std::vector<std::string>;
+  using History = std::vector<HistoryEntry>;
 
 private:
   // The hash value calculated so far for preprocessor effects.
@@ -72,26 +78,19 @@ public:
       : runningHash(),
         history(recordHistory ? std::make_unique<History>() : nullptr) {}
 
-  void mix(llvm::StringRef text) {
+  void mix(std::string_view text) {
     this->runningHash.mix(reinterpret_cast<const uint8_t *>(text.data()),
                           text.size());
-    if (this->history) {
-      this->history->emplace_back(text.str());
-    }
   }
 
   void mix(uint64_t v) {
     this->runningHash.mix(reinterpret_cast<const uint8_t *>(&v), sizeof(v));
-    if (this->history) {
-      this->history->emplace_back(fmt::format("{}", v));
-    }
   }
 
-  // Deliberately not named mix(..); we should avoid constructing temporary
-  // strings which will be immediately be destroyed after the bytes are mixed
-  // into the running hash value.
-  void mixString(std::string &&text) {
-    this->mix(llvm::StringRef(text));
+  template <typename T> void mixWithContext(T t, HistoryEntry &&entry) {
+    ENFORCE(this->isRecordingHistory());
+    this->mix(t);
+    this->history->emplace_back(std::move(entry));
   }
 
   std::pair<HashValue, std::unique_ptr<History>> finish() {
@@ -103,13 +102,14 @@ public:
   }
 };
 
-#define MIX_WITH_KEY(__hash, __key_expr, __value)                   \
-  {                                                                 \
-    if (__hash.isRecordingHistory()) {                              \
-      __hash.mixString(fmt::format("{}: {}", __key_expr, __value)); \
-    } else {                                                        \
-      __hash.mix(__value);                                          \
-    }                                                               \
+#define MIX_WITH_KEY(_hash, _value, _path_expr, _context_expr)               \
+  {                                                                          \
+    if (_hash.isRecordingHistory()) {                                        \
+      _hash.mixWithContext(_value, HistoryEntry{fmt::format("{}", _value),   \
+                                                _context_expr, _path_expr}); \
+    } else {                                                                 \
+      _hash.mix(_value);                                                     \
+    }                                                                        \
   }
 
 struct HeaderInfoBuilder final {
@@ -166,6 +166,18 @@ struct llvm::yaml::MappingTraits<scip_clang::PreprocessorHistoryEntry> {
     io.mapRequired("path", entry.path);
     io.mapRequired("history", entry.history);
   }
+};
+
+template <> struct llvm::yaml::MappingTraits<scip_clang::HistoryEntry> {
+  static void mapping(llvm::yaml::IO &io, scip_clang::HistoryEntry &entry) {
+    io.mapOptional("value", entry.value);
+    io.mapOptional("context", entry.context, "");
+    io.mapOptional("contextPath", entry.contextPath, "");
+  }
+};
+
+template <> struct llvm::yaml::SequenceElementTraits<scip_clang::HistoryEntry> {
+  static const bool flow = false;
 };
 
 namespace scip_clang {
@@ -265,6 +277,7 @@ public:
     }
   }
 
+private:
   void enterInclude(bool recordHistory, clang::FileID enteredFileId) {
     this->stack.push(
         HeaderInfoBuilder{HashValueBuilder(recordHistory), enteredFileId});
@@ -316,8 +329,15 @@ public:
     return hashValue;
   }
 
-  // START overrides from PPCallbacks
+  std::string pathKeyForHistory(clang::FileID fileId) {
+    ENFORCE(this->options.recorder);
+    return this->options.recorder
+        ->normalizePath(debug::tryGetPath(this->sourceManager, fileId))
+        .str();
+  }
 
+  // START overrides from PPCallbacks
+public:
   /// \param sourceLoc corresponds to the top of the newly entered file (if
   /// valid).
   /// \param reason describes
@@ -348,11 +368,9 @@ public:
       if (!optHash || this->stack.empty()) {
         break;
       }
-      MIX_WITH_KEY(
-          this->stack.topHash(),
-          fmt::format("hash for #include {}",
-                      debug::tryGetPath(this->sourceManager, previousFileId)),
-          optHash->rawValue);
+      MIX_WITH_KEY(this->stack.topHash(), optHash->rawValue,
+                   this->pathKeyForHistory(previousFileId),
+                   "hash for #include");
       break;
     }
     case Reason::EnterFile: {
@@ -364,18 +382,20 @@ public:
       if (!enteredFileId.isValid()) {
         break;
       }
-      bool recordHistory = false;
-      if (this->options.recorder) {
-        if (auto enteredFileEntry =
+      if (auto *recorder = this->options.recorder) {
+        if (auto *enteredFileEntry =
                 this->sourceManager.getFileEntryForID(enteredFileId)) {
           auto path = enteredFileEntry->tryGetRealPathName();
-          recordHistory =
-              !path.empty() && this->options.recorder->filter.isMatch(path);
+          if (!path.empty() && recorder->filter.isMatch(path)) {
+            this->enterInclude(true, enteredFileId);
+            MIX_WITH_KEY(this->stack.topHash(),
+                         toStringView(recorder->normalizePath(path)), "",
+                         "self path");
+            break;
+          }
         }
       }
-      this->enterInclude(recordHistory, enteredFileId);
-      MIX_WITH_KEY(this->stack.topHash(), "self path",
-                   debug::tryGetPath(this->sourceManager, enteredFileId));
+      this->enterInclude(false, enteredFileId);
       break;
     }
     }
@@ -476,13 +496,11 @@ public:
 } // namespace
 
 WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
-  return WorkerOptions{
-      cliOptions.ipcOptions(),
-      cliOptions.logLevel,
-      cliOptions.deterministic,
-      cliOptions.preprocessorRecordHistoryFilterRegex,
-      cliOptions.preprocessorHistoryLogPath,
-  };
+  return WorkerOptions{cliOptions.ipcOptions(), cliOptions.logLevel,
+                       cliOptions.deterministic,
+                       PreprocessorHistoryRecordingOptions{
+                           cliOptions.preprocessorRecordHistoryFilterRegex,
+                           cliOptions.preprocessorHistoryLogPath, false, ""}};
 }
 
 Worker::Worker(WorkerOptions &&options)
@@ -492,24 +510,35 @@ Worker::Worker(WorkerOptions &&options)
               ? nullptr
               : std::make_unique<MessageQueuePair>(this->options.ipcOptions)),
       recorder() {
-  HeaderFilter filter(std::string(this->options.recordHistoryRegex));
+  auto &recordingOptions = this->options.recordingOptions;
+  HeaderFilter filter(std::string(recordingOptions.recordHistoryRegex));
   if (filter.isIdentity()) {
     return;
   }
-  ENFORCE(!this->options.preprocessorHistoryLogPath.empty());
+  ENFORCE(!recordingOptions.preprocessorHistoryLogPath.empty());
   std::error_code error;
   auto ostream = std::make_unique<llvm::raw_fd_ostream>(
-      llvm::StringRef(this->options.preprocessorHistoryLogPath), error);
+      llvm::StringRef(recordingOptions.preprocessorHistoryLogPath), error);
   if (error) {
     spdlog::error(
         "failed to open file for recording preprocessor history at '{}'",
-        this->options.preprocessorHistoryLogPath);
+        recordingOptions.preprocessorHistoryLogPath);
     spdlog::error("I/O error: {}", error.message());
     std::exit(EXIT_FAILURE);
   }
   llvm::yaml::Output yamlStream(*ostream.get());
-  PreprocessorHistoryRecorder recorder{std::move(filter),
-                                       std::move(yamlStream)};
+  bool preferRelativePaths = recordingOptions.preferRelativePaths;
+  std::string rootPath = recordingOptions.rootPath;
+  PreprocessorHistoryRecorder recorder{
+      std::move(filter), std::move(yamlStream),
+      [preferRelativePaths, rootPath](llvm::StringRef sref) -> llvm::StringRef {
+        if (preferRelativePaths && sref.starts_with(rootPath)) {
+          return sref.slice(rootPath.size(), sref.size());
+        } else {
+          fmt::print(stderr, "sref = {}\nroot = {}\n", sref.str(), rootPath);
+        }
+        return sref;
+      }};
   this->recorder.emplace(
       std::make_pair(std::move(ostream), std::move(recorder)));
 }
