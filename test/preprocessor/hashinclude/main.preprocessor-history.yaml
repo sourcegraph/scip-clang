@@ -1,17 +1,17 @@
 ---
-path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
+path:            1-1.h
 history:
   - value:           1-1.h
     context:         self path
 ...
 ---
-path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-1.h'
+path:            1-1.h
 history:
   - value:           1-1.h
     context:         self path
 ...
 ---
-path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1-2.h'
+path:            1-2.h
 history:
   - value:           1-2.h
     context:         self path
@@ -20,7 +20,7 @@ history:
     contextPath:     1-1.h
 ...
 ---
-path:            '/Users/varun/Code/scip-clang/test/preprocessor/hashinclude/1.h'
+path:            1.h
 history:
   - value:           1.h
     context:         self path

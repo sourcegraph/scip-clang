@@ -321,10 +321,9 @@ private:
     if (history) {
       ENFORCE(this->options.recorder,
               "Recorded history even though output stream is missing 🤔");
-      auto &log = this->options.recorder->yamlStream;
-      auto path = debug::tryGetPath(this->sourceManager, headerInfo.fileId);
+      auto path = this->pathKeyForHistory(headerInfo.fileId);
       PreprocessorHistoryEntry entry{path, *history.get()};
-      log << entry;
+      this->options.recorder->yamlStream << entry;
     }
     return hashValue;
   }
