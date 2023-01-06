@@ -1,7 +1,7 @@
 #include <optional>
-#include <string>
 #include <string_view>
 
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Path.h"
 
 #include "indexer/Path.h"

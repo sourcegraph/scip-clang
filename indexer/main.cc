@@ -51,19 +51,19 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   parser.add_options("Advanced")(
     "deterministic",
     "Try to run everything in a deterministic fashion as much as possible."
-    "Does not support deterministic scheduling yet.",
+    "Does not support deterministic work scheduling yet.",
     cxxopts::value<bool>(cliOptions.deterministic));
   parser.add_options("Advanced")(
     "preprocessor-record-history-filter",
     "Regex for identifying headers for which textual descriptions of preprocessor"
     " effects should be recorded while computing transcripts, instead of"
-    " only maintaining a running hash value.",
-    // TODO(ref: transcript-record-output)
+    " only maintaining a running hash value. The effects are recorded in YAML"
+    " format under --supplementary-output-dir.",
     cxxopts::value<std::string>(cliOptions.preprocessorRecordHistoryFilterRegex));
   parser.add_options("Advanced")(
     "supplementary-output-dir",
     "Path to directory for recording supplementary outputs, such as various log files.",
-    cxxopts::value<std::string>(cliOptions.supplementaryOutputDir)->default_value("scip-clang-misc-output"));
+    cxxopts::value<std::string>(cliOptions.supplementaryOutputDir)->default_value("scip-clang-supplementary-output"));
   parser.add_options("Internal")(
     "preprocessor-history-log-path",
     "[worker-only] Path to log preprocessor history, if applicable.",

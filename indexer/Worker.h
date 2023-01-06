@@ -1,12 +1,9 @@
 #ifndef SCIP_CLANG_WORKER_H
 #define SCIP_CLANG_WORKER_H
 
-#include <chrono>
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 
 #include "spdlog/fwd.h"
@@ -37,7 +34,7 @@ struct PreprocessorHistoryRecorder {
 };
 
 struct PreprocessorHistoryRecordingOptions {
-  std::string recordHistoryRegex;
+  std::string filterRegex;
   std::string preprocessorHistoryLogPath;
   bool preferRelativePaths;
   std::string rootPath;

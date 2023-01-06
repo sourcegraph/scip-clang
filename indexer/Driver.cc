@@ -334,7 +334,7 @@ private:
       this->killLongRunningWorkersAndRespawn(now - workerTimeout);
     } else if (recvError) {
       spdlog::error("received malformed message: {}",
-                    scip_clang::formatLLVM(recvError));
+                    scip_clang::formatLlvm(recvError));
       // Keep going instead of exiting early for robustness.
     } else {
       // TODO(def: add-job-debug-helper): Add a simplified debug representation

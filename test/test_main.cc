@@ -127,11 +127,11 @@ TEST_CASE("UNIT_TESTS") {
     scip_clang::HeaderFilter filter(std::move(testCase.regex));
     for (auto &shouldMatch : testCase.matchTrue) {
       CHECK_MESSAGE(
-          filter.isMatch(shouldMatch),
+          filter.matches(shouldMatch),
           fmt::format("expected regex {} to match {}", regexCopy, shouldMatch));
     }
     for (auto &shouldntMatch : testCase.matchFalse) {
-      CHECK_MESSAGE(!filter.isMatch(shouldntMatch),
+      CHECK_MESSAGE(!filter.matches(shouldntMatch),
                     fmt::format("expected regex {} to not match {}", regexCopy,
                                 shouldntMatch));
     }
@@ -300,7 +300,6 @@ TEST_CASE("PREPROCESSING") {
   ENFORCE(std::filesystem::exists(root), "missing test directory at {}",
           root.c_str());
 
-  // auto rootPathString = root.string();
   SnapshotTest(std::move(root),
                ::replaceExtension(".preprocessor-history.yaml"))
       .testCompareOrUpdate(
@@ -315,7 +314,6 @@ TEST_CASE("PREPROCESSING") {
             // is used when tracking preprocessor history)
             auto derivedRoot =
                 ::deriveRootFromTUPath(command.Filename, command.Directory);
-            fmt::print("derivedRoot = {}\n", derivedRoot);
 
             Worker worker(WorkerOptions{
                 IpcOptions::testingStub,

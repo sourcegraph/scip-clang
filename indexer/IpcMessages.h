@@ -3,14 +3,12 @@
 
 #include <chrono>
 #include <cstdint>
-#include <cstring>
-#include <variant>
+#include <string>
+#include <string_view>
 
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/JSON.h"
-#include "llvm/Support/Regex.h"
 
-#include "indexer/CliOptions.h"
 #include "indexer/Derive.h"
 #include "indexer/Hash.h"
 

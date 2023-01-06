@@ -121,7 +121,7 @@ class IndexerPreprocessorStack final {
   std::vector<HeaderInfoBuilder> state;
 
 public:
-  bool empty() {
+  bool empty() const {
     return this->state.empty();
   }
   HashValueBuilder &topHash() {
@@ -183,6 +183,10 @@ template <> struct llvm::yaml::SequenceElementTraits<scip_clang::HistoryEntry> {
 namespace scip_clang {
 namespace {
 
+struct PreprocessorDebugContext {
+  std::string tuMainFilePath;
+};
+
 class IndexerPPCallbacks final : public clang::PPCallbacks {
   const IndexerPreprocessorOptions &options;
   SemanticAnalysisJobResult &result;
@@ -197,22 +201,27 @@ class IndexerPPCallbacks final : public clang::PPCallbacks {
   // Headers which we've seen only expand in a single way.
   // The extra bit inside the MultiHashValue struct indicates
   // if should look in the finishedProcessingMulti map instead.
-  absl::flat_hash_map<LLVMToAbslHashAdapter<clang::FileID>, MultiHashValue>
+  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, MultiHashValue>
       finishedProcessing;
   // Headers which expand in at least 2 different ways.
   // The values have size() >= 2.
-  absl::flat_hash_map<LLVMToAbslHashAdapter<clang::FileID>,
+  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
                       absl::flat_hash_set<HashValue>>
       finishedProcessingMulti;
+
+  const PreprocessorDebugContext debugContext;
 
 public:
   IndexerPPCallbacks(clang::SourceManager &sourceManager,
                      const IndexerPreprocessorOptions &options,
-                     SemanticAnalysisJobResult &result)
+                     SemanticAnalysisJobResult &result,
+                     PreprocessorDebugContext &&debugContext)
       : options(options), result(result), sourceManager(sourceManager), stack(),
-        finishedProcessing(), finishedProcessingMulti() {}
+        finishedProcessing(), finishedProcessingMulti(),
+        debugContext(std::move(debugContext)) {}
 
   ~IndexerPPCallbacks() {
+    bool emittedEmptyPathWarning = false;
     auto getAbsPath =
         [&](clang::FileID fileId) -> std::optional<AbsolutePathRef> {
       ENFORCE(fileId.isValid(), "stored invalid FileID in map!");
@@ -221,19 +230,19 @@ public:
                     // indexing
         return {};
       }
-      ENFORCE(entry, "missing entry for fileId stored in map");
       auto path = entry->tryGetRealPathName();
-      if (path.empty()) {
-        // TODO: attach some contextual information here!
-        spdlog::warn("empty path for FileEntry");
+      if (path.empty() && !emittedEmptyPathWarning) {
+        spdlog::warn("empty path for FileEntry when indexing {}",
+                     this->debugContext.tuMainFilePath);
+        emittedEmptyPathWarning = true;
         return {};
       }
       auto optAbsPath = AbsolutePathRef::tryFrom(path);
       if (!optAbsPath.has_value()) {
-        // TODO: attach some contextual information
-        spdlog::warn(
-            "non-absolute path returned from tryGetRealPathName() = {}",
-            scip_clang::toStringView(path));
+        spdlog::warn("unexpected relative path from tryGetRealPathName() = {} "
+                     "when indexing {}",
+                     scip_clang::toStringView(path),
+                     this->debugContext.tuMainFilePath);
       }
       return optAbsPath;
     };
@@ -300,7 +309,7 @@ private:
               debug::tryGetPath(this->sourceManager, fileId));
     }
 
-    auto key = LLVMToAbslHashAdapter<clang::FileID>{headerInfo.fileId};
+    auto key = LlvmToAbslHashAdapter<clang::FileID>{headerInfo.fileId};
     auto it = this->finishedProcessing.find(key);
     auto [hashValue, history] = headerInfo.hashValueBuilder.finish();
     if (it == this->finishedProcessing.end()) {
@@ -386,7 +395,7 @@ public:
         if (auto *enteredFileEntry =
                 this->sourceManager.getFileEntryForID(enteredFileId)) {
           auto path = enteredFileEntry->tryGetRealPathName();
-          if (!path.empty() && recorder->filter.isMatch(path)) {
+          if (!path.empty() && recorder->filter.matches(path)) {
             this->enterInclude(true, enteredFileId);
             MIX_WITH_KEY(this->stack.topHash(),
                          toStringView(recorder->normalizePath(path)), "",
@@ -464,7 +473,8 @@ public:
                     llvm::StringRef filepath) override {
     auto &preprocessor = compilerInstance.getPreprocessor();
     preprocessor.addPPCallbacks(std::make_unique<IndexerPPCallbacks>(
-        compilerInstance.getSourceManager(), options, result));
+        compilerInstance.getSourceManager(), options, result,
+        PreprocessorDebugContext{filepath.str()}));
     return std::make_unique<IndexerASTConsumer>(compilerInstance, filepath);
   }
 };
@@ -511,7 +521,7 @@ Worker::Worker(WorkerOptions &&options)
               : std::make_unique<MessageQueuePair>(this->options.ipcOptions)),
       recorder() {
   auto &recordingOptions = this->options.recordingOptions;
-  HeaderFilter filter(std::string(recordingOptions.recordHistoryRegex));
+  HeaderFilter filter(std::string(recordingOptions.filterRegex));
   if (filter.isIdentity()) {
     return;
   }
@@ -625,7 +635,7 @@ void Worker::run() {
     }
     if (recvError) {
       spdlog::error("received malformed message: {}",
-                    scip_clang::formatLLVM(recvError));
+                    scip_clang::formatLlvm(recvError));
       continue;
     }
     if (request.id == JobId::Shutdown()) {

@@ -72,7 +72,7 @@ public:
   /// Logs an error and exits the program if \p regexText is ill-formed.
   HeaderFilter(std::string &&regexText);
 
-  bool isMatch(std::string_view data) const {
+  bool matches(std::string_view data) const {
     if (matcher && matcher->match(llvm::StringRef(data))) {
       return true;
     }
