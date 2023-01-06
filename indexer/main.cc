@@ -50,7 +50,8 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     cxxopts::value<uint32_t>()->default_value(defaultReceiveTimeoutSeconds));
   parser.add_options("Advanced")(
     "deterministic",
-    "Try to run everything in a deterministic fashion as much as possible.",
+    "Try to run everything in a deterministic fashion as much as possible."
+    "Does not support deterministic scheduling yet.",
     cxxopts::value<bool>(cliOptions.deterministic));
   parser.add_options("Advanced")(
     "preprocessor-record-history-filter",
