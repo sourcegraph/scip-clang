@@ -540,10 +540,9 @@ Worker::Worker(WorkerOptions &&options)
   auto ostream = std::make_unique<llvm::raw_fd_ostream>(
       llvm::StringRef(recordingOptions.preprocessorHistoryLogPath), error);
   if (error) {
-    spdlog::error(
-        "failed to open file for recording preprocessor history at '{}'",
-        recordingOptions.preprocessorHistoryLogPath);
-    spdlog::error("I/O error: {}", error.message());
+    spdlog::error("failed to open preprocessor history recording file at '{}'; "
+                  "I/O error: {}",
+                  recordingOptions.preprocessorHistoryLogPath, error.message());
     std::exit(EXIT_FAILURE);
   }
   llvm::yaml::Output yamlStream(*ostream.get());
@@ -554,8 +553,6 @@ Worker::Worker(WorkerOptions &&options)
       [preferRelativePaths, rootPath](llvm::StringRef sref) -> llvm::StringRef {
         if (preferRelativePaths && sref.starts_with(rootPath)) {
           return sref.slice(rootPath.size(), sref.size());
-        } else {
-          fmt::print(stderr, "sref = {}\nroot = {}\n", sref.str(), rootPath);
         }
         return sref;
       }};
