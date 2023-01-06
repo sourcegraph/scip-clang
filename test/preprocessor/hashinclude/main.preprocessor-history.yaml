@@ -1,33 +1,51 @@
 ---
 path:            1-1.h
+hash:            0xC8BE4C4390DBEDF9
 history:
-  - value:           1-1.h
-    context:         self path
+  - before-hash:     0x0
+    mixed-value:     1-1.h
+    mix-context:     self path
+    after-hash:      0xC8BE4C4390DBEDF9
 ...
 ---
 path:            1-1.h
+hash:            0xC8BE4C4390DBEDF9
 history:
-  - value:           1-1.h
-    context:         self path
+  - before-hash:     0x0
+    mixed-value:     1-1.h
+    mix-context:     self path
+    after-hash:      0xC8BE4C4390DBEDF9
 ...
 ---
 path:            1-2.h
+hash:            0x655C2187725A206F
 history:
-  - value:           1-2.h
-    context:         self path
-  - value:           '14465082906237464057'
-    context:         'hash for #include'
-    contextPath:     1-1.h
+  - before-hash:     0x0
+    mixed-value:     1-2.h
+    mix-context:     self path
+    after-hash:      0x84759510C6223CBE
+  - before-hash:     0x84759510C6223CBE
+    mixed-value:     '14465082906237464057'
+    mix-context:     'hash for #include'
+    context-data:    1-1.h
+    after-hash:      0x655C2187725A206F
 ...
 ---
 path:            1.h
+hash:            0xD503EBD32E58E994
 history:
-  - value:           1.h
-    context:         self path
-  - value:           '14465082906237464057'
-    context:         'hash for #include'
-    contextPath:     1-1.h
-  - value:           '7303749561310912623'
-    context:         'hash for #include'
-    contextPath:     1-2.h
+  - before-hash:     0x0
+    mixed-value:     1.h
+    mix-context:     self path
+    after-hash:      0x3E5EB37CF2BC405C
+  - before-hash:     0x3E5EB37CF2BC405C
+    mixed-value:     '14465082906237464057'
+    mix-context:     'hash for #include'
+    context-data:    1-1.h
+    after-hash:      0xCEB2DF71DEE88A6D
+  - before-hash:     0xCEB2DF71DEE88A6D
+    mixed-value:     '7303749561310912623'
+    mix-context:     'hash for #include'
+    context-data:    1-2.h
+    after-hash:      0xD503EBD32E58E994
 ...

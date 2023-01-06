@@ -49,9 +49,11 @@ MessageQueuePair::MessageQueuePair(const IpcOptions &ipcOptions) {
 }
 
 struct HistoryEntry {
-  std::string value;
-  std::string context;
-  std::string contextPath;
+  llvm::yaml::Hex64 beforeHash;
+  llvm::yaml::Hex64 afterHash;
+  std::string mixedValue;
+  std::string mixContext;
+  std::string contextData;
 };
 
 namespace {
@@ -89,7 +91,9 @@ public:
 
   template <typename T> void mixWithContext(T t, HistoryEntry &&entry) {
     ENFORCE(this->isRecordingHistory());
+    entry.beforeHash = this->runningHash.rawValue;
     this->mix(t);
+    entry.afterHash = this->runningHash.rawValue;
     this->history->emplace_back(std::move(entry));
   }
 
@@ -102,14 +106,16 @@ public:
   }
 };
 
-#define MIX_WITH_KEY(_hash, _value, _path_expr, _context_expr)               \
-  {                                                                          \
-    if (_hash.isRecordingHistory()) {                                        \
-      _hash.mixWithContext(_value, HistoryEntry{fmt::format("{}", _value),   \
-                                                _context_expr, _path_expr}); \
-    } else {                                                                 \
-      _hash.mix(_value);                                                     \
-    }                                                                        \
+#define MIX_WITH_KEY(_hash, _value, _path_expr, _context_expr)          \
+  {                                                                     \
+    if (_hash.isRecordingHistory()) {                                   \
+      _hash.mixWithContext(                                             \
+          _value, HistoryEntry{.mixedValue = fmt::format("{}", _value), \
+                               .mixContext = _context_expr,             \
+                               .contextData = _path_expr});             \
+    } else {                                                            \
+      _hash.mix(_value);                                                \
+    }                                                                   \
   }
 
 struct HeaderInfoBuilder final {
@@ -155,6 +161,7 @@ struct IndexerPreprocessorOptions {
 struct PreprocessorHistory {
   llvm::StringRef path;
   HashValueBuilder::History &history;
+  llvm::yaml::Hex64 finalHashValue;
 };
 
 } // namespace
@@ -164,15 +171,18 @@ template <> struct llvm::yaml::MappingTraits<scip_clang::PreprocessorHistory> {
   static void mapping(llvm::yaml::IO &io,
                       scip_clang::PreprocessorHistory &entry) {
     io.mapRequired("path", entry.path);
+    io.mapRequired("hash", entry.finalHashValue);
     io.mapRequired("history", entry.history);
   }
 };
 
 template <> struct llvm::yaml::MappingTraits<scip_clang::HistoryEntry> {
   static void mapping(llvm::yaml::IO &io, scip_clang::HistoryEntry &entry) {
-    io.mapOptional("value", entry.value);
-    io.mapOptional("context", entry.context, "");
-    io.mapOptional("contextPath", entry.contextPath, "");
+    io.mapRequired("before-hash", entry.beforeHash);
+    io.mapRequired("mixed-value", entry.mixedValue);
+    io.mapOptional("mix-context", entry.mixContext, "");
+    io.mapOptional("context-data", entry.contextData, "");
+    io.mapRequired("after-hash", entry.afterHash);
   }
 };
 
@@ -332,7 +342,7 @@ private:
       ENFORCE(this->options.recorder,
               "Recorded history even though output stream is missing 🤔");
       auto path = this->pathKeyForHistory(headerInfo.fileId);
-      PreprocessorHistory entry{path, *history.get()};
+      PreprocessorHistory entry{path, *history.get(), {hashValue.rawValue}};
       this->options.recorder->yamlStream << entry;
     }
     return hashValue;
