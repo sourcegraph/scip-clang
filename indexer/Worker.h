@@ -19,14 +19,6 @@ namespace scip_clang {
 
 int workerMain(CliOptions &&);
 
-// Type representing the driver<->worker queues, as used by a worker.
-struct MessageQueuePair {
-  JsonIpcQueue driverToWorker;
-  JsonIpcQueue workerToDriver;
-
-  MessageQueuePair(const IpcOptions &);
-};
-
 struct PreprocessorHistoryRecorder {
   HeaderFilter filter;
   llvm::yaml::Output yamlStream;

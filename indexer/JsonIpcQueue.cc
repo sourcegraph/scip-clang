@@ -8,6 +8,7 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "indexer/CliOptions.h"
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/LLVMAdapter.h"
 
@@ -48,6 +49,19 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
     return llvm::json::parse(std::string_view(readBuffer.data(), recvCount));
   }
   return llvm::make_error<TimeoutError>();
+}
+
+MessageQueuePair MessageQueuePair::forWorker(const IpcOptions &ipcOptions) {
+  auto d2w = scip_clang::driverToWorkerQueueName(ipcOptions.driverId,
+                                                 ipcOptions.workerId);
+  auto w2d = scip_clang::workerToDriverQueueName(ipcOptions.driverId);
+  namespace boost_ip = boost::interprocess;
+  MessageQueuePair mqp;
+  mqp.driverToWorker = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
+      boost_ip::open_only, d2w.c_str()));
+  mqp.workerToDriver = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
+      boost_ip::open_only, w2d.c_str()));
+  return mqp;
 }
 
 } // namespace scip_clang

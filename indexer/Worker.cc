@@ -38,16 +38,6 @@ namespace boost_ip = boost::interprocess;
 
 namespace scip_clang {
 
-MessageQueuePair::MessageQueuePair(const IpcOptions &ipcOptions) {
-  auto d2w = scip_clang::driverToWorkerQueueName(ipcOptions.driverId,
-                                                 ipcOptions.workerId);
-  auto w2d = scip_clang::workerToDriverQueueName(ipcOptions.driverId);
-  this->driverToWorker = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
-      boost_ip::open_only, d2w.c_str()));
-  this->workerToDriver = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
-      boost_ip::open_only, w2d.c_str()));
-}
-
 struct HistoryEntry {
   llvm::yaml::Hex64 beforeHash;
   llvm::yaml::Hex64 afterHash;
@@ -528,7 +518,8 @@ Worker::Worker(WorkerOptions &&options)
       messageQueues(
           this->options.ipcOptions.isTestingStub()
               ? nullptr
-              : std::make_unique<MessageQueuePair>(this->options.ipcOptions)),
+              : std::make_unique<MessageQueuePair>(
+                  MessageQueuePair::forWorker(this->options.ipcOptions))),
       recorder() {
   auto &recordingOptions = this->options.recordingOptions;
   HeaderFilter filter(std::string(recordingOptions.filterRegex));

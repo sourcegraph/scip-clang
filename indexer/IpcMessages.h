@@ -137,6 +137,11 @@ struct IndexJobResponse {
 };
 SERIALIZABLE(IndexJobResponse)
 
+struct IpcTestMessage {
+    std::string content;
+};
+SERIALIZABLE(IpcTestMessage)
+
 #undef SERIALIZABLE
 
 } // namespace scip_clang

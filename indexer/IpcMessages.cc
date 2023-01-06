@@ -5,6 +5,7 @@
 
 #include "llvm/Support/JSON.h"
 
+#include "indexer/Derive.h"
 #include "indexer/IpcMessages.h"
 
 namespace scip_clang {
@@ -113,40 +114,16 @@ bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
   return false;
 }
 
-#define DERIVE_SERIALIZE(T, F1)                           \
-  llvm::json::Value toJSON(const T &t) {                  \
-    return llvm::json::Object{                            \
-        {#F1, t.F1},                                      \
-    };                                                    \
-  }                                                       \
-  bool fromJSON(const llvm::json::Value &jsonValue, T &t, \
-                llvm::json::Path path) {                  \
-    llvm::json::ObjectMapper mapper(jsonValue, path);     \
-    return mapper && mapper.map(#F1, t.F1);               \
-  }
-DERIVE_SERIALIZE(scip_clang::EmitIndexJobResult, indexPartPath)
-#undef DERIVE_SERIALIZE
+DERIVE_SERIALIZE_1(scip_clang::EmitIndexJobResult, indexPartPath)
+DERIVE_SERIALIZE_1(scip_clang::IpcTestMessage, content)
 
-#define DERIVE_SERIALIZE(T, F1, F2)                                  \
-  llvm::json::Value toJSON(const T &t) {                             \
-    return llvm::json::Object{                                       \
-        {#F1, t.F1},                                                 \
-        {#F2, t.F2},                                                 \
-    };                                                               \
-  }                                                                  \
-  bool fromJSON(const llvm::json::Value &jsonValue, T &t,            \
-                llvm::json::Path path) {                             \
-    llvm::json::ObjectMapper mapper(jsonValue, path);                \
-    return mapper && mapper.map(#F1, t.F1) && mapper.map(#F2, t.F2); \
-  }
-
-DERIVE_SERIALIZE(scip_clang::HeaderInfo, headerPath, hashValue)
-DERIVE_SERIALIZE(scip_clang::HeaderInfoMulti, headerPath, hashValues)
-DERIVE_SERIALIZE(scip_clang::EmitIndexJobDetails, headersToBeEmitted,
-                 outputDirectory)
-DERIVE_SERIALIZE(scip_clang::IndexJobRequest, id, job)
-DERIVE_SERIALIZE(scip_clang::SemanticAnalysisJobResult, singlyExpandedHeaders,
-                 multiplyExpandedHeaders)
+DERIVE_SERIALIZE_2(scip_clang::HeaderInfo, headerPath, hashValue)
+DERIVE_SERIALIZE_2(scip_clang::HeaderInfoMulti, headerPath, hashValues)
+DERIVE_SERIALIZE_2(scip_clang::EmitIndexJobDetails, headersToBeEmitted,
+                   outputDirectory)
+DERIVE_SERIALIZE_2(scip_clang::IndexJobRequest, id, job)
+DERIVE_SERIALIZE_2(scip_clang::SemanticAnalysisJobResult, singlyExpandedHeaders,
+                   multiplyExpandedHeaders)
 
 llvm::json::Value toJSON(const SemanticAnalysisJobDetails &val) {
   return llvm::json::Object{{"workdir", val.command.Directory},
