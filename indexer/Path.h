@@ -1,9 +1,8 @@
 #ifndef SCIP_CLANG_PATH_H
 #define SCIP_CLANG_PATH_H
 
-#include <filesystem>
 #include <optional>
-#include <string>
+#include <string_view>
 
 #include "llvm/ADT/StringRef.h"
 
