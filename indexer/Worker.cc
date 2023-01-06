@@ -151,7 +151,8 @@ struct IndexerPreprocessorOptions {
   bool ensureDeterminism;
 };
 
-struct PreprocessorHistoryEntry {
+// Small wrapper type for YAML serialization.
+struct PreprocessorHistory {
   llvm::StringRef path;
   HashValueBuilder::History &history;
 };
@@ -160,9 +161,9 @@ struct PreprocessorHistoryEntry {
 } // namespace scip_clang
 
 template <>
-struct llvm::yaml::MappingTraits<scip_clang::PreprocessorHistoryEntry> {
+struct llvm::yaml::MappingTraits<scip_clang::PreprocessorHistory> {
   static void mapping(llvm::yaml::IO &io,
-                      scip_clang::PreprocessorHistoryEntry &entry) {
+                      scip_clang::PreprocessorHistory &entry) {
     io.mapRequired("path", entry.path);
     io.mapRequired("history", entry.history);
   }
@@ -322,7 +323,7 @@ private:
       ENFORCE(this->options.recorder,
               "Recorded history even though output stream is missing 🤔");
       auto path = this->pathKeyForHistory(headerInfo.fileId);
-      PreprocessorHistoryEntry entry{path, *history.get()};
+      PreprocessorHistory entry{path, *history.get()};
       this->options.recorder->yamlStream << entry;
     }
     return hashValue;
