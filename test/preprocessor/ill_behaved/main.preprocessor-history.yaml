@@ -1,0 +1,32 @@
+---
+path:            good_header.h
+hash:            0x41A563DAF4C1B0D
+history:
+  - before-hash:     0x0
+    mixed-value:     good_header.h
+    mix-context:     self path
+    after-hash:      0x41A563DAF4C1B0D
+...
+---
+path:            ill_behaved.h
+hash:            0xDC81B0B4252B76C4
+history:
+  - before-hash:     0x0
+    mixed-value:     ill_behaved.h
+    mix-context:     self path
+    after-hash:      0x537C59600F370102
+  - before-hash:     0x537C59600F370102
+    mixed-value:     '295643548480183053'
+    mix-context:     'hash for #include'
+    context-data:    good_header.h
+    after-hash:      0xDC81B0B4252B76C4
+...
+---
+path:            ill_behaved.h
+hash:            0x537C59600F370102
+history:
+  - before-hash:     0x0
+    mixed-value:     ill_behaved.h
+    mix-context:     self path
+    after-hash:      0x537C59600F370102
+...
