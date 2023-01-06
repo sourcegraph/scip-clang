@@ -2,10 +2,7 @@
 #define SCIP_CLANG_FILESYSTEM_H
 
 #include <cstdio>
-
-namespace std::filesystem {
-struct path;
-}
+#include <filesystem>
 
 namespace scip_clang {
 
