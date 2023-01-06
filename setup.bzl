@@ -7,6 +7,7 @@ _LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec"  # Keep in sync with V
 _ABSL_COMMIT = "9a2c7bf98fa2482d0cbba727dcc4499e6e7c5ee2"
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
+_WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
 _SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
 
 # TODO(def: update-doctest) The latest release is 2.4.9, but
@@ -89,6 +90,14 @@ def scip_clang_rule_repositories():
         build_file = "@scip_clang//third_party:rapidjson.BUILD",
         strip_prefix = "rapidjson-%s" % _RAPIDJSON_COMMIT,
         urls = ["https://github.com/Tencent/rapidjson/archive/%s.zip" % _RAPIDJSON_COMMIT],
+    )
+
+    http_archive(
+        name = "wyhash",
+        sha256 = "ac8ff5dee1f6861614bbb1f2f5a0d57027574cc5fb56e2c47ac69ea2de30bbb0",
+        build_file = "@scip_clang//third_party:wyhash.BUILD",
+        strip_prefix = "wyhash-%s" % _WYHASH_COMMIT,
+        urls = ["https://github.com/wangyi-fudan/wyhash/archive/%s.zip" % _WYHASH_COMMIT],
     )
 
     # NOTE: fmt also comes through spdlog, we don't have an explicit dep on fmt.

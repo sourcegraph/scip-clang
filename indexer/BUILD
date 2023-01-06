@@ -1,30 +1,12 @@
 cc_library(
     name = "scip-clang-lib",
-    srcs = [
-        "CliOptions.h",
-        "CompilationDatabase.cc",
-        "CompilationDatabase.h",
-        "Driver.cc",
-        "Driver.h",
-        "Enforce.h",
-        "Exception.cc",
-        "Exception.h",
-        "FileSystem.h",
-        "IpcMessages.cc",
-        "IpcMessages.h",
-        "JsonIpcQueue.cc",
-        "JsonIpcQueue.h",
-        "LLVMAdapter.h",
-        "LLVMCommandLineParsing.cc",
-        "LLVMCommandLineParsing.h",
-        "Logging.cc",
-        "Logging.h",
-        "Timer.cc",
-        "Timer.h",
-        "Version.h",
-        "Worker.cc",
-        "Worker.h",
-    ],
+    srcs = glob(
+        [
+            "*.h",
+            "*.cc",
+        ],
+        exclude = ["main.cc"],
+    ),
     visibility = ["//visibility:public"],
     deps = [
         "//indexer/os",
@@ -37,6 +19,7 @@ cc_library(
         "@cxxopts",
         "@spdlog",
         "@rapidjson",
+        "@wyhash",
         "@llvm-project//llvm:Support",
         # FIXME: The tooling target seems to require at least
         # one backend to be set. Figure out if we can somehow

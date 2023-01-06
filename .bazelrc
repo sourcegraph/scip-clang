@@ -1,3 +1,7 @@
 # Not sure why setting all of these is necessary, but just setting cxxopt
 # Leads to usage of old C++ version when compiling LLVM, which needs C++14 or newer.
 build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 --client_env=BAZEL_CXXOPTS=-std=c++17
+
+# Suppressing the warning because it comes up a bunch
+# when building LLVM with ASan for some reason...
+build:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-Wno-macro-redefined"

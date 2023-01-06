@@ -3,10 +3,14 @@
 
 #include <chrono>
 #include <cstdint>
-#include <variant>
+#include <string>
+#include <string_view>
 
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/JSON.h"
+
+#include "indexer/Derive.h"
+#include "indexer/Hash.h"
 
 namespace scip_clang {
 
@@ -33,13 +37,7 @@ public:
   JobId &operator=(const JobId &) = default;
   JobId(uint64_t id) : _id(id) {}
 
-  template <typename H> friend H AbslHashValue(H h, const JobId &x) {
-    return H::combine(std::move(h), x.id());
-  }
-
-  bool operator==(const JobId &other) const {
-    return this->id() == other.id();
-  }
+  DERIVE_HASH_EQ_1(JobId, self._id)
 
   uint64_t id() const {
     return this->_id;
@@ -87,19 +85,35 @@ struct IndexJobRequest {
 };
 SERIALIZABLE(IndexJobRequest)
 
-struct Sha256Hash {
-  std::array<uint8_t, 256 / 8> value;
-};
-SERIALIZABLE(Sha256Hash)
+SERIALIZABLE(HashValue)
 
 struct HeaderInfo {
   std::string headerPath;
-  Sha256Hash hashValue;
+  HashValue hashValue;
+
+  friend bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs);
 };
 SERIALIZABLE(HeaderInfo)
 
+struct HeaderInfoMulti {
+  std::string headerPath;
+  std::vector<HashValue> hashValues;
+
+  friend bool operator<(const HeaderInfoMulti &lhs, const HeaderInfoMulti &rhs);
+};
+SERIALIZABLE(HeaderInfoMulti)
+
 struct SemanticAnalysisJobResult {
-  std::vector<HeaderInfo> headersProcessed;
+  std::vector<HeaderInfo> singlyExpandedHeaders;
+  std::vector<HeaderInfoMulti> multiplyExpandedHeaders;
+
+  // clang-format off
+  SemanticAnalysisJobResult() = default;
+  SemanticAnalysisJobResult(SemanticAnalysisJobResult &&) = default;
+  SemanticAnalysisJobResult &operator=(SemanticAnalysisJobResult &&) = default;
+  SemanticAnalysisJobResult(const SemanticAnalysisJobResult &) = delete;
+  SemanticAnalysisJobResult &operator=(const SemanticAnalysisJobResult &) = delete;
+  // clang-format on
 };
 SERIALIZABLE(SemanticAnalysisJobResult)
 

@@ -18,7 +18,7 @@
 #include "indexer/Worker.h"
 
 static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
-  scip_clang::CliOptions cliOptions;
+  scip_clang::CliOptions cliOptions{};
   cliOptions.scipClangExecutablePath = argv[0];
   using namespace std::chrono_literals;
   auto defaultReceiveTimeoutSeconds = "120";
@@ -48,18 +48,42 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     fmt::format("How long the driver should wait for a worker before marking "
                 "it as timed out?", defaultReceiveTimeoutSeconds),
     cxxopts::value<uint32_t>()->default_value(defaultReceiveTimeoutSeconds));
+  parser.add_options("Advanced")(
+    "deterministic",
+    "Try to run everything in a deterministic fashion as much as possible."
+    "Does not support deterministic work scheduling yet.",
+    cxxopts::value<bool>(cliOptions.deterministic));
+  parser.add_options("Advanced")(
+    "preprocessor-record-history-filter",
+    "Regex for identifying headers for which textual descriptions of preprocessor"
+    " effects should be recorded while computing transcripts, instead of"
+    " only maintaining a running hash value. The effects are recorded in YAML"
+    " format under --supplementary-output-dir.",
+    cxxopts::value<std::string>(cliOptions.preprocessorRecordHistoryFilterRegex));
+  parser.add_options("Advanced")(
+    "supplementary-output-dir",
+    "Path to directory for recording supplementary outputs, such as various log files.",
+    cxxopts::value<std::string>(cliOptions.supplementaryOutputDir)->default_value("scip-clang-supplementary-output"));
+  parser.add_options("Internal")(
+    "preprocessor-history-log-path",
+    "[worker-only] Path to log preprocessor history, if applicable.",
+    cxxopts::value<std::string>(cliOptions.preprocessorHistoryLogPath));
   parser.add_options("Internal")(
     "worker",
     "[worker-only] Spawn an indexing worker instead of invoking the driver directly",
     cxxopts::value<bool>(cliOptions.isWorker));
   parser.add_options("Internal")(
-      "driver-id",
-      "[worker-only] An opaque ID for the driver.",
-      cxxopts::value<std::string>(cliOptions.driverId));
+    "driver-id",
+    "[worker-only] An opaque ID for the driver.",
+    cxxopts::value<std::string>(cliOptions.driverId));
   parser.add_options("Internal")(
-      "worker-id",
-      "[worker-only] An opaque ID for the worker itself.",
-      cxxopts::value<uint64_t>(cliOptions.workerId));
+    "worker-id",
+    "[worker-only] An opaque ID for the worker itself.",
+    cxxopts::value<uint64_t>(cliOptions.workerId));
+
+  // TODO(def: flag-passthrough, issue: https://github.com/sourcegraph/scip-clang/issues/23)
+  // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
+
   // clang-format on
 
   parser.allow_unrecognised_options();

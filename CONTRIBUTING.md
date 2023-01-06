@@ -46,6 +46,24 @@ at the root of the repository. It will be automatically
 picked up by clangd-based editor extensions (you may
 need to reload the editor).
 
+## Debugging
+
+### Building with ASan
+
+Use `--config:asan` or manually add the `build:asan` settings
+from `.bazelrc` to your Bazel invocation.
+
+### Inspecting Clang ASTs
+
+Print the AST nodes:
+
+```
+clang -Xclang -ast-dump file.c
+clang -Xclang -ast-dump=json file.c
+```
+
+Another option is to use clang-query ([tutorial](https://devblogs.microsoft.com/cppblog/exploring-clang-tooling-part-2-examining-the-clang-ast-with-clang-query/)).
+
 ## Implementation Notes
 
 <!-- NOTE(def: based-on-sorbet) -->
@@ -60,3 +78,14 @@ but having a separate macro makes it easier to change
 the behavior in scip-clang exclusively, whereas there is a
 greater chance of mistakes if we want to separate out the
 cost of assertions in Clang itself vs in our code.
+
+## Notes on Clang internals
+
+- A `FileID`, unlike the name suggests, can refer to a File or
+  a macro expansion.
+- A valid `FileID` always has a corresponding `SLocEntry`.
+- A `FileEntry` is only present for a File-representing `FileID`
+  if it corresponds to an actual file. It will be missing
+  if the `FileID` corresponds to an imaginary file
+  (e.g. builtins). Thus, `sourceManager.getFileEntryForID` can
+  return null for certain valid FileIDs.

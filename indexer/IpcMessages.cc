@@ -1,6 +1,7 @@
 #include <type_traits>
 
 #include "spdlog/fmt/fmt.h"
+#include "spdlog/spdlog.h"
 
 #include "llvm/Support/JSON.h"
 
@@ -99,29 +100,16 @@ bool fromJSON(const llvm::json::Value &jsonValue, IndexJobResult &job,
   return fromJSONIndexJob(jsonValue, job, path);
 }
 
-llvm::json::Value toJSON(const Sha256Hash &h) {
-  return llvm::json::Array(h.value);
+llvm::json::Value toJSON(const HashValue &h) {
+  return llvm::json::Value(h.rawValue);
 }
-bool fromJSON(const llvm::json::Value &jsonValue, Sha256Hash &h,
+bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
               llvm::json::Path path) {
-  if (auto v = jsonValue.getAsArray()) {
-    if (v->size() == sizeof(decltype(h.value))) {
-      for (size_t i = 0; i < v->size(); i++) {
-        if (auto u = (*v)[i].getAsUINT64()) {
-          if (u.value() <= uint64_t(UINT8_MAX)) {
-            h.value[i] = u.value();
-            continue;
-          }
-        }
-        path.report("expected uint8 in array");
-        return false;
-      }
-      return true;
-    }
-    path.report("expected array with size 32");
-    return false;
+  if (auto v = jsonValue.getAsUINT64()) {
+    h.rawValue = v.value();
+    return true;
   }
-  path.report("expected array<uint8_t> for header hash");
+  path.report("expected uint64_t for HashValue");
   return false;
 }
 
@@ -136,7 +124,6 @@ bool fromJSON(const llvm::json::Value &jsonValue, Sha256Hash &h,
     llvm::json::ObjectMapper mapper(jsonValue, path);     \
     return mapper && mapper.map(#F1, t.F1);               \
   }
-DERIVE_SERIALIZE(scip_clang::SemanticAnalysisJobResult, headersProcessed)
 DERIVE_SERIALIZE(scip_clang::EmitIndexJobResult, indexPartPath)
 #undef DERIVE_SERIALIZE
 
@@ -154,9 +141,12 @@ DERIVE_SERIALIZE(scip_clang::EmitIndexJobResult, indexPartPath)
   }
 
 DERIVE_SERIALIZE(scip_clang::HeaderInfo, headerPath, hashValue)
+DERIVE_SERIALIZE(scip_clang::HeaderInfoMulti, headerPath, hashValues)
 DERIVE_SERIALIZE(scip_clang::EmitIndexJobDetails, headersToBeEmitted,
                  outputDirectory)
 DERIVE_SERIALIZE(scip_clang::IndexJobRequest, id, job)
+DERIVE_SERIALIZE(scip_clang::SemanticAnalysisJobResult, singlyExpandedHeaders,
+                 multiplyExpandedHeaders)
 
 llvm::json::Value toJSON(const SemanticAnalysisJobDetails &val) {
   return llvm::json::Object{{"workdir", val.command.Directory},
@@ -172,6 +162,27 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
          && mapper.map("file", d.command.Filename)
          && mapper.map("output", d.command.Output)
          && mapper.map("args", d.command.CommandLine);
+}
+
+bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs) {
+  if (lhs.hashValue < rhs.hashValue) {
+    return true;
+  }
+  if (lhs.hashValue == rhs.hashValue) {
+    return lhs.headerPath < rhs.headerPath;
+  }
+  return false;
+}
+
+bool operator<(const HeaderInfoMulti &lhs, const HeaderInfoMulti &rhs) {
+  auto cmp = std::strcmp(lhs.headerPath.c_str(), rhs.headerPath.c_str());
+  if (cmp < 0) {
+    return true;
+  }
+  if (cmp == 0) {
+    return lhs.hashValues < rhs.hashValues;
+  }
+  return false;
 }
 
 llvm::json::Value toJSON(const IndexJobResponse &r) {

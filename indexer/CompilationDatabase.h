@@ -17,6 +17,8 @@
 
 #include "clang/Tooling/CompilationDatabase.h"
 
+#include "indexer/FileSystem.h"
+
 namespace scip_clang {
 namespace compdb {
 
@@ -25,8 +27,7 @@ struct CompilationDatabaseFile {
   size_t sizeInBytes;
   size_t numJobs;
 
-  static CompilationDatabaseFile open(const std::filesystem::path &path,
-                                      std::error_code &ec);
+  static CompilationDatabaseFile open(const StdPath &path, std::error_code &ec);
 };
 
 // Key to identify fields in a command object

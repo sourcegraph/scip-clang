@@ -83,19 +83,74 @@ struct WorkerInfo {
   std::optional<JobId> currentlyProcessing;
 };
 
-class Driver {
-  std::string id;
+struct DriverOptions {
   std::string workerExecutablePath;
-
-  std::filesystem::path compdbPath;
-
+  StdPath compdbPath;
   size_t numWorkers;
+  std::chrono::seconds receiveTimeout;
+  bool deterministic;
+  std::string preprocessorRecordHistoryFilterRegex;
+  StdPath supplementaryOutputDir;
+
+  explicit DriverOptions(const CliOptions &cliOpts)
+      : workerExecutablePath(cliOpts.scipClangExecutablePath),
+        compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
+        receiveTimeout(cliOpts.numWorkers),
+        deterministic(cliOpts.deterministic),
+        preprocessorRecordHistoryFilterRegex(
+            cliOpts.preprocessorRecordHistoryFilterRegex),
+        supplementaryOutputDir(cliOpts.supplementaryOutputDir) {
+    // NOTE: Constructor eagerly checks that the regex is well-formed
+    HeaderFilter filter(
+        (std::string(this->preprocessorRecordHistoryFilterRegex)));
+    bool hasSupplementaryOutputs = !filter.isIdentity();
+    if (!hasSupplementaryOutputs) {
+      return;
+    }
+    std::error_code error;
+    std::filesystem::create_directories(this->supplementaryOutputDir, error);
+    if (!error) {
+      return;
+    }
+    spdlog::error("failed to create supplementary output directory at '{}'",
+                  this->supplementaryOutputDir.c_str());
+    spdlog::error("I/O error: {}", error.message());
+    std::exit(EXIT_FAILURE);
+  }
+
+  void addWorkerOptions(std::vector<std::string> &args,
+                        WorkerId workerId) const {
+    args.push_back(fmt::format(
+        "--log-level={}", spdlog::level::to_string_view(spdlog::get_level())));
+    static_assert(std::is_same<decltype(this->receiveTimeout),
+                               std::chrono::seconds>::value);
+    args.push_back(fmt::format("--receive-timeout-seconds={}",
+                               this->receiveTimeout.count()));
+    if (this->deterministic) {
+      args.push_back("--deterministic");
+    }
+    if (!this->preprocessorRecordHistoryFilterRegex.empty()) {
+      args.push_back(fmt::format("--preprocessor-record-history-filter={}",
+                                 this->preprocessorRecordHistoryFilterRegex));
+      auto logPath = this->supplementaryOutputDir;
+      logPath.append(
+          fmt::format("preprocessor-history-worker-{}.yaml", workerId));
+      args.push_back(
+          fmt::format("--preprocessor-history-log-path={}", logPath.c_str()));
+    }
+  }
+};
+
+class Driver {
+  DriverOptions options;
+
+  std::string id;
+
   std::vector<WorkerInfo> workers;
   std::deque<unsigned> availableWorkers; // Keep track of workers which are
                                          // available in FIFO order.
 
   MessageQueues queues;
-  std::chrono::seconds receiveTimeout;
 
   uint64_t nextJobId = 0;
   absl::flat_hash_map<JobId, IndexJob> allJobList;
@@ -112,34 +167,41 @@ public:
   Driver(const Driver &) = delete;
   Driver &operator=(const Driver &) = delete;
 
-  Driver(std::string compdbPath, size_t numWorkers,
-         std::string workerExecutablePath, std::chrono::seconds receiveTimeout)
-      : id(fmt::format("{}", ::getpid())),
-        workerExecutablePath(workerExecutablePath), numWorkers(numWorkers),
-        receiveTimeout(receiveTimeout), compdbParser() {
-    auto p = std::filesystem::path(compdbPath);
-    if (p.is_absolute()) {
-      this->compdbPath = p;
-    } else {
-      this->compdbPath = std::filesystem::current_path();
-      this->compdbPath /= p;
+  Driver(DriverOptions &&options)
+      : options(std::move(options)), id(fmt::format("{}", ::getpid())),
+        compdbParser() {
+    auto &compdbPath = this->options.compdbPath;
+    if (!compdbPath.is_absolute()) {
+      auto absPath = std::filesystem::current_path();
+      absPath /= compdbPath;
+      compdbPath = absPath;
     }
 
-    MessageQueues::deleteIfPresent(this->id, numWorkers);
-    this->queues = MessageQueues(this->id, numWorkers,
+    MessageQueues::deleteIfPresent(this->id, this->numWorkers());
+    this->queues = MessageQueues(this->id, this->numWorkers(),
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
+  }
+
+  size_t numWorkers() const {
+    return this->options.numWorkers;
+  }
+  const StdPath &compdbPath() const {
+    return this->options.compdbPath;
+  }
+  std::chrono::seconds receiveTimeout() const {
+    return this->options.receiveTimeout;
   }
 
   // NOTE: openCompilationDatabase should be called before this method.
   void spawnWorkers() {
-    this->workers.resize(this->numWorkers);
-    for (unsigned i = 0; i < this->numWorkers; i++) {
+    this->workers.resize(this->numWorkers());
+    for (unsigned i = 0; i < this->numWorkers(); i++) {
       this->spawnWorker(i);
     }
   }
 
   size_t refillCount() const {
-    return 2 * this->numWorkers;
+    return 2 * this->numWorkers();
   }
 
   size_t refillJobs() {
@@ -156,7 +218,7 @@ public:
   void queueJob(IndexJob &&j) {
     auto jobId = JobId(this->nextJobId);
     this->nextJobId++;
-    this->allJobList.insert({jobId, j});
+    this->allJobList.insert({jobId, std::move(j)});
     this->pendingJobs.push_back(jobId);
   }
 
@@ -180,9 +242,9 @@ public:
   FileGuard openCompilationDatabase() {
     std::error_code error;
     auto compdbFile =
-        compdb::CompilationDatabaseFile::open(this->compdbPath, error);
+        compdb::CompilationDatabaseFile::open(this->compdbPath(), error);
     if (!compdbFile.file) {
-      spdlog::error("failed to open compile_commands.json: {}",
+      spdlog::error("failed to open {}: {}", this->compdbPath().string(),
                     std::strerror(errno));
       std::exit(EXIT_FAILURE);
     }
@@ -197,7 +259,8 @@ public:
       std::exit(EXIT_FAILURE);
     }
     this->totalJobCount = compdbFile.numJobs;
-    this->numWorkers = std::min(this->totalJobCount, this->numWorkers);
+    this->options.numWorkers =
+        std::min(this->totalJobCount, this->numWorkers());
     spdlog::debug("total {} compilation jobs", this->totalJobCount);
 
     this->compdbParser.initialize(compdbFile, this->refillCount());
@@ -207,16 +270,11 @@ public:
 private:
   void spawnWorker(WorkerId workerId) {
     std::vector<std::string> args;
-    args.push_back(std::string(workerExecutablePath));
+    args.push_back(this->options.workerExecutablePath);
     args.push_back("--worker");
     args.push_back(fmt::format("--driver-id={}", this->id));
     args.push_back(fmt::format("--worker-id={}", workerId));
-    args.push_back(fmt::format(
-        "--log-level={}", spdlog::level::to_string_view(spdlog::get_level())));
-    args.push_back(fmt::format(
-        "--receive-timeout-seconds={}",
-        std::chrono::duration_cast<std::chrono::seconds>(this->receiveTimeout)
-            .count()));
+    this->options.addWorkerOptions(args, workerId);
 
     boost::process::child worker(args, boost::process::std_out > stdout);
     spdlog::debug("worker info running {}, pid = {}", worker.running(),
@@ -263,28 +321,31 @@ private:
 
   void processOneJobResult() {
     using namespace std::chrono_literals;
-    auto workerTimeout = this->receiveTimeout;
+    auto workerTimeout = this->receiveTimeout();
 
     IndexJobResponse response;
     auto recvError =
         this->queues.workerToDriver.timedReceive(response, workerTimeout);
     if (recvError.isA<TimeoutError>()) {
+      spdlog::error("timeout from driver");
       // All workers which are working have been doing so for too long,
       // because TimeoutError means we already exceeded the timeout limit.
       auto now = std::chrono::steady_clock::now();
       this->killLongRunningWorkersAndRespawn(now - workerTimeout);
     } else if (recvError) {
       spdlog::error("received malformed message: {}",
-                    scip_clang::formatLLVM(recvError));
+                    scip_clang::formatLlvm(recvError));
       // Keep going instead of exiting early for robustness.
     } else {
       // TODO(def: add-job-debug-helper): Add a simplified debug representation
       // for printing jobs for debugging.
       spdlog::debug("received job from worker {}", response.workerId);
 
+      // FIXME(def: add-driver-logic): We need to check the kind of the result
+      // and potentially reassign a job to the worker.
+
       this->markWorkerFree(response.workerId);
       bool erased = wipJobs.erase(response.jobId);
-      // FIXME(ref: add-enforce)
       ENFORCE(erased, "received response for job not marked WIP");
 
       auto now = std::chrono::steady_clock::now();
@@ -294,7 +355,7 @@ private:
 
   void assignJobToWorker(WorkerId workerId, JobId jobId) {
     // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
-    spdlog::info("assigning jobId {} to worker {}", jobId.id(), workerId);
+    spdlog::debug("assigning jobId {} to worker {}", jobId.id(), workerId);
     this->wipJobs.insert(jobId);
     this->markWorkerBusy(workerId, jobId);
     auto it = this->allJobList.find(jobId);
@@ -306,7 +367,6 @@ private:
   void assignJobsToAvailableWorkers() {
     auto numJobsToAssign =
         std::min(this->availableWorkers.size(), this->pendingJobs.size());
-    // FIXME(ref: add-enforce)
     ENFORCE(numJobsToAssign >= 1, "no workers or pending jobs");
     for (unsigned i = 0; i < numJobsToAssign; ++i) {
       JobId nextJob = this->pendingJobs.front();
@@ -318,9 +378,9 @@ private:
   }
 
   void shutdownAllWorkers() {
-    ENFORCE(this->availableWorkers.size() == this->numWorkers,
-      "shutdown should only happen after all workers finish processing");
-    for (unsigned i = 0; i < numWorkers; ++i) {
+    ENFORCE(this->availableWorkers.size() == this->numWorkers(),
+            "shutdown should only happen after all workers finish processing");
+    for (unsigned i = 0; i < this->numWorkers(); ++i) {
       this->queues.driverToWorker[i].send(
           IndexJobRequest{JobId::Shutdown(), {}});
     }
@@ -342,9 +402,7 @@ int driverMain(CliOptions &&cliOptions) {
   BOOST_TRY {
     MessageQueues::deleteIfPresent(driverId, numWorkers);
 
-    Driver driver(cliOptions.compdbPath, numWorkers,
-                  cliOptions.scipClangExecutablePath,
-                  cliOptions.receiveTimeout);
+    Driver driver((DriverOptions(std::move(cliOptions))));
     auto compdbGuard = driver.openCompilationDatabase();
     driver.spawnWorkers();
     driver.runJobsTillCompletionAndShutdownWorkers();
