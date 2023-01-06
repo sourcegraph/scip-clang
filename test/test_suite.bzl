@@ -1,5 +1,25 @@
 load("@bazel_skylib//lib:paths.bzl", "paths")
 
+def _test_main(name, args, data):
+    native.sh_test(
+        name = name,
+        srcs = ["test_main.sh"],
+        args = args,
+        data = data + ["//test:test_main"],
+        env = {"TEST_MAIN": "./test/test_main"},
+        size = "small",
+    )
+
+def _ipc_test(name, args):
+    native.sh_test(
+        name = name,
+        srcs = ["test_main.sh"],
+        args = args,
+        data = ["//test:ipc_test_main"],
+        env = {"TEST_MAIN": "./test/ipc_test_main"},
+        size = "small",
+    )
+
 def _snapshot_test(name, kind, data):
     suffix = kind + ("" if name == "" else "_" + name)
     test_name = "test_" + suffix
@@ -8,20 +28,8 @@ def _snapshot_test(name, kind, data):
         ["--test-kind=" + kind] +
         ([] if name == "" else ["--test-name=" + name])
     )
-    native.sh_test(
-        name = test_name,
-        srcs = ["test_main.sh"],
-        args = test_args,
-        data = ["//test:test_main"] + data,
-        size = "small",
-    )
-    native.sh_test(
-        name = update_name,
-        srcs = ["test_main.sh"],
-        args = test_args + ["--update"],
-        data = ["//test:test_main"] + data,
-        size = "small",
-    )
+    _test_main(name = test_name, args = test_args, data = data)
+    _test_main(name = update_name, args = test_args + ["--update"], data = data)
     return (test_name, update_name)
 
 def _group_by_top_level_dir(paths):
@@ -38,13 +46,7 @@ def _group_by_top_level_dir(paths):
     return groups
 
 def scip_clang_test_suite(compdb_data, preprocessor_data):
-    native.sh_test(
-        name = "test_unit",
-        srcs = ["test_main.sh"],
-        args = ["--test-kind=unit"],
-        data = ["//test:test_main"],
-        size = "small",
-    )
+    _test_main(name = "test_unit", args = ["--test-kind=unit"], data = [])
     tests = ["test_unit"]
     updates = []
 
@@ -71,6 +73,10 @@ def scip_clang_test_suite(compdb_data, preprocessor_data):
         tests = preprocessor_updates,
     )
     updates += preprocessor_updates
+
+    _ipc_test(name = "test_ipc_hang", args = ["--hang"])
+    _ipc_test(name = "test_ipc_crash", args = ["--crash"])
+    tests += ["test_ipc_hang", "test_ipc_crash"]
 
     native.test_suite(
         name = "test",

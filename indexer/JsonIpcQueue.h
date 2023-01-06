@@ -69,6 +69,19 @@ public:
   }
 };
 
+struct IpcOptions;
+
+// Type representing the driver<->worker queues.
+//
+// This type doesn't have a forDriver static method because
+// the driver has N send queues for N workers.
+struct MessageQueuePair {
+  JsonIpcQueue driverToWorker;
+  JsonIpcQueue workerToDriver;
+
+  static MessageQueuePair forWorker(const IpcOptions &);
+};
+
 } // namespace scip_clang
 
 #endif

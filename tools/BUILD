@@ -12,5 +12,6 @@ compilation_database(
         "//indexer:scip-clang",
         "//indexer:scip-clang-lib",
         "//test:test_main",
+        "//test:ipc_test_main",
     ],
 )

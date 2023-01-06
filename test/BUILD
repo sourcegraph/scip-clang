@@ -3,10 +3,7 @@ load(":test_suite.bzl", "scip_clang_test_suite")
 cc_binary(
     name = "test_main",
     testonly = 1,
-    srcs = glob([
-        "*.cc",
-        "*.h",
-    ]),
+    srcs = ["test_main.cc"],
     visibility = ["//tools:__pkg__"],
     deps = [
         "//indexer:scip-clang-lib",
@@ -17,6 +14,18 @@ cc_binary(
         "@dtl",
         "@llvm-project//llvm:Support",
         "@spdlog",
+    ],
+)
+
+cc_binary(
+    name = "ipc_test_main",
+    testonly = 1,
+    srcs = ["ipc_test_main.cc"],
+    visibility = ["//tools:__pkg__"],
+    deps = [
+        "//indexer:scip-clang-lib",
+        "@boost//:process",
+        "@llvm-project//llvm:Support",
     ],
 )
 
