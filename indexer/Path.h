@@ -13,24 +13,24 @@ namespace scip_clang {
 
 // Non-owning absolute path which is not necessarily null-terminated.
 // Meant to be used together with an interner like llvm::StringSaver.
-class AbsolutePath {
+class AbsolutePathRef {
   std::string_view _data;
 
-  AbsolutePath(std::string_view data) : _data(data) {}
+  AbsolutePathRef(std::string_view data) : _data(data) {}
 
 public:
-  AbsolutePath() = delete;
-  AbsolutePath(const AbsolutePath &) = default;
-  AbsolutePath &operator=(const AbsolutePath &) = default;
-  AbsolutePath(AbsolutePath &&) = default;
-  AbsolutePath &operator=(AbsolutePath &&) = default;
+  AbsolutePathRef() = delete;
+  AbsolutePathRef(const AbsolutePathRef &) = default;
+  AbsolutePathRef &operator=(const AbsolutePathRef &) = default;
+  AbsolutePathRef(AbsolutePathRef &&) = default;
+  AbsolutePathRef &operator=(AbsolutePathRef &&) = default;
 
-  static std::optional<AbsolutePath> tryFrom(std::string_view path);
-  static std::optional<AbsolutePath> tryFrom(llvm::StringRef path) {
-    return AbsolutePath::tryFrom(std::string_view(path.data(), path.size()));
+  static std::optional<AbsolutePathRef> tryFrom(std::string_view path);
+  static std::optional<AbsolutePathRef> tryFrom(llvm::StringRef path) {
+    return AbsolutePathRef::tryFrom(std::string_view(path.data(), path.size()));
   }
 
-  DERIVE_HASH_EQ_1(AbsolutePath, self._data)
+  DERIVE_HASH_EQ_1(AbsolutePathRef, self._data)
 
   std::string_view data() const {
     return this->_data;

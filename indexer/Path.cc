@@ -8,9 +8,9 @@
 
 namespace scip_clang {
 
-std::optional<AbsolutePath> AbsolutePath::tryFrom(std::string_view path) {
+std::optional<AbsolutePathRef> AbsolutePathRef::tryFrom(std::string_view path) {
   if (llvm::sys::path::is_absolute(llvm::Twine(path))) {
-    return {AbsolutePath(path)};
+    return {AbsolutePathRef(path)};
   }
   return {};
 }

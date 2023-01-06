@@ -142,7 +142,7 @@ public:
 };
 
 struct IndexerPreprocessorOptions {
-  AbsolutePath projectRoot;
+  AbsolutePathRef projectRoot;
 
   // Debugging-related
   PreprocessorHistoryRecorder *recorder;
@@ -160,8 +160,7 @@ struct PreprocessorHistory {
 } // namespace
 } // namespace scip_clang
 
-template <>
-struct llvm::yaml::MappingTraits<scip_clang::PreprocessorHistory> {
+template <> struct llvm::yaml::MappingTraits<scip_clang::PreprocessorHistory> {
   static void mapping(llvm::yaml::IO &io,
                       scip_clang::PreprocessorHistory &entry) {
     io.mapRequired("path", entry.path);
@@ -214,7 +213,8 @@ public:
         finishedProcessing(), finishedProcessingMulti() {}
 
   ~IndexerPPCallbacks() {
-    auto getAbsPath = [&](clang::FileID fileId) -> std::optional<AbsolutePath> {
+    auto getAbsPath =
+        [&](clang::FileID fileId) -> std::optional<AbsolutePathRef> {
       ENFORCE(fileId.isValid(), "stored invalid FileID in map!");
       auto entry = this->sourceManager.getFileEntryForID(fileId);
       if (!entry) { // fileId represents an imaginary buffer; ignore those for
@@ -228,7 +228,7 @@ public:
         spdlog::warn("empty path for FileEntry");
         return {};
       }
-      auto optAbsPath = AbsolutePath::tryFrom(path);
+      auto optAbsPath = AbsolutePathRef::tryFrom(path);
       if (!optAbsPath.has_value()) {
         // TODO: attach some contextual information
         spdlog::warn(
@@ -562,7 +562,7 @@ void Worker::performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
 
   auto projectRoot = std::filesystem::current_path().string();
   IndexerPreprocessorOptions options{
-      AbsolutePath::tryFrom(std::string_view(projectRoot)).value(),
+      AbsolutePathRef::tryFrom(std::string_view(projectRoot)).value(),
       this->recorder.has_value() ? &this->recorder->second : nullptr,
       this->options.deterministic};
   auto frontendActionFactory = IndexerFrontendActionFactory(options, result);
