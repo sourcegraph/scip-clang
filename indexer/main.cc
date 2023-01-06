@@ -80,6 +80,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "worker-id",
     "[worker-only] An opaque ID for the worker itself.",
     cxxopts::value<uint64_t>(cliOptions.workerId));
+
+  // TODO(def: flag-passthrough, issue: https://github.com/sourcegraph/scip-clang/issues/23)
+  // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
+
   // clang-format on
 
   parser.allow_unrecognised_options();
