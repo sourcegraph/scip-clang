@@ -93,15 +93,7 @@ struct HeaderInfo {
   std::string headerPath;
   HashValue hashValue;
 
-  friend bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs) {
-    if (lhs.hashValue < rhs.hashValue) {
-      return true;
-    }
-    if (lhs.hashValue == rhs.hashValue) {
-      return lhs.headerPath < rhs.headerPath;
-    }
-    return false;
-  }
+  friend bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs);
 };
 SERIALIZABLE(HeaderInfo)
 
@@ -109,17 +101,7 @@ struct HeaderInfoMulti {
   std::string headerPath;
   std::vector<HashValue> hashValues;
 
-  friend bool operator<(const HeaderInfoMulti &lhs,
-                        const HeaderInfoMulti &rhs) {
-    auto cmp = std::strcmp(lhs.headerPath.c_str(), rhs.headerPath.c_str());
-    if (cmp < 0) {
-      return true;
-    }
-    if (cmp == 0) {
-      return lhs.hashValues < rhs.hashValues;
-    }
-    return false;
-  }
+  friend bool operator<(const HeaderInfoMulti &lhs, const HeaderInfoMulti &rhs);
 };
 SERIALIZABLE(HeaderInfoMulti)
 
@@ -127,12 +109,13 @@ struct SemanticAnalysisJobResult {
   std::vector<HeaderInfo> singlyExpandedHeaders;
   std::vector<HeaderInfoMulti> multiplyExpandedHeaders;
 
+  // clang-format off
   SemanticAnalysisJobResult() = default;
   SemanticAnalysisJobResult(SemanticAnalysisJobResult &&) = default;
   SemanticAnalysisJobResult &operator=(SemanticAnalysisJobResult &&) = default;
   SemanticAnalysisJobResult(const SemanticAnalysisJobResult &) = delete;
-  SemanticAnalysisJobResult &
-  operator=(const SemanticAnalysisJobResult &) = delete;
+  SemanticAnalysisJobResult &operator=(const SemanticAnalysisJobResult &) = delete;
+  // clang-format on
 };
 SERIALIZABLE(SemanticAnalysisJobResult)
 

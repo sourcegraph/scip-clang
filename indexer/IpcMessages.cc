@@ -164,6 +164,27 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
          && mapper.map("args", d.command.CommandLine);
 }
 
+bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs) {
+  if (lhs.hashValue < rhs.hashValue) {
+    return true;
+  }
+  if (lhs.hashValue == rhs.hashValue) {
+    return lhs.headerPath < rhs.headerPath;
+  }
+  return false;
+}
+
+bool operator<(const HeaderInfoMulti &lhs, const HeaderInfoMulti &rhs) {
+  auto cmp = std::strcmp(lhs.headerPath.c_str(), rhs.headerPath.c_str());
+  if (cmp < 0) {
+    return true;
+  }
+  if (cmp == 0) {
+    return lhs.hashValues < rhs.hashValues;
+  }
+  return false;
+}
+
 llvm::json::Value toJSON(const IndexJobResponse &r) {
   return llvm::json::Object{
       {"workerId", r.workerId}, {"jobId", r.jobId}, {"result", r.result}};
