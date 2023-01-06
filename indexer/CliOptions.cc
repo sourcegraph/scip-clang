@@ -26,12 +26,12 @@ HeaderFilter::HeaderFilter(std::string &&re) {
     this->matcher = {};
     return;
   }
-  this->_regexText = fmt::format("^({})$", re);
-  this->matcher = {llvm::Regex(this->_regexText)};
+  this->regexText = fmt::format("^({})$", re);
+  this->matcher = {llvm::Regex(this->regexText)};
   std::string errMsg;
   if (!matcher->isValid(errMsg)) {
     spdlog::error("ill-formed regex {} for recording headers: {}",
-                  this->_regexText, errMsg);
+                  this->regexText, errMsg);
     std::exit(EXIT_FAILURE);
   }
 }

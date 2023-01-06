@@ -60,7 +60,7 @@ struct CliOptions {
 class HeaderFilter final {
   /// The original text of the regex, because \c llvm::Regex doesn't expose
   /// an API for serializing to a string.
-  std::string _regexText;
+  std::string regexText;
   std::optional<llvm::Regex> matcher;
 
 public:
@@ -80,11 +80,7 @@ public:
   }
 
   bool isIdentity() const {
-    return this->regexText().empty();
-  }
-
-  const std::string &regexText() const {
-    return this->_regexText;
+    return this->regexText.empty();
   }
 };
 
