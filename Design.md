@@ -207,9 +207,139 @@ which would also be error-prone).
 
 ## Mapping C++ to SCIP
 
-### Symbol names
-
 (FQN = Fully Qualified Name)
+
+### Symbol names for macros
+
+The FQN for a macro should include the full source location
+for the definition, i.e. both the containing file path
+and the (line, column) pair.
+
+<details>
+<summary>Why include the path to the header?</summary>
+
+The reason to include the path to the header is that,
+if the same macro is defined in two different files,
+it is more likely to mean two different things
+rather than the same thing (unlike a forward declaration).
+The one exception to this is
+the pattern of having textual inclusion files
+(i.e., deliberately ill-behaved headers) [[example in apple/swift](https://sourcegraph.com/github.com/apple/swift@f237fba206ab5fb152ea024611c00aa625a69f14/-/blob/lib/AST/ASTPrinter.cpp?L934-937&subtree=true)].
+
+```cpp
+// inc.h
+constexpr int magic = MAGIC;
+
+// cafe.cc
+#define MAGIC 0xcafe
+#include "inc.h"
+#undef MAGIC
+
+// boba.cc 
+#define MAGIC 0xb0ba
+#include "inc.h"
+#undef MAGIC
+```
+
+However, in this case, Go to Definition on `MAGIC`
+in `inc.h` will correctly show both the definitions
+and `cafe.cc` and `boba.cc` under the current scheme,
+so there's no problem.
+</details>
+
+<details>
+<summary>Why include the source location within the header?</summary>
+
+There are two common situations where we may have a macro
+defined with the same name within the same file:
+conditional definition and
+def/undef for textual inclusion files.
+
+<details>
+<summary>Conditional definition</summary>
+
+Conditional definition looks like the following:
+```cpp
+// mascot.h
+#if __LINUX__
+  #define MASCOT "penguin"
+#else
+  #define MASCOT ""
+#endif
+```
+
+In this case, the macros represent the "same thing"
+in a way, but only one of them is going to be active
+at a given time. For a single build, it doesn't matter
+for the two definitions to have different locations.
+If/when we implement index merging across builds
+(e.g. debug/release, Linux/macOS/Windows etc.),
+there will be two different kinds of expansion sites:
+
+1. Conditional expansion sites:
+    ```cpp
+    #include "mascot.h"
+    #if __LINUX__
+      #if __arm64__
+        #define MASCOT_ICON (MASCOT "_muscular.jpg")
+      #else
+        #define MASCOT_ICON (MASCOT ".jpg")
+      #endif
+    #else
+      #define MASCOT_ICON ""
+    #endif
+    ```
+   For the reference to `MASCOT` under `__LINUX__`,
+   we'd like Go to Definition to umambiguously
+   jump to the first definition. This requires
+   the two definitions to have a disambiguator
+   (the line+column is one possible choice choice).
+2. Unconditional expansion site:
+   ```cpp
+   #include <cstring>
+   #include "mascot.h"
+   bool hasMascot() {
+     return std::strcmp(MASCOT, "") != 0;
+   }
+   ```
+   In this case, index merging will create two references
+   for `MASCOT` to the two different definitions,
+   which is the desired behavior.
+</details>
+
+<details>
+<summary>Def/undef for multiple inclusion</summary>
+
+This one is similar to the point mentioned in
+the section about why we should include the path,
+except the includes here happen in the same file.
+
+```cpp
+// inc.h
+constexpr int magic = MAGIC;
+
+// hobby.cc
+class Cafe {
+  #define MAGIC 0xcafe
+  #include "inc.h"
+  #undef MAGIC
+};
+
+class Boba {
+  #define MAGIC 0xb0ba
+  #include "inc.h"
+  #undef MAGIC
+};
+```
+
+In this case, the two definitions are logically distinct
+(the classes could well have been in different files),
+so it makes sense to have a disambiguator.
+</details>
+
+</details>
+
+### Symbol names for declarations
 
 - For builtins, we can create a synthetic namespace e.g. `$builtin::type`.
   (using `$` because it is not legal in C++)
@@ -220,7 +350,8 @@ which would also be error-prone).
   we need to use the path of the final TU, not the path of the header.
 
 One consequence of these rules is that header names
-never become a part of Symbol names.
+never become a part of Symbol names (except for macros,
+as mentioned in the previous section).
 This is important because different headers
 may forward-declare the same types,
 and we want all such forward declarations to
@@ -242,7 +373,7 @@ of the method instead.
 We need to be careful about qualifiers though;
 e.g. the following is allowed in C++:
 
-```
+```cpp
 void f(int *);
 void f(const int *p) { } // same as f above
 ```
