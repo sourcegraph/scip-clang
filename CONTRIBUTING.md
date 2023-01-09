@@ -2,14 +2,21 @@
 
 ## Install dependencies
 
-1. C++ toolchain (gcc or clang): Used for bootstrapping.
+1. C++ toolchain: Used for bootstrapping. (Clang recommended; GCC
+   works too, but emits some useless warnings when building dependencies.)
 2. [Bazelisk](https://github.com/bazelbuild/bazelisk): This handles Bazel versions
    transparently.
 
 ## Building
 
 ```
+# macOS
 bazel build //... --sandbox_strategy=local
+
+# Linux
+export CC=clang
+export CXX=clang++
+bazel build //...
 ```
 
 On macOS, `--sandbox_strategy=local` provides a dramatic improvement
@@ -47,6 +54,12 @@ picked up by clangd-based editor extensions (you may
 need to reload the editor).
 
 ## Debugging
+
+### Debugging on Linux
+
+There is a [VM setup script](/tools/vm_setup.sh) available
+to configure a GCP VM for building scip-clang.
+We recommend using Ubuntu 20.04+ with 16 cores or more.
 
 ### Building with ASan
 
