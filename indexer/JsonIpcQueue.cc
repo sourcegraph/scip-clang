@@ -26,7 +26,11 @@ void JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
 }
 
 static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
-  auto now = boost::posix_time::microsec_clock::local_time();
+  // Boost internally uses a spin-sleep loop which compares the passed end
+  // instant against the current instant in UTC.
+  // https://sourcegraph.com/github.com/boostorg/interprocess@4403b201bef142f07cdc43f67bf6477da5e07fe3/-/blob/include/boost/interprocess/sync/spin/condition.hpp?L171
+  // So use universal_time here instead of local_time.
+  auto now = boost::posix_time::microsec_clock::universal_time();
   auto after = now + boost::posix_time::milliseconds(durationMillis);
   // Hint: Use boost::posix_time::to_simple_string to debug if needed.
   return after;
@@ -39,10 +43,6 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   size_t recvCount;
   unsigned recvPriority;
   spdlog::debug("will wait for atmost {}ms", waitMillis);
-  // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/20)
-  // The timeout doesn't work reliably. For example, if I put a sleep(long_time)
-  // in the worker, the driver doesn't kill the worker. This is a problem if the
-  // worker crashes.
   if (this->queue->timed_receive(readBuffer.data(), readBuffer.size(),
                                  recvCount, recvPriority,
                                  fromNow(waitMillis))) {
