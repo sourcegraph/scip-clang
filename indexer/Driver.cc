@@ -400,8 +400,6 @@ int driverMain(CliOptions &&cliOptions) {
   auto driverId = fmt::format("{}", driverPid);
   size_t numWorkers = cliOptions.numWorkers;
   BOOST_TRY {
-    MessageQueues::deleteIfPresent(driverId, numWorkers);
-
     Driver driver((DriverOptions(std::move(cliOptions))));
     auto compdbGuard = driver.openCompilationDatabase();
     driver.spawnWorkers();
