@@ -18,6 +18,11 @@ def _ipc_test(name, args):
         data = ["//test:ipc_test_main"],
         env = {"TEST_MAIN": "./test/ipc_test_main"},
         size = "small",
+	# Don't sandbox because we want different driver processes
+	# to have different PIDs to be able to run the tests in
+	# parallel
+	# Don't cache because the test can be non-deterministic
+	tags = ["no-sandbox", "no-cache"],
     )
 
 def _snapshot_test(name, kind, data):
