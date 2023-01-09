@@ -5,9 +5,8 @@
 // properly, that's a bug in the driver.
 
 #include <chrono>
-#include <cstdio>
-#include <cstdlib>
 #include <thread>
+#include <cstdio>
 
 #include "boost/process/child.hpp"
 #include "boost/process/io.hpp"
@@ -63,6 +62,8 @@ void toyDriverMain(const char *testExecutablePath, IpcOptions ipcOptions, Mode m
     namespace boost_ip = boost::interprocess;
     auto d2w = scip_clang::driverToWorkerQueueName(ipcOptions.driverId, ipcOptions.workerId);
     auto w2d = scip_clang::workerToDriverQueueName(ipcOptions.driverId);
+    boost_ip::message_queue::remove(d2w.c_str());
+    boost_ip::message_queue::remove(w2d.c_str());
     JsonIpcQueue driverToWorker(std::make_unique<boost_ip::message_queue>(
         boost_ip::create_only, d2w.c_str(), 1, 256
     ));
@@ -80,8 +81,6 @@ void toyDriverMain(const char *testExecutablePath, IpcOptions ipcOptions, Mode m
     driverToWorker.send(msg);
     IpcTestMessage reply;
     auto err = workerToDriver.timedReceive(reply, ipcOptions.receiveTimeout);
-    boost_ip::message_queue::remove(d2w.c_str());
-    boost_ip::message_queue::remove(w2d.c_str());
     ENFORCE(err.isA<TimeoutError>());
 }
 
@@ -92,13 +91,7 @@ int main(int argc, char *argv[]) {
     if (argc == 3) {
         driverId = std::string(argv[2]);
     } else {
-        // Only using the pid causes issues when running tests in parallel.
-        // I'm not 100% sure why this would happen, but I suspect it is
-        // because of Bazel's use of PID namespacing causing different
-        // processes to see the same PID, so there is a race condition
-        // between deleting the message queue from one test and creating it
-        // it in another test. Using a random number too avoids that.
-        driverId = fmt::format("{}-{}", ::getpid(), rand());
+        driverId = fmt::format("{}", ::getpid());
     }
     scip_clang::IpcOptions ipcOptions{1s, driverId, 0};
     Mode mode = ::modeFromString(argv[1]);
