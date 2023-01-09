@@ -14,4 +14,4 @@ steps:
       bazel build //...
 
       # Don't use //... as that will also try to update snapshots
-      bazel test //test
+      bazel test //test --test_output=errors
