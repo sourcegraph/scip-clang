@@ -95,7 +95,7 @@ struct DriverOptions {
   explicit DriverOptions(const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
         compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
-        receiveTimeout(cliOpts.numWorkers),
+        receiveTimeout(cliOpts.receiveTimeout),
         deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
