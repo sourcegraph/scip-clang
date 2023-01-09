@@ -7,7 +7,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "cxxopts.hpp"
-#include "doctest.h"
+#include "doctest/doctest.h"
 #include "dtl/dtl.hpp"
 #include "spdlog/fmt/fmt.h"
 
