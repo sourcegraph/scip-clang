@@ -1,0 +1,7 @@
+[
+  {
+    "file": "main.c",
+    "arguments": ["clang", "-c", "main.o", "main.c"],
+    "directory": "test/robustness"
+  }
+]

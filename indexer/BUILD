@@ -38,6 +38,6 @@ cc_binary(
     srcs = [
         "main.cc",
     ],
-    visibility = ["//tools:__pkg__"],
+    visibility = ["//visibility:public"],
     deps = [":scip-clang-lib"],
 )

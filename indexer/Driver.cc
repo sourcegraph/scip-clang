@@ -91,6 +91,7 @@ struct DriverOptions {
   bool deterministic;
   std::string preprocessorRecordHistoryFilterRegex;
   StdPath supplementaryOutputDir;
+  std::string workerFault;
 
   explicit DriverOptions(const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
@@ -99,7 +100,8 @@ struct DriverOptions {
         deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
-        supplementaryOutputDir(cliOpts.supplementaryOutputDir) {
+        supplementaryOutputDir(cliOpts.supplementaryOutputDir),
+        workerFault(cliOpts.workerFault) {
     // NOTE: Constructor eagerly checks that the regex is well-formed
     HeaderFilter filter(
         (std::string(this->preprocessorRecordHistoryFilterRegex)));
@@ -137,6 +139,9 @@ struct DriverOptions {
           fmt::format("preprocessor-history-worker-{}.yaml", workerId));
       args.push_back(
           fmt::format("--preprocessor-history-log-path={}", logPath.c_str()));
+    }
+    if (!this->workerFault.empty()) {
+      args.push_back("--force-worker-fault=" + this->workerFault);
     }
   }
 };
@@ -327,7 +332,7 @@ private:
     auto recvError =
         this->queues.workerToDriver.timedReceive(response, workerTimeout);
     if (recvError.isA<TimeoutError>()) {
-      spdlog::error("timeout from driver");
+      spdlog::error("timeout: no workers have responded yet");
       // All workers which are working have been doing so for too long,
       // because TimeoutError means we already exceeded the timeout limit.
       auto now = std::chrono::steady_clock::now();

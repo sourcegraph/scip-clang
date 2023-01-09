@@ -7,6 +7,7 @@ cc_binary(
     visibility = ["//tools:__pkg__"],
     deps = [
         "//indexer:scip-clang-lib",
+        "@boost//:process",
         "@com_google_absl//absl/strings",
         "@cxxopts",
         "@doctest//doctest",
@@ -39,4 +40,5 @@ scip_clang_test_suite(
         "preprocessor/**/*.cc",
         "preprocessor/**/*.h",
     ]),
+    robustness_data = glob(["robustness/*"]),
 )
