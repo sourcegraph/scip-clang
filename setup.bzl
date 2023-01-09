@@ -10,9 +10,7 @@ _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
 _SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
 
-# TODO(def: update-doctest) The latest release is 2.4.9, but
-# I ran into a build issue in scip-ruby with it.
-_DOCTEST_VERSION = "2.4.1"
+_DOCTEST_VERSION = "2.4.9"
 _DTL_VERSION = "1.20"
 
 def scip_clang_rule_repositories():
@@ -111,10 +109,9 @@ def scip_clang_rule_repositories():
 
     http_archive(
         name = "doctest",
-        sha256 = "d8d304db5a2e6d42e290b23a08a68db05478755e64db57b067cd805738e2c56f",
-        build_file = "@scip_clang//third_party:doctest.BUILD",
+        sha256 = "88a552f832ef3e4e7b733f9ab4eff5d73d7c37e75bebfef4a3339bf52713350d",
         strip_prefix = "doctest-%s" % _DOCTEST_VERSION,
-        urls = ["https://github.com/doctest/doctest/archive/%s.zip" % _DOCTEST_VERSION],
+        urls = ["https://github.com/doctest/doctest/archive/v%s.zip" % _DOCTEST_VERSION],
     )
 
     http_archive(
