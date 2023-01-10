@@ -353,14 +353,14 @@ CompilationDatabaseFile CompilationDatabaseFile::open(const StdPath &path,
     return compdbFile;
   }
   compdbFile.sizeInBytes = size;
-  compdbFile.numJobs =
+  compdbFile.commandCount =
       validateAndCountJobs(compdbFile.sizeInBytes, compdbFile.file);
   return compdbFile;
 }
 
 void ResumableParser::initialize(CompilationDatabaseFile compdb,
                                  size_t refillCount) {
-  auto averageJobSize = compdb.sizeInBytes / compdb.numJobs;
+  auto averageJobSize = compdb.sizeInBytes / compdb.commandCount;
   // Some customers have averageJobSize = 150KiB.
   // If numWorkers == 300 (very high core count machine),
   // then the computed hint will be ~88MiB. The 128MiB is rounded up from 88MiB.

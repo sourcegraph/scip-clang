@@ -8,7 +8,7 @@ namespace scip_clang {
 
 using StdPath = std::filesystem::path;
 
-class FileGuard {
+class [[nodiscard]] FileGuard {
   FILE *file;
 
 public:

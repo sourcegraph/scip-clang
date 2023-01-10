@@ -25,7 +25,7 @@ namespace compdb {
 struct CompilationDatabaseFile {
   FILE *file;
   size_t sizeInBytes;
-  size_t numJobs;
+  size_t commandCount;
 
   static CompilationDatabaseFile open(const StdPath &path, std::error_code &ec);
 };
@@ -75,8 +75,8 @@ public:
 
   void initialize(CompilationDatabaseFile compdb, size_t refillCount);
 
-  // Parses at most refillCount elements from the compilation database
-  // passed during initialization.
+  // Parses at most refillCount elements (passed during initialization)
+  // from the compilation database passed during initialization.
   void parseMore(std::vector<clang::tooling::CompileCommand> &out);
 };
 
