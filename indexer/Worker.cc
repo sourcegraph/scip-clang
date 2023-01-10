@@ -512,7 +512,8 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
                        cliOptions.deterministic,
                        PreprocessorHistoryRecordingOptions{
                            cliOptions.preprocessorRecordHistoryFilterRegex,
-                           cliOptions.preprocessorHistoryLogPath, false, ""}};
+                           cliOptions.preprocessorHistoryLogPath, false, ""},
+                       cliOptions.workerFault};
 }
 
 Worker::Worker(WorkerOptions &&options)
@@ -624,6 +625,38 @@ void Worker::flushStreams() {
   }
 }
 
+void Worker::triggerFaultIfApplicable() const {
+  auto &fault = this->options.workerFault;
+  if (fault.empty()) {
+    return;
+  }
+  if (fault == "crash") {
+    const char *p = nullptr;
+    asm volatile("" ::: "memory");
+    spdlog::warn("about to crash");
+    char x = *p;
+    (void)x;
+  } else if (fault == "sleep") {
+    spdlog::warn("about to sleep");
+    std::this_thread::sleep_for(this->ipcOptions().receiveTimeout * 10);
+  } else if (fault == "spin") {
+    std::error_code ec;
+    llvm::raw_fd_ostream devNull("/dev/null", ec);
+    spdlog::warn("about to spin");
+    // Q: Better way to spin other than using the Collatz conjecture?
+    for (uint64_t i = 1; i != UINT64_MAX; ++i) {
+      uint64_t j = i;
+      while (j > 1) {
+        j = (j % 2 == 0) ? (j / 2) : (j * 3 + 1);
+      }
+      devNull << j;
+    }
+  } else {
+    spdlog::error("Unknown fault kind {}", fault);
+    std::exit(EXIT_FAILURE);
+  }
+}
+
 void Worker::run() {
   ENFORCE(this->messageQueues,
           "Called Worker::run() while initializing worker in testing");
@@ -645,6 +678,7 @@ void Worker::run() {
       spdlog::debug("shutting down");
       break;
     }
+    this->triggerFaultIfApplicable();
     auto requestId = request.id;
     IndexJobResult result;
     this->processRequest(std::move(request), result);

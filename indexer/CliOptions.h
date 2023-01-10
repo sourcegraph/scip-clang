@@ -38,6 +38,8 @@ struct CliOptions {
   std::string preprocessorRecordHistoryFilterRegex;
   std::string supplementaryOutputDir;
 
+  std::string workerFault;
+
   // Worker-specific options
 
   bool isWorker;

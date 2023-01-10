@@ -64,6 +64,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "supplementary-output-dir",
     "Path to directory for recording supplementary outputs, such as various log files.",
     cxxopts::value<std::string>(cliOptions.supplementaryOutputDir)->default_value("scip-clang-supplementary-output"));
+  parser.add_options("Advanced")(
+    "help-all",
+    "Show all command-line flags, including internal ones and ones for testing.",
+    cxxopts::value<bool>());
   parser.add_options("Internal")(
     "preprocessor-history-log-path",
     "[worker-only] Path to log preprocessor history, if applicable.",
@@ -80,6 +84,11 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "worker-id",
     "[worker-only] An opaque ID for the worker itself.",
     cxxopts::value<uint64_t>(cliOptions.workerId));
+  parser.add_options("Testing")(
+    "force-worker-fault",
+    "One of 'crash', 'sleep' or 'spin'."
+    " Forces faulty behavior in a worker process instead of normal processing.",
+    cxxopts::value<std::string>(cliOptions.workerFault)->default_value(""));
 
   // TODO(def: flag-passthrough, issue: https://github.com/sourcegraph/scip-clang/issues/23)
   // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
@@ -91,6 +100,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   cxxopts::ParseResult result = parser.parse(argc, argv);
 
   if (result.count("help") || result.count("h")) {
+    fmt::print("{}\n", parser.help({"", "Advanced"}));
+    std::exit(EXIT_SUCCESS);
+  }
+  if (result.count("help-all")) {
     fmt::print("{}\n", parser.help());
     std::exit(EXIT_SUCCESS);
   }
@@ -123,10 +136,15 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
 }
 
 static void initializeGlobalLogger(std::string name,
-                                   spdlog::level::level_enum level) {
+                                   spdlog::level::level_enum level,
+                                   bool forTesting) {
   auto defaultLogger = spdlog::stderr_color_mt(name);
   defaultLogger->set_level(level);
-  defaultLogger->set_pattern("[%T %^%l%$] %-10n: %v");
+  if (forTesting) {
+    defaultLogger->set_pattern("[%l] %n: %v");
+  } else {
+    defaultLogger->set_pattern("[%T %^%l%$] %-10n: %v");
+  }
   spdlog::set_default_logger(defaultLogger);
 }
 
@@ -136,7 +154,8 @@ int main(int argc, char *argv[]) {
   auto loggerName = cliOptions.isWorker
                         ? fmt::format("worker {}", cliOptions.workerId)
                         : "driver";
-  initializeGlobalLogger(loggerName, cliOptions.logLevel);
+  initializeGlobalLogger(loggerName, cliOptions.logLevel,
+                         !cliOptions.workerFault.empty());
   if (cliOptions.isWorker) {
     return scip_clang::workerMain(std::move(cliOptions));
   }

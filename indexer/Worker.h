@@ -37,6 +37,7 @@ struct WorkerOptions {
   spdlog::level::level_enum logLevel;
   bool deterministic;
   PreprocessorHistoryRecordingOptions recordingOptions;
+  std::string workerFault;
 
   // This is a static method instead of a constructor so that the
   // implicit memberwise initializer is synthesized and available
@@ -69,6 +70,7 @@ public:
 private:
   const IpcOptions &ipcOptions() const;
   void processRequest(IndexJobRequest &&, IndexJobResult &);
+  void triggerFaultIfApplicable() const;
 };
 
 } // namespace scip_clang

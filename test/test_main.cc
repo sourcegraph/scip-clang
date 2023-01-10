@@ -6,6 +6,8 @@
 
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
+#include "boost/process/child.hpp"
+#include "boost/process/io.hpp"
 #include "cxxopts.hpp"
 #include "doctest/doctest.h"
 #include "dtl/dtl.hpp"
@@ -54,6 +56,7 @@ enum class TestKind {
   UnitTests,
   CompdbTests,
   PreprocessorTests,
+  RobustnessTests,
 };
 
 struct TestCliOptions {
@@ -286,6 +289,18 @@ std::string deriveRootFromTUPath(const std::string &tuPath,
   return scipClangRoot + testRelativeRoot + "/";
 }
 
+struct TempFile {
+  StdPath path;
+
+  TempFile &operator=(const TempFile &) = delete;
+  TempFile(const TempFile &) = delete;
+  TempFile(StdPath suffix)
+      : path(std::filesystem::temp_directory_path() / suffix) {}
+  ~TempFile() {
+    std::filesystem::remove(this->path);
+  }
+};
+
 TEST_CASE("PREPROCESSING") {
   if (testCliOptions.testKind != TestKind::PreprocessorTests) {
     return;
@@ -304,8 +319,8 @@ TEST_CASE("PREPROCESSING") {
                ::replaceExtension(".preprocessor-history.yaml"))
       .testCompareOrUpdate(
           [](clang::tooling::CompileCommand &&command) -> std::string {
-            auto tmpYamlPath = std::filesystem::temp_directory_path();
-            tmpYamlPath.append(fmt::format("{}.yaml", testCliOptions.testName));
+            TempFile tmpYamlFile(
+                fmt::format("{}.yaml", testCliOptions.testName));
 
             // HACK(def: derive-root-path)
             // Get the real path to the file and compute the root relative
@@ -319,17 +334,42 @@ TEST_CASE("PREPROCESSING") {
                 IpcOptions::testingStub,
                 spdlog::level::level_enum::info,
                 true,
-                PreprocessorHistoryRecordingOptions{".*", tmpYamlPath, true,
-                                                    derivedRoot},
+                PreprocessorHistoryRecordingOptions{".*", tmpYamlFile.path,
+                                                    true, derivedRoot},
             });
             SemanticAnalysisJobResult result{};
             worker.performSemanticAnalysis(
                 SemanticAnalysisJobDetails{std::move(command)}, result);
             worker.flushStreams();
-            std::string actual(::readFileToString(tmpYamlPath));
-            std::filesystem::remove(tmpYamlPath);
+            std::string actual(::readFileToString(tmpYamlFile.path));
             return actual;
           });
+}
+
+TEST_CASE("ROBUSTNESS") {
+  if (testCliOptions.testKind != TestKind::RobustnessTests) {
+    return;
+  }
+  auto fault = testCliOptions.testName;
+  if (!(fault == "crash" || fault == "sleep" || fault == "spin")) {
+    return;
+  }
+  std::vector<std::string> args;
+  args.push_back("./indexer/scip-clang");
+  args.push_back("--compdb-path=test/robustness/compile_commands.json");
+  args.push_back("--log-level=warning");
+  args.push_back("--force-worker-fault=" + fault);
+  args.push_back("--receive-timeout-seconds=1");
+  TempFile tmpLogFile(fmt::format("{}.tmp.log", fault));
+  boost::process::child driver(args,
+                               boost::process::std_out > boost::process::null,
+                               boost::process::std_err > tmpLogFile.path);
+  driver.wait();
+  auto log = ::readFileToString(tmpLogFile.path);
+
+  StdPath snapshotLogPath = "./test/robustness";
+  snapshotLogPath.append(fault + ".snapshot.log");
+  compareOrUpdate(log, snapshotLogPath);
 }
 
 int main(int argc, char *argv[]) {
@@ -359,6 +399,8 @@ int main(int argc, char *argv[]) {
     testCliOptions.testKind = TestKind::CompdbTests;
   } else if (testKind == "preprocessor") {
     testCliOptions.testKind = TestKind::PreprocessorTests;
+  } else if (testKind == "robustness") {
+    testCliOptions.testKind = TestKind::RobustnessTests;
   } else {
     fmt::print(stderr, "Unknown value for --test-kind");
     std::exit(EXIT_FAILURE);
