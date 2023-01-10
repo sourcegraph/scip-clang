@@ -138,7 +138,7 @@ struct IndexJobResponse {
 SERIALIZABLE(IndexJobResponse)
 
 struct IpcTestMessage {
-    std::string content;
+  std::string content;
 };
 SERIALIZABLE(IpcTestMessage)
 
