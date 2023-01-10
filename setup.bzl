@@ -9,6 +9,8 @@ _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
 _SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
+_PROTOBUF_VERSION = "3.21.12"
+_SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 
 _DOCTEST_VERSION = "2.4.9"
 _DTL_VERSION = "1.20"
@@ -46,8 +48,11 @@ def scip_clang_rule_repositories():
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
     )
 
+    # Keep the name 'zlib' so that Protobuf doesn't pull in another copy.
+    #
+    # https://sourcegraph.com/github.com/protocolbuffers/protobuf/-/blob/protobuf_deps.bzl?L48-58
     http_archive(
-        name = "net_zlib",
+        name = "zlib",
         build_file = "@scip_clang//third_party:zlib.BUILD",
         sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
         strip_prefix = "zlib-1.2.11",
@@ -65,6 +70,25 @@ def scip_clang_rule_repositories():
         urls = ["https://github.com/llvm/llvm-project/archive/%s.tar.gz" % _LLVM_COMMIT],
     )
 
+    http_archive(
+        name = "com_google_protobuf",
+        sha256 = "f7042d540c969b00db92e8e1066a9b8099c8379c33f40f360eb9e1d98a36ca26",
+        urls = ["https://github.com/protocolbuffers/protobuf/archive/v%s.zip" % _PROTOBUF_VERSION],
+        strip_prefix = "protobuf-%s" % _PROTOBUF_VERSION,
+    )
+
+    http_archive(
+        name = "scip",
+        sha256 = "b1d2fc009345857aa32cdddec11b75ce1e5c20430f668044231ed309d48b7355",
+        build_file = "@scip_clang//third_party:scip.BUILD",
+        strip_prefix = "scip-%s" % _SCIP_COMMIT,
+        urls = ["https://github.com/sourcegraph/scip/archive/%s.zip" % _SCIP_COMMIT],
+    )
+
+    # Keep the name 'com_google_absl' so that Protobuf doesn't pull in
+    # another copy.
+    #
+    # https://sourcegraph.com/github.com/protocolbuffers/protobuf/-/blob/protobuf_deps.bzl?L39-46
     http_archive(
         name = "com_google_absl",
         sha256 = "0db3f1408edf4e0eb12bd6c46fc01465a009feb2789a2b21ef40f91744a25783",
