@@ -34,6 +34,8 @@
 #include "indexer/Path.h"
 #include "indexer/Worker.h"
 
+#include "scip/scip.pb.h"
+
 namespace boost_ip = boost::interprocess;
 
 namespace scip_clang {
