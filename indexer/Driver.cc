@@ -158,7 +158,6 @@ struct DriverOptions {
   }
 };
 
-/// Wrapper type over a WorkerId meant to be consumed exactly once.
 template <typename T> class ConsumeOnce {
   T value;
   bool consumed;
