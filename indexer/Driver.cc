@@ -260,13 +260,13 @@ public:
     this->pendingJobs.push_back(jobId);
   }
 
-  /// Marks \p jobId to be scheduled on \p workerId
+  [[nodiscard]]
   IndexJobRequest scheduleJobOnWorker(WorkerId workerId, JobId jobId) {
     ENFORCE(absl::c_find(this->availableWorkers, workerId)
             == this->availableWorkers.end());
     // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
     spdlog::debug("assigning jobId {} to worker {}", jobId.id(), workerId);
-    this->wipJobs.insert(jobId);
+    ENFORCE(this->wipJobs.contains(jobId), "should've marked job WIP before scheduling");
     this->markWorkerBusy(workerId, jobId);
     auto it = this->allJobList.find(jobId);
     ENFORCE(it != this->allJobList.end(), "trying to assign unknown job");
@@ -318,18 +318,18 @@ private:
   WorkerId claimAvailableWorker() {
     ENFORCE(!this->availableWorkers.empty());
     WorkerId workerId = this->availableWorkers.front();
-    this->availableWorkers.pop_front(); // See NOTE(ref: free-claim-identity)
+    this->availableWorkers.pop_front();
     return workerId;
   }
 
+  /// Dual to \c claimAvailableWorker.
   void markWorkerFree(WorkerId workerId) {
     auto &workerInfo = this->workers[workerId];
     ENFORCE(workerInfo.currentlyProcessing.has_value());
     workerInfo.currentlyProcessing = {};
     ENFORCE(workerInfo.status == WorkerInfo::Status::Busy);
     workerInfo.status = WorkerInfo::Status::Free;
-    this->availableWorkers.push_front(
-        workerId); // See NOTE(ref: free-claim-identity)
+    this->availableWorkers.push_front(workerId);
   }
 
   void markWorkerBusy(WorkerId workerId, JobId newJobId) {
