@@ -220,6 +220,39 @@ public:
 /// and will imminently be scheduled.
 using ToBeScheduledWorkerId = ConsumeOnce<WorkerId>;
 
+/// Wrapper type that indicates a WorkerId was just marked idle,
+/// and hence can be directly be assigned a job using
+/// \c Scheduler::createJobAndScheduleOnWorker
+struct LatestIdleWorkerId {
+  WorkerId id;
+};
+
+class HeaderIndexingPlanner {
+  absl::flat_hash_map<std::string, absl::flat_hash_set<HashValue>> hashesSoFar;
+
+public:
+  HeaderIndexingPlanner() = default;
+  HeaderIndexingPlanner(HeaderIndexingPlanner &&) = default;
+  HeaderIndexingPlanner(const HeaderIndexingPlanner &) = delete;
+
+  void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
+                      std::vector<std::string> headersToBeEmitted) {
+    // Default initialization due to [..] is load-bearing.
+    for (auto &header : semaResult.multiplyExpandedHeaders) {
+      auto &hashes = hashesSoFar[header.headerPath];
+      hashes.insert(header.hashValues.begin(), header.hashValues.end());
+      headersToBeEmitted.push_back(std::move(header.headerPath));
+    }
+    for (auto &header : semaResult.singlyExpandedHeaders) {
+      auto &hashes = hashesSoFar[header.headerPath];
+      auto [_, inserted] = hashes.insert(header.hashValue);
+      if (inserted) {
+        headersToBeEmitted.push_back(std::move(header.headerPath));
+      }
+    }
+  }
+};
+
 class Scheduler final {
   std::vector<WorkerInfo> workers;
   /// Keep track of which workers are available in FIFO order.
@@ -321,6 +354,20 @@ public:
     this->pendingJobs.push_back(jobId);
   }
 
+  /// Creates a new job for \p job and marks it scheduled on \p workerId.
+  [[nodiscard]] IndexJobRequest
+  createJobAndScheduleOnWorker(LatestIdleWorkerId workerId, IndexJob &&job) {
+    auto jobId = JobId(this->nextJobId);
+    this->nextJobId++;
+    this->allJobList.insert({jobId, std::move(job)});
+    this->wipJobs.insert(jobId);
+    ENFORCE(!this->idleWorkers.empty());
+    ENFORCE(this->idleWorkers.front() == workerId.id);
+    this->idleWorkers.pop_front();
+    return this->scheduleJobOnWorker(
+        ToBeScheduledWorkerId(std::move(workerId.id)), jobId);
+  }
+
   [[nodiscard]] IndexJobRequest
   scheduleJobOnWorker(ToBeScheduledWorkerId &&workerId, JobId jobId) {
     ENFORCE(absl::c_find(this->idleWorkers, workerId.getValueNonConsuming())
@@ -336,12 +383,14 @@ public:
     return IndexJobRequest{it->first, it->second};
   }
 
-  void markCompleted(WorkerId workerId, JobId jobId, IndexJob::Kind kind) {
+  [[nodiscard]] LatestIdleWorkerId markCompleted(WorkerId workerId, JobId jobId,
+                                                 IndexJob::Kind kind) {
     ENFORCE(this->workers[workerId].currentlyProcessing == jobId);
     this->markWorkerIdle(workerId);
     bool erased = wipJobs.erase(jobId);
     ENFORCE(erased, "received response for job not marked WIP");
     ENFORCE(this->allJobList[jobId].kind == kind);
+    return LatestIdleWorkerId{workerId};
   }
 
   /// Pre-condition: \p refillJobs should stay fixed at 0 once it reaches 0.
@@ -386,7 +435,6 @@ private:
     return ToBeScheduledWorkerId(std::move(workerId));
   }
 
-  /// Dual to \c claimAvailableWorker.
   void markWorkerIdle(WorkerId workerId) {
     auto &workerInfo = this->workers[workerId];
     ENFORCE(workerInfo.currentlyProcessing.has_value());
@@ -429,6 +477,7 @@ class Driver {
   std::string id;
   MessageQueues queues;
   Scheduler scheduler;
+  HeaderIndexingPlanner planner;
 
   /// Total number of commands in the compilation database.
   size_t compdbCommandCount = 0;
@@ -567,13 +616,27 @@ private:
   void processSemanticAnalysisResult(SemanticAnalysisJobResult &&) {}
 
   void processWorkerResponse(IndexJobResponse &&response) {
-    this->scheduler.markCompleted(response.workerId, response.jobId,
-                                  response.result.kind);
+    auto latestIdleWorkerId = this->scheduler.markCompleted(
+        response.workerId, response.jobId, response.result.kind);
     // TODO: Implement logic to process the result
     switch (response.result.kind) {
-    case IndexJob::Kind::SemanticAnalysis:
+    case IndexJob::Kind::SemanticAnalysis: {
+      auto &semaResult = response.result.semanticAnalysis;
+      std::vector<std::string> headersToBeEmitted{};
+      this->planner.saveSemaResult(std::move(semaResult), headersToBeEmitted);
+      std::string outputDirectory{};
+      IndexJob newJob;
+      newJob.kind = IndexJob::Kind::EmitIndex;
+      newJob.emitIndex = EmitIndexJobDetails{std::move(headersToBeEmitted),
+                                             std::move(outputDirectory)};
+      // WorkerId claimedWorkerId = this->claimAvailableWorker();
+      auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
+      queue.send(this->scheduler.createJobAndScheduleOnWorker(
+          latestIdleWorkerId, std::move(newJob)));
       break;
+    }
     case IndexJob::Kind::EmitIndex:
+      // TODO: Record this in a map for later concatenation.
       break;
     }
   }
