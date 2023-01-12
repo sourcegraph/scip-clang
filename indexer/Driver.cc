@@ -324,7 +324,7 @@ public:
 
   void markCompleted(WorkerId workerId, JobId jobId, IndexJob::Kind kind) {
     ENFORCE(this->workers[workerId].currentlyProcessing == jobId);
-    this->markWorkerFree(workerId);
+    this->markWorkerIdle(workerId);
     bool erased = wipJobs.erase(jobId);
     ENFORCE(erased, "received response for job not marked WIP");
     ENFORCE(this->allJobList[jobId].kind == kind);
@@ -373,7 +373,7 @@ private:
   }
 
   /// Dual to \c claimAvailableWorker.
-  void markWorkerFree(WorkerId workerId) {
+  void markWorkerIdle(WorkerId workerId) {
     auto &workerInfo = this->workers[workerId];
     ENFORCE(workerInfo.currentlyProcessing.has_value());
     workerInfo.currentlyProcessing = {};
