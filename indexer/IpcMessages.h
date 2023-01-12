@@ -56,7 +56,6 @@ SERIALIZABLE(SemanticAnalysisJobDetails)
 
 struct EmitIndexJobDetails {
   std::vector<std::string> headersToBeEmitted;
-  std::string outputDirectory;
 };
 SERIALIZABLE(EmitIndexJobDetails)
 

@@ -12,6 +12,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "indexer/CliOptions.h"
+#include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
 
@@ -37,6 +38,7 @@ struct WorkerOptions {
   spdlog::level::level_enum logLevel;
   bool deterministic;
   PreprocessorHistoryRecordingOptions recordingOptions;
+  StdPath temporaryOutputDir;
   std::string workerFault;
 
   // This is a static method instead of a constructor so that the

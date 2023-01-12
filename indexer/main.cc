@@ -42,6 +42,11 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "log-level",
     fmt::format("One of 'debug', 'info', 'warning' or 'error'", defaultLogLevel),
     cxxopts::value<std::string>()->default_value(defaultLogLevel));
+  parser.add_options("")(
+    "temporary-output-dir",
+    "Store temporary files under a specific directory instead of using system APIs."
+    "If set, this directory will not be deleted after indexing is complete.",
+    cxxopts::value<std::string>(cliOptions.temporaryOutputDir));
   parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
   parser.add_options("Advanced")(
     "receive-timeout-seconds",
@@ -51,7 +56,8 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   parser.add_options("Advanced")(
     "deterministic",
     "Try to run everything in a deterministic fashion as much as possible."
-    "Does not support deterministic work scheduling yet.",
+    " Does not support deterministic work scheduling yet."
+    " When using this flag, explicitly pass --temporary-output-dir to fix paths too.",
     cxxopts::value<bool>(cliOptions.deterministic));
   parser.add_options("Advanced")(
     "preprocessor-record-history-filter",

@@ -105,6 +105,9 @@ struct DriverOptions {
   StdPath supplementaryOutputDir;
   std::string workerFault;
 
+  StdPath temporaryOutputDir;
+  bool deleteTemporaryOutputDir;
+
   explicit DriverOptions(const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
         compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
@@ -113,7 +116,9 @@ struct DriverOptions {
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
         supplementaryOutputDir(cliOpts.supplementaryOutputDir),
-        workerFault(cliOpts.workerFault) {
+        workerFault(cliOpts.workerFault),
+        temporaryOutputDir(cliOpts.temporaryOutputDir),
+        deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()) {
     // NOTE: Constructor eagerly checks that the regex is well-formed
     HeaderFilter filter(
         (std::string(this->preprocessorRecordHistoryFilterRegex)));
@@ -121,15 +126,22 @@ struct DriverOptions {
     if (!hasSupplementaryOutputs) {
       return;
     }
-    std::error_code error;
-    std::filesystem::create_directories(this->supplementaryOutputDir, error);
-    if (!error) {
-      return;
+    if (this->temporaryOutputDir.empty()) {
+      this->temporaryOutputDir = std::filesystem::temp_directory_path();
+      this->temporaryOutputDir.append(fmt::format("scip-clang-{}", ::getpid()));
     }
-    spdlog::error("failed to create supplementary output directory at '{}'",
-                  this->supplementaryOutputDir.c_str());
-    spdlog::error("I/O error: {}", error.message());
-    std::exit(EXIT_FAILURE);
+    std::vector<std::pair<StdPath &, const char *>> tempDirs{
+        {this->supplementaryOutputDir, "supplementary output directory"},
+        {this->temporaryOutputDir, "temporary output directory"}};
+    for (auto &[path, name] : tempDirs) {
+      std::error_code error;
+      std::filesystem::create_directories(path, error);
+      if (error) {
+        spdlog::error("failed to create {} at '{}' ({})", name, path.c_str(),
+                      error.message());
+        std::exit(EXIT_FAILURE);
+      }
+    }
   }
 
   void addWorkerOptions(std::vector<std::string> &args,
@@ -155,6 +167,9 @@ struct DriverOptions {
     if (!this->workerFault.empty()) {
       args.push_back("--force-worker-fault=" + this->workerFault);
     }
+    ENFORCE(!this->temporaryOutputDir.empty());
+    args.push_back(fmt::format("--temporary-output-dir=",
+                               this->temporaryOutputDir.c_str()));
   }
 };
 
@@ -436,6 +451,16 @@ public:
     MessageQueues::deleteIfPresent(this->id, this->numWorkers());
     this->queues = MessageQueues(this->id, this->numWorkers(),
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
+  }
+  ~Driver() {
+    if (this->options.deleteTemporaryOutputDir) {
+      std::error_code error;
+      std::filesystem::remove(this->options.temporaryOutputDir, error);
+      if (error) {
+        spdlog::warn("failed to remove temporary output directory at '{}' ({})",
+                     this->options.temporaryOutputDir.c_str(), error.message());
+      }
+    }
   }
 
   size_t numWorkers() const {

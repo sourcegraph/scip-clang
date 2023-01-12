@@ -28,6 +28,7 @@ struct IpcOptions {
 struct CliOptions {
   std::string compdbPath;
   std::string scipClangExecutablePath;
+  std::string temporaryOutputDir;
 
   std::chrono::seconds receiveTimeout;
   uint32_t numWorkers;
@@ -38,6 +39,7 @@ struct CliOptions {
   std::string preprocessorRecordHistoryFilterRegex;
   std::string supplementaryOutputDir;
 
+  // For testing only
   std::string workerFault;
 
   // Worker-specific options
