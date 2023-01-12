@@ -74,7 +74,7 @@ using Instant = std::chrono::time_point<std::chrono::steady_clock>;
 struct WorkerInfo {
   enum class Status {
     Busy,
-    Free,
+    Idle,
   } status;
 
   boost::process::child processHandle;
@@ -90,8 +90,8 @@ struct WorkerInfo {
   WorkerInfo(const WorkerInfo &) = delete;
   WorkerInfo &operator=(const WorkerInfo &) = delete;
 
-  WorkerInfo(boost::process::child &&freeWorker)
-      : status(Status::Free), processHandle(std::move(freeWorker)), startTime(),
+  WorkerInfo(boost::process::child &&newWorker)
+      : status(Status::Idle), processHandle(std::move(newWorker)), startTime(),
         currentlyProcessing() {}
 };
 
@@ -158,11 +158,59 @@ struct DriverOptions {
   }
 };
 
+/// Wrapper type over a WorkerId meant to be consumed exactly once.
+template <typename T> class ConsumeOnce {
+  T value;
+  bool consumed;
+  bool movedOut;
+
+public:
+  ConsumeOnce() = delete;
+  ConsumeOnce(ConsumeOnce<T> &&old)
+      : value(std::move(old.value)), consumed(old.consumed),
+        movedOut(old.movedOut) {
+    old.movedOut = true;
+  }
+  ConsumeOnce &operator=(ConsumeOnce &&old) {
+    this->_id = std::move(old.value);
+    this->consumed = old.consumed;
+    this->movedOut = old.movedOut;
+    old.movedOut = true;
+    return *this;
+  }
+  ConsumeOnce(const ConsumeOnce &) = delete;
+  ConsumeOnce &operator=(const ConsumeOnce &) = delete;
+
+  ConsumeOnce(T &&value)
+      : value(std::move(value)), consumed(false), movedOut(false) {}
+
+  ~ConsumeOnce() {
+    if (!this->movedOut) {
+      ENFORCE(this->consumed, "forgot to call getValueAndConsume");
+    }
+  }
+  T getValueAndConsume() {
+    ENFORCE(!this->movedOut, "use after move");
+    ENFORCE(!this->consumed, "trying to consume worker guard twice");
+    this->consumed = true;
+    return std::move(this->value);
+  }
+  const T &getValueNonConsuming() {
+    ENFORCE(!this->movedOut, "use after move");
+    ENFORCE(!this->consumed, "trying to access id for consumed guard");
+    return this->value;
+  }
+};
+
+/// Type for indicating that a worker is not longer idle
+/// and will imminently be scheduled.
+using ToBeScheduledWorkerId = ConsumeOnce<WorkerId>;
+
 class Scheduler final {
   std::vector<WorkerInfo> workers;
   /// Keep track of which workers are available in FIFO order.
   /// Values are indexes into \c workers.
-  std::deque<unsigned> availableWorkers;
+  std::deque<unsigned> idleWorkers;
 
   /// Monotonically growing counter.
   uint64_t nextJobId = 0;
@@ -191,12 +239,11 @@ public:
   using Process = boost::process::child;
 
   void checkInvariants() const {
-    ENFORCE(this->wipJobs.size() + this->availableWorkers.size()
-                == this->workers.size(),
-            "wipJobs.size() ({}) + availableWorkers.size() ({}) != "
-            "workers.size() ({})",
-            this->wipJobs.size(), this->availableWorkers.size(),
-            this->workers.size());
+    ENFORCE(
+        this->wipJobs.size() + this->idleWorkers.size() == this->workers.size(),
+        "wipJobs.size() ({}) + idleWorkers.size() ({}) != "
+        "workers.size() ({})",
+        this->wipJobs.size(), this->idleWorkers.size(), this->workers.size());
   }
 
   /// \p spawn should only create the process; it should not call back
@@ -209,7 +256,7 @@ public:
     for (size_t workerId = 0; workerId < numWorkers; ++workerId) {
       boost::process::child worker = spawn(workerId);
       this->workers.emplace_back(WorkerInfo(std::move(worker)));
-      this->availableWorkers.push_back(workerId);
+      this->idleWorkers.push_back(workerId);
     }
     this->checkInvariants();
   }
@@ -227,7 +274,7 @@ public:
     for (unsigned workerId = 0; workerId < this->workers.size(); ++workerId) {
       auto &workerInfo = this->workers[workerId];
       switch (workerInfo.status) {
-      case WorkerInfo::Status::Free:
+      case WorkerInfo::Status::Idle:
         continue;
       case WorkerInfo::Status::Busy:
         if (workerInfo.startTime < startedBefore) {
@@ -240,7 +287,7 @@ public:
           auto newHandle =
               killAndRespawn(std::move(workerInfo.processHandle), workerId);
           workerInfo = WorkerInfo(std::move(newHandle));
-          this->availableWorkers.push_back(workerId);
+          this->idleWorkers.push_back(workerId);
           this->checkInvariants();
         }
       }
@@ -260,14 +307,16 @@ public:
     this->pendingJobs.push_back(jobId);
   }
 
-  [[nodiscard]]
-  IndexJobRequest scheduleJobOnWorker(WorkerId workerId, JobId jobId) {
-    ENFORCE(absl::c_find(this->availableWorkers, workerId)
-            == this->availableWorkers.end());
+  [[nodiscard]] IndexJobRequest
+  scheduleJobOnWorker(ToBeScheduledWorkerId &&workerId, JobId jobId) {
+    ENFORCE(absl::c_find(this->idleWorkers, workerId.getValueNonConsuming())
+            == this->idleWorkers.end());
     // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
-    spdlog::debug("assigning jobId {} to worker {}", jobId.id(), workerId);
-    ENFORCE(this->wipJobs.contains(jobId), "should've marked job WIP before scheduling");
-    this->markWorkerBusy(workerId, jobId);
+    spdlog::debug("assigning jobId {} to worker {}", jobId.id(),
+                  workerId.getValueNonConsuming());
+    ENFORCE(this->wipJobs.contains(jobId),
+            "should've marked job WIP before scheduling");
+    this->markWorkerBusy(std::move(workerId), jobId);
     auto it = this->allJobList.find(jobId);
     ENFORCE(it != this->allJobList.end(), "trying to assign unknown job");
     return IndexJobRequest{it->first, it->second};
@@ -282,10 +331,11 @@ public:
   }
 
   /// Pre-condition: \p refillJobs should stay fixed at 0 once it reaches 0.
-  void runJobsTillCompletion(
-      absl::FunctionRef<void()> processOneJobResult,
-      absl::FunctionRef<size_t()> refillJobs,
-      absl::FunctionRef<void(WorkerId, JobId)> assignJobToWorker) {
+  void
+  runJobsTillCompletion(absl::FunctionRef<void()> processOneJobResult,
+                        absl::FunctionRef<size_t()> refillJobs,
+                        absl::FunctionRef<void(ToBeScheduledWorkerId &&, JobId)>
+                            assignJobToWorker) {
     this->checkInvariants();
     size_t refillCount = refillJobs();
     ENFORCE(refillCount > 0);
@@ -303,23 +353,23 @@ public:
         } else if (refillCount != 0) {
           refillCount = refillJobs();
         }
-      } else if (!this->availableWorkers.empty()) {
-        this->assignJobsToAvailableWorkers(assignJobToWorker);
+      } else if (!this->idleWorkers.empty()) {
+        this->assignJobsToIdleWorkers(assignJobToWorker);
       }
       ENFORCE(!this->wipJobs.empty());
       processOneJobResult();
     }
     this->checkInvariants();
-    ENFORCE(this->availableWorkers.size() == this->workers.size(),
-            "all workers should be available after jobs have been completed");
+    ENFORCE(this->idleWorkers.size() == this->workers.size(),
+            "all workers should be idle after jobs have been completed");
   }
 
 private:
-  WorkerId claimAvailableWorker() {
-    ENFORCE(!this->availableWorkers.empty());
-    WorkerId workerId = this->availableWorkers.front();
-    this->availableWorkers.pop_front();
-    return workerId;
+  ToBeScheduledWorkerId claimIdleWorker() {
+    ENFORCE(!this->idleWorkers.empty());
+    WorkerId workerId = this->idleWorkers.front();
+    this->idleWorkers.pop_front();
+    return ToBeScheduledWorkerId(std::move(workerId));
   }
 
   /// Dual to \c claimAvailableWorker.
@@ -328,31 +378,31 @@ private:
     ENFORCE(workerInfo.currentlyProcessing.has_value());
     workerInfo.currentlyProcessing = {};
     ENFORCE(workerInfo.status == WorkerInfo::Status::Busy);
-    workerInfo.status = WorkerInfo::Status::Free;
-    this->availableWorkers.push_front(workerId);
+    workerInfo.status = WorkerInfo::Status::Idle;
+    this->idleWorkers.push_front(workerId);
   }
 
-  void markWorkerBusy(WorkerId workerId, JobId newJobId) {
-    auto &nextWorkerInfo = this->workers[workerId];
-    ENFORCE(nextWorkerInfo.status == WorkerInfo::Status::Free);
+  void markWorkerBusy(ToBeScheduledWorkerId &&workerId, JobId newJobId) {
+    auto &nextWorkerInfo = this->workers[workerId.getValueAndConsume()];
+    ENFORCE(nextWorkerInfo.status == WorkerInfo::Status::Idle);
     nextWorkerInfo.status = WorkerInfo::Status::Busy;
     ENFORCE(!nextWorkerInfo.currentlyProcessing.has_value());
     nextWorkerInfo.currentlyProcessing = {newJobId};
     nextWorkerInfo.startTime = std::chrono::steady_clock::now();
   }
 
-  void assignJobsToAvailableWorkers(
-      absl::FunctionRef<void(WorkerId, JobId)> assignJob) {
+  void assignJobsToIdleWorkers(
+      absl::FunctionRef<void(ToBeScheduledWorkerId &&, JobId)> assignJob) {
     auto numJobsToAssign =
-        std::min(this->availableWorkers.size(), this->pendingJobs.size());
+        std::min(this->idleWorkers.size(), this->pendingJobs.size());
     ENFORCE(numJobsToAssign >= 1, "no workers or pending jobs");
     for (unsigned i = 0; i < numJobsToAssign; ++i) {
       JobId nextJob = this->pendingJobs.front();
       this->pendingJobs.pop_front();
       auto [_, inserted] = this->wipJobs.insert(nextJob);
       ENFORCE(inserted, "job from pendingJobs was not already WIP");
-      auto nextWorkerId = this->claimAvailableWorker();
-      assignJob(nextWorkerId, nextJob);
+      auto nextWorkerId = this->claimIdleWorker();
+      assignJob(std::move(nextWorkerId), nextJob);
       this->checkInvariants();
     }
   }
@@ -428,8 +478,8 @@ public:
     this->scheduler.runJobsTillCompletion(
         [this]() -> void { this->processOneJobResult(); },
         [this]() -> size_t { return this->refillJobs(); },
-        [this](WorkerId workerId, JobId jobId) -> void {
-          this->assignJobToWorker(workerId, jobId);
+        [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> void {
+          this->assignJobToWorker(std::move(workerId), jobId);
         });
     this->shutdownAllWorkers();
     this->scheduler.waitForAllWorkers();
@@ -532,9 +582,9 @@ private:
   // Assign a job to a specific worker. When this method is called,
   // the worker has already been "claimed", so it should not be in the
   // availableWorkers list.
-  void assignJobToWorker(WorkerId workerId, JobId jobId) {
-    this->queues.driverToWorker[workerId].send(
-        this->scheduler.scheduleJobOnWorker(workerId, jobId));
+  void assignJobToWorker(ToBeScheduledWorkerId &&workerId, JobId jobId) {
+    auto &queue = this->queues.driverToWorker[workerId.getValueNonConsuming()];
+    queue.send(this->scheduler.scheduleJobOnWorker(std::move(workerId), jobId));
   }
 
   void shutdownAllWorkers() {
