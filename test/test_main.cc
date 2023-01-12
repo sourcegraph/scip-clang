@@ -166,9 +166,9 @@ TEST_CASE("COMPDB_PARSING") {
       REQUIRE(compdbFile.file);
     }
     REQUIRE(compdbFile.sizeInBytes);
-    CHECK_MESSAGE(compdbFile.numJobs == testCase.checkCount,
+    CHECK_MESSAGE(compdbFile.commandCount == testCase.checkCount,
                   fmt::format("counted {} jobs but expected {} in {}",
-                              compdbFile.numJobs, testCase.checkCount,
+                              compdbFile.commandCount, testCase.checkCount,
                               jsonFilepath.string()));
 
     for (auto refillCount : testCase.refillCountsToTry) {
