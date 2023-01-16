@@ -193,6 +193,8 @@ struct PreprocessorDebugContext {
   std::string tuMainFilePath;
 };
 
+using PathToIdMap = absl::flat_hash_map<AbsolutePathRef, clang::FileID>;
+
 class IndexerPreprocessorWrapper final : public clang::PPCallbacks {
   const IndexerPreprocessorOptions &options;
 
@@ -224,9 +226,7 @@ public:
         finishedProcessing(), finishedProcessingMulti(),
         debugContext(std::move(debugContext)) {}
 
-  void
-  flushState(SemanticAnalysisJobResult &result,
-             absl::flat_hash_map<AbsolutePathRef, clang::FileID> &pathToIdMap) {
+  void flushState(SemanticAnalysisJobResult &result, PathToIdMap &pathToIdMap) {
     bool emittedEmptyPathWarning = false;
     auto getAbsPath =
         [&](clang::FileID fileId) -> std::optional<AbsolutePathRef> {
@@ -552,8 +552,6 @@ public:
       : preprocessorWrapper(preprocessorWrapper),
         getEmitIndexDetails(getEmitIndexDetails), scipIndex(scipIndex),
         deterministic(deterministic) {}
-
-  using PathToIdMap = absl::flat_hash_map<AbsolutePathRef, clang::FileID>;
 
   void HandleTranslationUnit(clang::ASTContext &astContext) override {
     // NOTE(ref: preprocessor-traversal-ordering): The call order is
