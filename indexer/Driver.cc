@@ -730,13 +730,13 @@ private:
       auto &semaResult = response.result.semanticAnalysis;
       std::vector<std::string> headersToBeEmitted{};
       this->planner.saveSemaResult(std::move(semaResult), headersToBeEmitted);
-      std::string outputDirectory{};
-      IndexJob newJob;
-      newJob.kind = IndexJob::Kind::EmitIndex;
-      newJob.emitIndex = EmitIndexJobDetails{std::move(headersToBeEmitted)};
       auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
       queue.send(this->scheduler.createJobAndScheduleOnWorker(
-          latestIdleWorkerId, std::move(newJob)));
+          latestIdleWorkerId,
+          IndexJob{
+              .kind = IndexJob::Kind::EmitIndex,
+              .emitIndex = EmitIndexJobDetails{std::move(headersToBeEmitted)},
+          }));
       break;
     }
     case IndexJob::Kind::EmitIndex:
