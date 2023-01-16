@@ -435,11 +435,11 @@ public:
 
 class IndexerAstVisitor;
 
-/// Type to track which documents should be indexed.
+/// Type to track which files should be indexed.
 ///
-/// For "foreign" documents; their symbols should be tracked
-/// in external symbols instead of creating a scip::Document.
-class IndexDocumentMap final {
+/// For files that do not belong to this project; their symbols should be
+/// tracked in external symbols instead of creating a \c scip::Document.
+class FilesToBeIndexedMap final {
   absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
                       ProjectRootRelativePathRef>
       map;
@@ -448,14 +448,14 @@ class IndexDocumentMap final {
   friend IndexerAstVisitor;
 
 public:
-  IndexDocumentMap() = delete;
-  IndexDocumentMap(std::string_view rootPath)
+  FilesToBeIndexedMap() = delete;
+  FilesToBeIndexedMap(std::string_view rootPath)
       : map(),
         rootPath(AbsolutePath(AbsolutePathRef::tryFrom(rootPath).value())) {}
-  IndexDocumentMap(const IndexDocumentMap &) = delete;
-  IndexDocumentMap &operator=(const IndexDocumentMap &) = delete;
-  IndexDocumentMap(IndexDocumentMap &&other) = default;
-  IndexDocumentMap &operator=(IndexDocumentMap &&) = default;
+  FilesToBeIndexedMap(const FilesToBeIndexedMap &) = delete;
+  FilesToBeIndexedMap &operator=(const FilesToBeIndexedMap &) = delete;
+  FilesToBeIndexedMap(FilesToBeIndexedMap &&other) = default;
+  FilesToBeIndexedMap &operator=(FilesToBeIndexedMap &&) = default;
 
   /// Returns true iff a new entry was inserted.
   bool insert(clang::FileID fileId, AbsolutePathRef absPath) {
@@ -495,11 +495,11 @@ public:
 class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
   using Base = RecursiveASTVisitor;
 
-  IndexDocumentMap toBeIndexed;
+  FilesToBeIndexedMap toBeIndexed;
   bool deterministic;
 
 public:
-  IndexerAstVisitor(IndexDocumentMap &&map, bool deterministic)
+  IndexerAstVisitor(FilesToBeIndexedMap &&map, bool deterministic)
       : toBeIndexed(std::move(map)), deterministic(deterministic) {}
 
   void writeIndex(scip::Index &scipIndex) {
@@ -579,7 +579,7 @@ public:
     auto optRootPathRef = AbsolutePathRef::tryFrom(std::string_view(rootPath));
     ENFORCE(optRootPathRef.has_value());
     (void)optRootPathRef;
-    IndexDocumentMap toBeIndexed(rootPath);
+    FilesToBeIndexedMap toBeIndexed(rootPath);
     this->computePathsToBeIndexed(astContext, emitIndexDetails, pathToIdMap,
                                   toBeIndexed);
 
@@ -600,7 +600,7 @@ private:
   void computePathsToBeIndexed(const clang::ASTContext &astContext,
                                const EmitIndexJobDetails &emitIndexDetails,
                                const PathToIdMap &pathToIdMap,
-                               IndexDocumentMap &toBeIndexed) {
+                               FilesToBeIndexedMap &toBeIndexed) {
     toBeIndexed.reserve(1 + emitIndexDetails.headersToBeEmitted.size());
 
     auto &sourceManager = astContext.getSourceManager();
