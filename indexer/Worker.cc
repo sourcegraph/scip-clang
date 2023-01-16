@@ -503,11 +503,13 @@ public:
       : toBeIndexed(std::move(map)), deterministic(deterministic) {}
 
   void writeIndex(scip::Index &scipIndex) {
-    for (auto &[_, relPath] : toBeIndexed.map) {
-      if (relPath.data().empty()) { // external file
+    for (auto &[_, relPathRef] : toBeIndexed.map) {
+      auto relPath = relPathRef.data();
+      if (relPath.empty()) { // external file
         continue;
       }
       scip::Document document;
+      document.set_relative_path(relPath.data(), relPath.size());
       // FIXME(def: set-language): Use Clang's built-in detection logic here.
       // Q: With Clang's built-in language detection, does the built-in fake
       // header differ between C, C++ and Obj-C (it presumably should?)?
