@@ -116,7 +116,7 @@ struct DriverOptions {
 
   std::vector<std::string> originalArgv;
 
-  explicit DriverOptions(const CliOptions &cliOpts)
+  explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
         compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
         receiveTimeout(cliOpts.receiveTimeout),
@@ -151,7 +151,7 @@ struct DriverOptions {
       if (this->temporaryOutputDir.empty()) {
         this->temporaryOutputDir = "scip-clang-temporary-output";
       }
-      this->temporaryOutputDir.append(fmt::format("scip-clang-{}", ::getpid()));
+      this->temporaryOutputDir.append("scip-clang-" + driverId);
     }
     makeDirs(this->temporaryOutputDir, "temporary output directory");
   }
@@ -242,11 +242,12 @@ struct LatestIdleWorkerId {
 /// Type that decides which headers to emit symbols and occurrences for
 /// given a set of header+hashes emitted by a worker.
 ///
-/// Assumption: We will be normally be able to successfully index a
-/// large fraction of code, so don't complicate the code for fault
-/// tolerance. For example, right now, if we assigned a header to a
-/// specific worker, and that worker crashed, then the header would
-/// never be considered for indexing in the future.
+/// NOTE(def: header-recovery) We are assuming here that we will be
+/// normally be able to successfully index a large fraction of code,
+/// so don't complicate the code for fault tolerance. For example,
+/// right now, if we assigned a header to a specific worker, and
+/// that worker crashed, then the header would never be considered
+/// for indexing in the future.
 ///
 /// In principle, we could maintain a list of jobs which involved
 /// that header, and later spin up new indexing jobs which forced
@@ -513,12 +514,11 @@ public:
   Driver(const Driver &) = delete;
   Driver &operator=(const Driver &) = delete;
 
-  Driver(DriverOptions &&options)
-      : options(std::move(options)), id(fmt::format("{}", ::getpid())),
-        compdbParser() {
+  Driver(std::string driverId, DriverOptions &&options)
+      : options(std::move(options)), id(driverId), compdbParser() {
     auto &compdbPath = this->options.compdbPath;
     if (!compdbPath.is_absolute()) {
-      // See TODO(ref: clarify-root)
+      // See FIXME(ref: clarify-root)
       auto absPath = std::filesystem::current_path();
       absPath /= compdbPath;
       compdbPath = absPath;
@@ -549,7 +549,7 @@ public:
 
 private:
   void emitScipIndex() {
-    // See TODO(ref: clarify-root)
+    // See FIXME(ref: clarify-root)
     auto indexScipPath = std::filesystem::current_path() / "index.scip";
     std::ofstream outputStream(indexScipPath, std::ios_base::out
                                                   | std::ios_base::binary
@@ -570,7 +570,7 @@ private:
     scip::Metadata metadata;
     metadata.set_project_root("file:/"
                               + std::filesystem::current_path().string());
-    // ^ See TODO(ref: clarify-root)
+    // ^ See FIXME(ref: clarify-root)
     metadata.set_version(scip::UnspecifiedProtocolVersion);
     *metadata.mutable_tool_info() = std::move(toolInfo);
 
@@ -794,7 +794,7 @@ int driverMain(CliOptions &&cliOptions) {
   auto driverId = fmt::format("{}", driverPid);
   size_t numWorkers = cliOptions.numWorkers;
   BOOST_TRY {
-    Driver driver((DriverOptions(std::move(cliOptions))));
+    Driver driver(driverId, DriverOptions(driverId, std::move(cliOptions)));
     driver.run();
   }
   BOOST_CATCH(boost_ip::interprocess_exception & ex) {
