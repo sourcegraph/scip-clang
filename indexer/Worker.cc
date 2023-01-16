@@ -367,7 +367,7 @@ public:
   virtual void
   FileChanged(clang::SourceLocation sourceLoc,
               clang::PPCallbacks::FileChangeReason reason,
-              clang::SrcMgr::CharacteristicKind fileType,
+              clang::SrcMgr::CharacteristicKind /*fileType*/,
               clang::FileID previousFileId = clang::FileID()) override {
     using Reason = clang::PPCallbacks::FileChangeReason;
     switch (reason) {
@@ -439,8 +439,9 @@ class IndexerASTConsumer : public clang::SemaConsumer {
   clang::Sema *sema;
 
 public:
-  IndexerASTConsumer(clang::CompilerInstance &compilerInstance,
-                     llvm::StringRef filepath) {}
+  IndexerASTConsumer(clang::CompilerInstance &, llvm::StringRef filepath) {
+    (void)filepath;
+  }
 
   void HandleTranslationUnit(clang::ASTContext &astContext) override {
     IndexerASTVisitor visitor{};
@@ -498,8 +499,8 @@ public:
 
 class IndexerDiagnosticConsumer : public clang::DiagnosticConsumer {
 public:
-  void HandleDiagnostic(clang::DiagnosticsEngine::Level level,
-                        const clang::Diagnostic &info) override {
+  void HandleDiagnostic(clang::DiagnosticsEngine::Level,
+                        const clang::Diagnostic &) override {
     // Just dropping all diagnostics on the floor for now.
     // FIXME(def: surface-diagnostics)
   }

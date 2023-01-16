@@ -41,7 +41,8 @@ static scip_clang::Microseconds getCurrentInstantCoarse() {
 
 namespace scip_clang {
 
-void timingAdd(ConstExprStr key, Microseconds start, Microseconds end) {
+void timingAdd(ConstExprStr /*key*/, Microseconds /*start*/,
+               Microseconds /*end*/) {
   // FIXME: Copy the necessary bits of the timing infrastructure from Sorbet.
 }
 

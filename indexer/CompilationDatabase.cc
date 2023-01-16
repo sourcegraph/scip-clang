@@ -123,14 +123,14 @@ public:
     return false;
   }
   bool Uint64(uint64_t i) {
-    this->errorMessage = fmt::format("unexpected uint64_t {}");
+    this->errorMessage = fmt::format("unexpected uint64_t {}", i);
     return false;
   }
   bool Double(double d) {
     this->errorMessage = fmt::format("unexpected double {}", d);
     return false;
   }
-  bool RawNumber(const char *str, rapidjson::SizeType length, bool copy) {
+  bool RawNumber(const char *str, rapidjson::SizeType length, bool /*copy*/) {
     this->errorMessage =
         fmt::format("unexpected number {}", std::string_view(str, length));
     return false;
@@ -285,7 +285,7 @@ static size_t validateAndCountJobs(size_t fileSize, FILE *compDbFile) {
 }
 
 bool CommandObjectHandler::String(const char *str, rapidjson::SizeType length,
-                                  bool copy) {
+                                  bool /*copy*/) {
   switch (this->previousKey) {
   case Key::Unset:
     ENFORCE(false, "unexpected input");
@@ -312,7 +312,7 @@ bool CommandObjectHandler::String(const char *str, rapidjson::SizeType length,
 }
 
 bool CommandObjectHandler::Key(const char *str, rapidjson::SizeType length,
-                               bool copy) {
+                               bool /*copy*/) {
   auto key = std::string_view(str, length);
   if (key == "directory") {
     this->previousKey = Key::Directory;
@@ -330,7 +330,7 @@ bool CommandObjectHandler::Key(const char *str, rapidjson::SizeType length,
   return true;
 }
 
-bool CommandObjectHandler::EndObject(rapidjson::SizeType memberCount) {
+bool CommandObjectHandler::EndObject(rapidjson::SizeType /*memberCount*/) {
   this->commands.emplace_back(std::move(this->wipCommand));
   this->wipCommand = {};
   this->previousKey = Key::Unset;

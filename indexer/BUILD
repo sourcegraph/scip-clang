@@ -7,6 +7,10 @@ cc_library(
         ],
         exclude = ["main.cc"],
     ),
+    copts = [
+        # Not part of -Wall but still useful
+        "-Wunused-parameter",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//indexer/os",
