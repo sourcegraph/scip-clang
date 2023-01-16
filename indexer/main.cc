@@ -138,6 +138,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   cliOptions.receiveTimeout =
       std::chrono::seconds(result["receive-timeout-seconds"].as<uint32_t>());
 
+  for (int i = 0; i < argc; ++i) {
+    cliOptions.originalArgv.push_back(argv[i]);
+  }
+
   return cliOptions;
 }
 

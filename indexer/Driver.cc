@@ -108,6 +108,8 @@ struct DriverOptions {
   StdPath temporaryOutputDir;
   bool deleteTemporaryOutputDir;
 
+  std::vector<std::string> originalArgv;
+
   explicit DriverOptions(const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
         compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
@@ -118,7 +120,8 @@ struct DriverOptions {
         supplementaryOutputDir(cliOpts.supplementaryOutputDir),
         workerFault(cliOpts.workerFault),
         temporaryOutputDir(cliOpts.temporaryOutputDir),
-        deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()) {
+        deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()),
+        originalArgv(cliOpts.originalArgv) {
     // NOTE: Constructor eagerly checks that the regex is well-formed
     HeaderFilter filter(
         (std::string(this->preprocessorRecordHistoryFilterRegex)));

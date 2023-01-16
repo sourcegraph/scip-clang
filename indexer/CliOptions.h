@@ -8,6 +8,7 @@
 #include <string_view>
 #include <sys/types.h>
 #include <utility>
+#include <vector>
 
 #include "spdlog/fwd.h"
 
@@ -38,6 +39,9 @@ struct CliOptions {
   bool deterministic;
   std::string preprocessorRecordHistoryFilterRegex;
   std::string supplementaryOutputDir;
+
+  // For recording inside the index.
+  std::vector<std::string> originalArgv;
 
   // For testing only
   std::string workerFault;
