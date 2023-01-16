@@ -600,7 +600,7 @@ private:
     }
     for (auto &ownedPath : this->indexPartPaths) {
       auto path = ownedPath.asStringView();
-      std::ifstream inputStream(path,
+      std::ifstream inputStream(std::string(path),
                                 std::ios_base::in | std::ios_base::binary);
       if (inputStream.fail()) {
         spdlog::warn("failed to open partial index at '{}' ({})", path,
@@ -612,6 +612,9 @@ private:
         spdlog::warn("failed to parse partial index at '{}'", path);
         continue;
       }
+      // FIXME(def: handle-multiply-indexed-headers): We need to perform deeper
+      // merging for headers which had multiple hashes. Otherwise, only the
+      // last document will be considered.
       fullIndex.mutable_documents()->MergeFrom(partialIndex.documents());
       fullIndex.mutable_external_symbols()->MergeFrom(
           partialIndex.external_symbols());
