@@ -12,4 +12,10 @@ cc_library(
     deps = [":proto"],
     include_prefix = "scip",
     visibility = ["//visibility:public"],
+    copts = [
+      "-Wno-unused-function",
+      # Generated code uses sprintf in some places, which
+      # is deprecated on macOS
+      "-Wno-deprecated-declarations",
+    ],
 )
