@@ -272,14 +272,17 @@ public:
     }
     {
       auto &headerHashes = this->finishedProcessingMulti;
-      std::vector<HashValue> hashes{};
       for (auto it = headerHashes.begin(), end = headerHashes.end(); it != end;
            ++it) {
-        hashes.clear();
-        absl::c_move(it->second, std::back_inserter(hashes));
         auto fileId = it->first.data;
         if (auto optPath = getAbsPath(fileId)) {
           auto absPath = optPath.value();
+          std::vector<HashValue> hashes{};
+          hashes.reserve(it->second.size());
+          absl::c_move(it->second, std::back_inserter(hashes));
+          if (this->options.ensureDeterminism) {
+            absl::c_sort(hashes);
+          }
           result.multiplyExpandedHeaders.emplace_back(
               HeaderInfoMulti{std::string(absPath.data()), std::move(hashes)});
           pathToIdMap.insert({absPath, fileId});
