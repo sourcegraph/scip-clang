@@ -452,6 +452,7 @@ public:
   /// Call \c openCompilationDatabase before this method. The \p _compdbToken
   /// parameter is present to accidentally avoid flipping call order.
   void spawnWorkers(const FileGuard &_compdbToken) {
+    (void)_compdbToken;
     this->scheduler.initializeWorkers(
         this->numWorkers(), [&](WorkerId workerId) -> Scheduler::Process {
           return this->spawnWorker(workerId);
@@ -539,7 +540,7 @@ private:
         });
   }
 
-  void processSemanticAnalysisResult(SemanticAnalysisJobResult &&result) {}
+  void processSemanticAnalysisResult(SemanticAnalysisJobResult &&) {}
 
   void processWorkerResponse(IndexJobResponse &&response) {
     this->scheduler.markCompleted(response.workerId, response.jobId,
