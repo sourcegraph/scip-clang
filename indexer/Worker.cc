@@ -445,8 +445,6 @@ class FilesToBeIndexedMap final {
       map;
   AbsolutePath rootPath;
 
-  friend IndexerAstVisitor;
-
 public:
   FilesToBeIndexedMap() = delete;
   FilesToBeIndexedMap(std::string_view rootPath)
@@ -490,6 +488,16 @@ public:
   void reserve(size_t totalCapacity) {
     this->map.reserve(totalCapacity);
   }
+
+  void forEachProjectLocalFile(
+      absl::FunctionRef<void(ProjectRootRelativePathRef)> doStuff) {
+    for (auto &[_, relPathRef] : this->map) {
+      if (relPathRef.data().empty()) { // external file
+        continue;
+      }
+      doStuff(relPathRef);
+    }
+  }
 };
 
 class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
@@ -503,12 +511,26 @@ public:
       : toBeIndexed(std::move(map)), deterministic(deterministic) {}
 
   void writeIndex(scip::Index &scipIndex) {
-    for (auto &[_, relPathRef] : toBeIndexed.map) {
-      auto relPath = relPathRef.data();
-      if (relPath.empty()) { // external file
-        continue;
-      }
+    std::vector<ProjectRootRelativePathRef> relativePaths;
+    toBeIndexed.forEachProjectLocalFile(
+        [&](ProjectRootRelativePathRef relPathRef) -> void {
+          relativePaths.push_back(relPathRef);
+        });
+    if (this->deterministic) {
+      absl::c_sort(
+          relativePaths,
+          [](const ProjectRootRelativePathRef &s1,
+             const ProjectRootRelativePathRef &s2) -> bool {
+            auto cmp = scip_clang::compareStrings(s1.data(), s2.data());
+            ENFORCE(cmp != Comparison::Equal,
+                    "document with path '{}' is present 2+ times in index",
+                    s1.data());
+            return cmp == Comparison::Less;
+          });
+    }
+    for (auto relPathRef : relativePaths) {
       scip::Document document;
+      auto relPath = relPathRef.data();
       document.set_relative_path(relPath.data(), relPath.size());
       // FIXME(def: set-language): Use Clang's built-in detection logic here.
       // Q: With Clang's built-in language detection, does the built-in fake
@@ -518,18 +540,6 @@ public:
       // Or should we add an other_languages in SCIP?
       document.set_language(scip::Language_Name(scip::Language::CPP));
       *scipIndex.add_documents() = std::move(document);
-    }
-    if (this->deterministic) {
-      absl::c_sort(
-          *scipIndex.mutable_documents(),
-          [](const scip::Document &d1, const scip::Document &d2) -> bool {
-            auto cmp = scip_clang::compareStrings(d1.relative_path(),
-                                                  d2.relative_path());
-            ENFORCE(cmp != Comparison::Equal,
-                    "document with path '{}' is present 2+ times in index",
-                    d1.relative_path());
-            return cmp == Comparison::Less;
-          });
     }
   }
 
