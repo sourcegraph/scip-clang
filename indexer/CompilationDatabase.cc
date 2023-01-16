@@ -184,7 +184,7 @@ public:
       } else if (key == "output") {
         this->presentKeys |= UInt(Key::Output);
       } else {
-        this->warnings.insert(fmt::format("unknown key {}"));
+        this->warnings.insert(fmt::format("unknown key {}", key));
       }
       return this->inner.Key(str, length, copy);
     }
