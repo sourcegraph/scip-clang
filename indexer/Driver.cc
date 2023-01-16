@@ -607,14 +607,14 @@ private:
                      std::strerror(errno));
         continue;
       }
-      scip::Index tmpIndex;
-      if (!tmpIndex.ParseFromIstream(&inputStream)) {
+      scip::Index partialIndex;
+      if (!partialIndex.ParseFromIstream(&inputStream)) {
         spdlog::warn("failed to parse partial index at '{}'", path);
         continue;
       }
-      fullIndex.mutable_documents()->MergeFrom(tmpIndex.documents());
+      fullIndex.mutable_documents()->MergeFrom(partialIndex.documents());
       fullIndex.mutable_external_symbols()->MergeFrom(
-          tmpIndex.external_symbols());
+          partialIndex.external_symbols());
     }
 
     fullIndex.SerializeToOstream(&outputStream);
