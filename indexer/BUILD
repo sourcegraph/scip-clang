@@ -14,6 +14,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//indexer/os",
+        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:flat_hash_map",

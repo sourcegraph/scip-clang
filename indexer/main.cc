@@ -48,6 +48,7 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "If set, this directory will not be deleted after indexing is complete.",
     cxxopts::value<std::string>(cliOptions.temporaryOutputDir));
   parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
+  // TODO(def: add-version): Add a --version flag
   parser.add_options("Advanced")(
     "receive-timeout-seconds",
     fmt::format("How long the driver should wait for a worker before marking "

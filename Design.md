@@ -128,17 +128,25 @@ to do this work.
 
 In our case, the driver should handle the assignment
 of work so that well-behaved headers are indexed only once.
-This lets the driver also fit in recovery logic
--- if a header wasn't indexed by a worker
-which was assigned to index it
-(e.g. because the worker crashed),
-then the driver can wait to see if some other
-worker can index it.
-In the worst case, if all workers which would've
-otherwise indexed that header have already started
-indexing, then the driver can later re-request
-some indexing jobs so that these headers
-can get indexed.
+This also lets us add recovery logic in the driver in
+the future. See NOTE(ref: header-recovery).
+
+The [IndexStore documentation](https://docs.google.com/document/d/1cH2sTpgSnJZCkZtJl1aY-rzy4uGPcrI-6RrUpdATO2Q/)
+describes Apple Clang relying on file checks
+to implement de-duplication;
+for each header-hash pair, a worker will check
+if a file already exists. We don't adopt the same
+strategy for debuggability:
+having the logic be centralized aids debugging
+and instrumentation, and we're not relying on the
+inherent raciness of filesystem checks
+(albeit, the TOCTOU only creates redundant work
+and does not affect correctness).
+One might reason that avoiding the filesystem
+is better for performance too, but IndexStore
+is claimed to have overhead of 2%-5% over the baseline
+(semantic analysis only), so a performance-based
+argument is inapplicable.
 
 ### Checking well-behavedness of headers
 

@@ -5,6 +5,7 @@
 
 #include "llvm/Support/JSON.h"
 
+#include "indexer/Comparison.h"
 #include "indexer/Derive.h"
 #include "indexer/IpcMessages.h"
 
@@ -115,12 +116,11 @@ bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
 }
 
 DERIVE_SERIALIZE_1(scip_clang::EmitIndexJobResult, indexPartPath)
+DERIVE_SERIALIZE_1(scip_clang::EmitIndexJobDetails, headersToBeEmitted)
 DERIVE_SERIALIZE_1(scip_clang::IpcTestMessage, content)
 
 DERIVE_SERIALIZE_2(scip_clang::HeaderInfo, headerPath, hashValue)
 DERIVE_SERIALIZE_2(scip_clang::HeaderInfoMulti, headerPath, hashValues)
-DERIVE_SERIALIZE_2(scip_clang::EmitIndexJobDetails, headersToBeEmitted,
-                   outputDirectory)
 DERIVE_SERIALIZE_2(scip_clang::IndexJobRequest, id, job)
 DERIVE_SERIALIZE_2(scip_clang::SemanticAnalysisJobResult, singlyExpandedHeaders,
                    multiplyExpandedHeaders)
@@ -146,7 +146,8 @@ bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs) {
     return true;
   }
   if (lhs.hashValue == rhs.hashValue) {
-    return lhs.headerPath < rhs.headerPath;
+    return scip_clang::compareStrings(lhs.headerPath, rhs.headerPath)
+           == Comparison::Less;
   }
   return false;
 }

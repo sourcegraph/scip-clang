@@ -5,7 +5,9 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/functional/function_ref.h"
 #include "spdlog/fwd.h"
 
 #include "llvm/Support/YAMLTraits.h"
@@ -15,6 +17,10 @@
 #include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
+
+namespace scip {
+class Index;
+}
 
 namespace scip_clang {
 
@@ -47,6 +53,13 @@ struct WorkerOptions {
   static WorkerOptions fromCliOptions(const CliOptions &);
 };
 
+/// Callback passed into the AST consumer so that it can decide
+/// which headers to index when traversing the translation unit.
+///
+/// The return value is true iff the indexing job should be run.
+using WorkerCallback = absl::FunctionRef<bool(SemanticAnalysisJobResult &&,
+                                              EmitIndexJobDetails &)>;
+
 class Worker final {
   WorkerOptions options;
   // Non-null in actual builds, null in testing.
@@ -65,14 +78,32 @@ class Worker final {
 public:
   Worker(WorkerOptions &&options);
   void run();
-  void performSemanticAnalysis(SemanticAnalysisJobDetails &&,
-                               SemanticAnalysisJobResult &);
-  void flushStreams();
 
 private:
   const IpcOptions &ipcOptions() const;
-  void processRequest(IndexJobRequest &&, IndexJobResult &);
+
+  enum class ReceiveStatus {
+    DriverTimeout,
+    MalformedMessage,
+    Shutdown,
+    OK,
+  };
+
+  ReceiveStatus waitForRequest(IndexJobRequest &);
+  void sendResult(JobId, IndexJobResult &&);
+
+  ReceiveStatus
+  processTranslationUnitAndRespond(IndexJobRequest &&semanticAnalysisRequest);
+  void emitIndex(scip::Index &&scipIndex, const StdPath &outputPath);
+
+  ReceiveStatus processRequest(IndexJobRequest &&, IndexJobResult &);
   void triggerFaultIfApplicable() const;
+
+  // Testing-only APIs
+public:
+  void processTranslationUnit(SemanticAnalysisJobDetails &&, WorkerCallback,
+                              scip::Index &);
+  void flushStreams();
 };
 
 } // namespace scip_clang

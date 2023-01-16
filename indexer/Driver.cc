@@ -1,9 +1,11 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,7 +25,10 @@
 #include "spdlog/sinks/stdout_sinks.h"
 #include "spdlog/spdlog.h"
 
+#include "scip/scip.pb.h"
+
 #include "indexer/CliOptions.h"
+#include "indexer/Comparison.h"
 #include "indexer/CompilationDatabase.h"
 #include "indexer/Driver.h"
 #include "indexer/FileSystem.h"
@@ -31,6 +36,7 @@
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/LLVMAdapter.h"
 #include "indexer/Logging.h"
+#include "indexer/Path.h"
 
 namespace boost_ip = boost::interprocess;
 
@@ -122,21 +128,7 @@ struct DriverOptions {
         temporaryOutputDir(cliOpts.temporaryOutputDir),
         deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()),
         originalArgv(cliOpts.originalArgv) {
-    // NOTE: Constructor eagerly checks that the regex is well-formed
-    HeaderFilter filter(
-        (std::string(this->preprocessorRecordHistoryFilterRegex)));
-    bool hasSupplementaryOutputs = !filter.isIdentity();
-    if (!hasSupplementaryOutputs) {
-      return;
-    }
-    if (this->temporaryOutputDir.empty()) {
-      this->temporaryOutputDir = std::filesystem::temp_directory_path();
-      this->temporaryOutputDir.append(fmt::format("scip-clang-{}", ::getpid()));
-    }
-    std::vector<std::pair<StdPath &, const char *>> tempDirs{
-        {this->supplementaryOutputDir, "supplementary output directory"},
-        {this->temporaryOutputDir, "temporary output directory"}};
-    for (auto &[path, name] : tempDirs) {
+    auto makeDirs = [](const StdPath &path, const char *name) {
       std::error_code error;
       std::filesystem::create_directories(path, error);
       if (error) {
@@ -144,7 +136,24 @@ struct DriverOptions {
                       error.message());
         std::exit(EXIT_FAILURE);
       }
+    };
+
+    // NOTE: Constructor eagerly checks that the regex is well-formed
+    HeaderFilter filter(
+        (std::string(this->preprocessorRecordHistoryFilterRegex)));
+    bool hasSupplementaryOutputs = !filter.isIdentity();
+    if (hasSupplementaryOutputs) {
+      makeDirs(this->supplementaryOutputDir, "supplementary output directory");
     }
+
+    if (this->temporaryOutputDir.empty()) {
+      this->temporaryOutputDir = std::filesystem::temp_directory_path();
+      if (this->temporaryOutputDir.empty()) {
+        this->temporaryOutputDir = "scip-clang-temporary-output";
+      }
+      this->temporaryOutputDir.append(fmt::format("scip-clang-{}", ::getpid()));
+    }
+    makeDirs(this->temporaryOutputDir, "temporary output directory");
   }
 
   void addWorkerOptions(std::vector<std::string> &args,
@@ -171,7 +180,7 @@ struct DriverOptions {
       args.push_back("--force-worker-fault=" + this->workerFault);
     }
     ENFORCE(!this->temporaryOutputDir.empty());
-    args.push_back(fmt::format("--temporary-output-dir=",
+    args.push_back(fmt::format("--temporary-output-dir={}",
                                this->temporaryOutputDir.c_str()));
   }
 };
@@ -230,6 +239,19 @@ struct LatestIdleWorkerId {
   WorkerId id;
 };
 
+/// Type that decides which headers to emit symbols and occurrences for
+/// given a set of header+hashes emitted by a worker.
+///
+/// Assumption: We will be normally be able to successfully index a
+/// large fraction of code, so don't complicate the code for fault
+/// tolerance. For example, right now, if we assigned a header to a
+/// specific worker, and that worker crashed, then the header would
+/// never be considered for indexing in the future.
+///
+/// In principle, we could maintain a list of jobs which involved
+/// that header, and later spin up new indexing jobs which forced
+/// indexing of that header. However, that would make the code more
+/// complex, so let's skip that for now.
 class HeaderIndexingPlanner {
   absl::flat_hash_map<std::string, absl::flat_hash_set<HashValue>> hashesSoFar;
 
@@ -239,7 +261,7 @@ public:
   HeaderIndexingPlanner(const HeaderIndexingPlanner &) = delete;
 
   void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
-                      std::vector<std::string> headersToBeEmitted) {
+                      std::vector<std::string> &headersToBeEmitted) {
     // Default initialization due to [..] is load-bearing.
     for (auto &header : semaResult.multiplyExpandedHeaders) {
       auto &hashes = hashesSoFar[header.headerPath];
@@ -357,7 +379,6 @@ public:
     this->pendingJobs.push_back(jobId);
   }
 
-  /// Creates a new job for \p job and marks it scheduled on \p workerId.
   [[nodiscard]] IndexJobRequest
   createJobAndScheduleOnWorker(LatestIdleWorkerId workerId, IndexJob &&job) {
     auto jobId = JobId(this->nextJobId);
@@ -387,12 +408,12 @@ public:
   }
 
   [[nodiscard]] LatestIdleWorkerId markCompleted(WorkerId workerId, JobId jobId,
-                                                 IndexJob::Kind kind) {
+                                                 IndexJob::Kind responseKind) {
     ENFORCE(this->workers[workerId].currentlyProcessing == jobId);
     this->markWorkerIdle(workerId);
     bool erased = wipJobs.erase(jobId);
     ENFORCE(erased, "received response for job not marked WIP");
-    ENFORCE(this->allJobList[jobId].kind == kind);
+    ENFORCE(this->allJobList[jobId].kind == responseKind);
     return LatestIdleWorkerId{workerId};
   }
 
@@ -482,6 +503,8 @@ class Driver {
   Scheduler scheduler;
   HeaderIndexingPlanner planner;
 
+  std::vector<Path> indexPartPaths;
+
   /// Total number of commands in the compilation database.
   size_t compdbCommandCount = 0;
   compdb::ResumableParser compdbParser;
@@ -495,6 +518,7 @@ public:
         compdbParser() {
     auto &compdbPath = this->options.compdbPath;
     if (!compdbPath.is_absolute()) {
+      // See TODO(ref: clarify-root)
       auto absPath = std::filesystem::current_path();
       absPath /= compdbPath;
       compdbPath = absPath;
@@ -507,12 +531,93 @@ public:
   ~Driver() {
     if (this->options.deleteTemporaryOutputDir) {
       std::error_code error;
-      std::filesystem::remove(this->options.temporaryOutputDir, error);
+      std::filesystem::remove_all(this->options.temporaryOutputDir, error);
       if (error) {
         spdlog::warn("failed to remove temporary output directory at '{}' ({})",
                      this->options.temporaryOutputDir.c_str(), error.message());
       }
     }
+  }
+
+  void run() {
+    auto compdbGuard = this->openCompilationDatabase();
+    this->spawnWorkers(compdbGuard);
+    this->runJobsTillCompletionAndShutdownWorkers();
+    this->emitScipIndex();
+    spdlog::debug("worker(s) exited; going now kthxbai");
+  }
+
+private:
+  void emitScipIndex() {
+    // See TODO(ref: clarify-root)
+    auto indexScipPath = std::filesystem::current_path() / "index.scip";
+    std::ofstream outputStream(indexScipPath, std::ios_base::out
+                                                  | std::ios_base::binary
+                                                  | std::ios_base::trunc);
+    if (outputStream.fail()) {
+      spdlog::error("failed to open '{}' for writing index ({})",
+                    indexScipPath.c_str(), std::strerror(errno));
+      std::exit(EXIT_FAILURE);
+    }
+
+    scip::ToolInfo toolInfo;
+    toolInfo.set_name("scip-clang");
+    toolInfo.set_version("0.0.0"); // See TODO(ref: add-version)
+    for (auto &arg : this->options.originalArgv) {
+      toolInfo.add_arguments(arg);
+    }
+
+    scip::Metadata metadata;
+    metadata.set_project_root("file:/"
+                              + std::filesystem::current_path().string());
+    // ^ See TODO(ref: clarify-root)
+    metadata.set_version(scip::UnspecifiedProtocolVersion);
+    *metadata.mutable_tool_info() = std::move(toolInfo);
+
+    // TODO(def: faster-index-merging): Right now, the index merging
+    // implementation has the overhead of serializing + deserializing all data
+    // twice (once in the worker and once in the driver). In principle, we
+    // couple optimize this to be just once by taking advantage of Protobuf's
+    // wire format, which allows us to efficiently concatentate the `documents`
+    // and `externalSymbols` arrays. Then the driver could "simply" fallocate a
+    // large file, put in a top level message at the start, and then append the
+    // contents of the arrays without any serialization or deserialization.
+    // However, that is more finicky to do, so we should measure the overhead
+    // before doing that.
+    //
+    // We could also avoid extra copies by using raw file descriptors instead
+    // of iostreams.
+    scip::Index fullIndex;
+    *fullIndex.mutable_metadata() = std::move(metadata);
+    if (this->options.deterministic) {
+      absl::c_sort(
+          this->indexPartPaths, [](const Path &p1, const Path &p2) -> bool {
+            auto cmp = scip_clang::compareStrings(p1.filename(), p2.filename());
+            ENFORCE(cmp != Comparison::Equal,
+                    "2+ index parts have same path '{}'", p1.asStringView());
+            return cmp == Comparison::Less;
+          });
+    }
+    for (auto &ownedPath : this->indexPartPaths) {
+      auto path = ownedPath.asStringView();
+      std::ifstream inputStream(path,
+                                std::ios_base::in | std::ios_base::binary);
+      if (inputStream.fail()) {
+        spdlog::warn("failed to open partial index at '{}' ({})", path,
+                     std::strerror(errno));
+        continue;
+      }
+      scip::Index tmpIndex;
+      if (!tmpIndex.ParseFromIstream(&inputStream)) {
+        spdlog::warn("failed to parse partial index at '{}'", path);
+        continue;
+      }
+      fullIndex.mutable_documents()->MergeFrom(tmpIndex.documents());
+      fullIndex.mutable_external_symbols()->MergeFrom(
+          tmpIndex.external_symbols());
+    }
+
+    fullIndex.SerializeToOstream(&outputStream);
   }
 
   size_t numWorkers() const {
@@ -590,7 +695,6 @@ public:
     return FileGuard(compdbFile.file);
   }
 
-private:
   boost::process::child spawnWorker(WorkerId workerId) {
     std::vector<std::string> args;
     args.push_back(this->options.workerExecutablePath);
@@ -621,7 +725,6 @@ private:
   void processWorkerResponse(IndexJobResponse &&response) {
     auto latestIdleWorkerId = this->scheduler.markCompleted(
         response.workerId, response.jobId, response.result.kind);
-    // TODO: Implement logic to process the result
     switch (response.result.kind) {
     case IndexJob::Kind::SemanticAnalysis: {
       auto &semaResult = response.result.semanticAnalysis;
@@ -630,16 +733,15 @@ private:
       std::string outputDirectory{};
       IndexJob newJob;
       newJob.kind = IndexJob::Kind::EmitIndex;
-      newJob.emitIndex = EmitIndexJobDetails{std::move(headersToBeEmitted),
-                                             std::move(outputDirectory)};
-      // WorkerId claimedWorkerId = this->claimAvailableWorker();
+      newJob.emitIndex = EmitIndexJobDetails{std::move(headersToBeEmitted)};
       auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
       queue.send(this->scheduler.createJobAndScheduleOnWorker(
           latestIdleWorkerId, std::move(newJob)));
       break;
     }
     case IndexJob::Kind::EmitIndex:
-      // TODO: Record this in a map for later concatenation.
+      this->indexPartPaths.emplace_back(
+          std::move(response.result.emitIndex.indexPartPath));
       break;
     }
   }
@@ -662,8 +764,7 @@ private:
     } else {
       // TODO(def: add-job-debug-helper): Add a simplified debug representation
       // for printing jobs for debugging.
-      spdlog::debug("received job from worker {}", response.workerId);
-
+      spdlog::debug("received response from worker {}", response.workerId);
       this->processWorkerResponse(std::move(response));
     }
     auto now = std::chrono::steady_clock::now();
@@ -694,10 +795,7 @@ int driverMain(CliOptions &&cliOptions) {
   size_t numWorkers = cliOptions.numWorkers;
   BOOST_TRY {
     Driver driver((DriverOptions(std::move(cliOptions))));
-    auto compdbGuard = driver.openCompilationDatabase();
-    driver.spawnWorkers(compdbGuard);
-    driver.runJobsTillCompletionAndShutdownWorkers();
-    spdlog::debug("worker(s) exited; going now kthxbai");
+    driver.run();
   }
   BOOST_CATCH(boost_ip::interprocess_exception & ex) {
     spdlog::error("driver caught exception {}", ex.what());
