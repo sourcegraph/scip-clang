@@ -229,8 +229,12 @@ public:
     // Default initialization due to [..] is load-bearing.
     for (auto &header : semaResult.multiplyExpandedHeaders) {
       auto &hashes = hashesSoFar[header.headerPath];
-      hashes.insert(header.hashValues.begin(), header.hashValues.end());
-      headersToBeEmitted.push_back(std::move(header.headerPath));
+      for (auto hashValue : header.hashValues) {
+        auto [_, inserted] = hashes.insert(hashValue);
+        if (inserted) {
+          headersToBeEmitted.push_back(std::move(header.headerPath));
+        }
+      }
     }
     for (auto &header : semaResult.singlyExpandedHeaders) {
       auto &hashes = hashesSoFar[header.headerPath];
@@ -566,9 +570,9 @@ private:
       absl::c_sort(
           this->indexPartPaths, [](const Path &p1, const Path &p2) -> bool {
             auto cmp = cmp::compareStrings(p1.filename(), p2.filename());
-            ENFORCE(cmp != cmp::Comparison::Equal,
-                    "2+ index parts have same path '{}'", p1.asStringView());
-            return cmp == cmp::Comparison::Less;
+            ENFORCE(cmp != cmp::Equal, "2+ index parts have same path '{}'",
+                    p1.asStringView());
+            return cmp == cmp::Less;
           });
     }
     scip::IndexBuilder builder{fullIndex};
