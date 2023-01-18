@@ -13,12 +13,9 @@
   friend bool operator==(const _Type &, const _Type &) = default;
 
 // For custom derivations of <=> where fields may not support comparison.
-#define DERIVE_EQ_LT_VIA_CMP(_Type)                            \
+#define DERIVE_EQ_VIA_CMP(_Type)                               \
   friend bool operator==(const _Type &lhs, const _Type &rhs) { \
     return (lhs <=> rhs) == 0;                                 \
-  }                                                            \
-  friend bool operator<(const _Type &lhs, const _Type &rhs) {  \
-    return (lhs <=> rhs) == std::strong_ordering::less;        \
   }
 
 #define DERIVE_CMP_ALL(_Type)                                             \

@@ -23,7 +23,7 @@ struct RelationshipExt {
 
   friend std::strong_ordering operator<=>(const RelationshipExt &lhs,
                                           const RelationshipExt &rhs);
-  DERIVE_EQ_LT_VIA_CMP(RelationshipExt)
+  DERIVE_EQ_VIA_CMP(RelationshipExt) // absl::flat_hash_set needs explicit ==
 
   template <typename H>
   friend H AbslHashValue(H h, const RelationshipExt &self) {
@@ -38,7 +38,7 @@ struct OccurrenceExt {
 
   friend std::strong_ordering operator<=>(const OccurrenceExt &lhs,
                                           const OccurrenceExt &rhs);
-  DERIVE_EQ_LT_VIA_CMP(OccurrenceExt)
+  DERIVE_EQ_VIA_CMP(OccurrenceExt) // absl::flat_hash_set needs ==
 
   template <typename H> friend H AbslHashValue(H h, const OccurrenceExt &self) {
     for (auto &i : self.occ.range()) {
