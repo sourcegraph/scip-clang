@@ -517,16 +517,16 @@ public:
           relativePaths.push_back(relPathRef);
         });
     if (this->deterministic) {
-      absl::c_sort(
-          relativePaths,
-          [](const ProjectRootRelativePathRef &s1,
-             const ProjectRootRelativePathRef &s2) -> bool {
-            auto cmp = scip_clang::compareStrings(s1.data(), s2.data());
-            ENFORCE(cmp != Comparison::Equal,
-                    "document with path '{}' is present 2+ times in index",
-                    s1.data());
-            return cmp == Comparison::Less;
-          });
+      absl::c_sort(relativePaths,
+                   [](const ProjectRootRelativePathRef &s1,
+                      const ProjectRootRelativePathRef &s2) -> bool {
+                     auto cmp = cmp::compareStrings(s1.data(), s2.data());
+                     ENFORCE(
+                         cmp != cmp::Equal,
+                         "document with path '{}' is present 2+ times in index",
+                         s1.data());
+                     return cmp == cmp::Less;
+                   });
     }
     for (auto relPathRef : relativePaths) {
       scip::Document document;

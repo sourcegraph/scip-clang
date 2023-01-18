@@ -24,7 +24,8 @@ public:
     return this->_data;
   }
 
-  DERIVE_HASH_EQ_1(ProjectRootRelativePathRef, self._data)
+  DERIVE_HASH_1(ProjectRootRelativePathRef, self._data)
+  DERIVE_EQ_ALL(ProjectRootRelativePathRef)
 };
 
 class AbsolutePath;
@@ -49,7 +50,8 @@ public:
     return AbsolutePathRef::tryFrom(std::string_view(path.data(), path.size()));
   }
 
-  DERIVE_HASH_EQ_1(AbsolutePathRef, self._data)
+  DERIVE_HASH_1(AbsolutePathRef, self._data)
+  DERIVE_EQ_ALL(AbsolutePathRef)
 
   std::string_view data() const {
     return this->_data;

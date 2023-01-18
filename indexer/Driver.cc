@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <iterator>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,6 +27,8 @@
 #include "spdlog/sinks/stdout_sinks.h"
 #include "spdlog/spdlog.h"
 
+#include "llvm/ADT/StringMap.h"
+
 #include "scip/scip.pb.h"
 
 #include "indexer/CliOptions.h"
@@ -37,6 +41,8 @@
 #include "indexer/LLVMAdapter.h"
 #include "indexer/Logging.h"
 #include "indexer/Path.h"
+#include "indexer/RAII.h"
+#include "indexer/ScipExtras.h"
 
 namespace boost_ip = boost::interprocess;
 
@@ -185,49 +191,6 @@ struct DriverOptions {
   }
 };
 
-template <typename T> class ConsumeOnce {
-  T value;
-  bool consumed;
-  bool movedOut;
-
-public:
-  ConsumeOnce() = delete;
-  ConsumeOnce(ConsumeOnce<T> &&old)
-      : value(std::move(old.value)), consumed(old.consumed),
-        movedOut(old.movedOut) {
-    old.movedOut = true;
-  }
-  ConsumeOnce &operator=(ConsumeOnce &&old) {
-    this->_id = std::move(old.value);
-    this->consumed = old.consumed;
-    this->movedOut = old.movedOut;
-    old.movedOut = true;
-    return *this;
-  }
-  ConsumeOnce(const ConsumeOnce &) = delete;
-  ConsumeOnce &operator=(const ConsumeOnce &) = delete;
-
-  ConsumeOnce(T &&value)
-      : value(std::move(value)), consumed(false), movedOut(false) {}
-
-  ~ConsumeOnce() {
-    if (!this->movedOut) {
-      ENFORCE(this->consumed, "forgot to call getValueAndConsume");
-    }
-  }
-  T getValueAndConsume() {
-    ENFORCE(!this->movedOut, "use after move");
-    ENFORCE(!this->consumed, "trying to consume worker guard twice");
-    this->consumed = true;
-    return std::move(this->value);
-  }
-  const T &getValueNonConsuming() {
-    ENFORCE(!this->movedOut, "use after move");
-    ENFORCE(!this->consumed, "trying to access id for consumed guard");
-    return this->value;
-  }
-};
-
 /// Type for indicating that a worker is not longer idle
 /// and will imminently be scheduled.
 using ToBeScheduledWorkerId = ConsumeOnce<WorkerId>;
@@ -276,6 +239,16 @@ public:
         headersToBeEmitted.push_back(std::move(header.headerPath));
       }
     }
+  }
+
+  bool isMultiplyIndexed(const std::string &relativePath) const {
+    auto it = this->hashesSoFar.find(relativePath);
+    if (it == this->hashesSoFar.end()) {
+      // It's probably a C++ file which wasn't sent over in the header list?
+      // TODO: Check this!
+      return false;
+    }
+    return it->second.size() > 1;
   }
 };
 
@@ -592,12 +565,14 @@ private:
     if (this->options.deterministic) {
       absl::c_sort(
           this->indexPartPaths, [](const Path &p1, const Path &p2) -> bool {
-            auto cmp = scip_clang::compareStrings(p1.filename(), p2.filename());
-            ENFORCE(cmp != Comparison::Equal,
+            auto cmp = cmp::compareStrings(p1.filename(), p2.filename());
+            ENFORCE(cmp != cmp::Comparison::Equal,
                     "2+ index parts have same path '{}'", p1.asStringView());
-            return cmp == Comparison::Less;
+            return cmp == cmp::Comparison::Less;
           });
     }
+    scip::IndexBuilder builder{fullIndex};
+    // TODO: Measure how much time this is taking and parallelize if too slow.
     for (auto &ownedPath : this->indexPartPaths) {
       auto path = ownedPath.asStringView();
       std::ifstream inputStream(std::string(path),
@@ -612,13 +587,20 @@ private:
         spdlog::warn("failed to parse partial index at '{}'", path);
         continue;
       }
-      // FIXME(def: handle-multiply-indexed-headers): We need to perform deeper
-      // merging for headers which had multiple hashes. Otherwise, only the
-      // last document will be considered.
-      fullIndex.mutable_documents()->MergeFrom(partialIndex.documents());
-      fullIndex.mutable_external_symbols()->MergeFrom(
-          partialIndex.external_symbols());
+      for (auto &doc : *partialIndex.mutable_documents()) {
+        bool isMultiplyIndexed =
+            this->planner.isMultiplyIndexed(doc.relative_path());
+        builder.addDocument(std::move(doc), isMultiplyIndexed);
+      }
+      // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
+      // deterministic mode, indexes should be the same, and iterated over in
+      // sorted order. So if external symbol emission in each part is
+      // deterministic, addExternalSymbol will be called in deterministic order.
+      for (auto &extSym : *partialIndex.mutable_external_symbols()) {
+        builder.addExternalSymbol(std::move(extSym));
+      }
     }
+    builder.finish(this->options.deterministic);
 
     fullIndex.SerializeToOstream(&outputStream);
   }

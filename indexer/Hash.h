@@ -18,7 +18,8 @@ struct HashValue {
     this->rawValue = wyhash(key, data, this->rawValue, /*default secret*/ _wyp);
   };
 
-  DERIVE_HASH_CMP_1(HashValue, self.rawValue)
+  DERIVE_HASH_1(HashValue, self.rawValue)
+  DERIVE_CMP_ALL(HashValue)
 };
 
 } // namespace scip_clang

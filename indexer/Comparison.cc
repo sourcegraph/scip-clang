@@ -1,26 +1,31 @@
 #include <cstring>
+#include <string>
 #include <string_view>
 
 #include "indexer/Comparison.h"
 
-namespace scip_clang {
+namespace cmp {
 
 Comparison compareStrings(std::string_view s1, std::string_view s2) {
   auto s1size = s1.size();
   auto s2size = s2.size();
   if (s1size < s2size) {
-    return Comparison::Less;
+    return cmp::Less;
   }
   if (s1size > s2size) {
-    return Comparison::Greater;
+    return cmp::Greater;
   }
   auto cmp = std::memcmp(s2.data(), s2.data(), s2size);
   if (cmp < 0) {
-    return Comparison::Less;
+    return cmp::Less;
   } else if (cmp == 0) {
-    return Comparison::Equal;
+    return cmp::Equal;
   }
-  return Comparison::Greater;
+  return cmp::Greater;
 }
 
-} // namespace scip_clang
+std::strong_ordering operator<=>(const CmpStr &s1, const CmpStr &s2) {
+  return cmp::comparisonToStrongOrdering(cmp::compareStrings(s1.s, s2.s));
+}
+
+} // namespace cmp

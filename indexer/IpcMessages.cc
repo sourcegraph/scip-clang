@@ -1,3 +1,4 @@
+#include <compare>
 #include <type_traits>
 
 #include "spdlog/fmt/fmt.h"
@@ -141,26 +142,17 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
          && mapper.map("args", d.command.CommandLine);
 }
 
-bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs) {
-  if (lhs.hashValue < rhs.hashValue) {
-    return true;
-  }
-  if (lhs.hashValue == rhs.hashValue) {
-    return scip_clang::compareStrings(lhs.headerPath, rhs.headerPath)
-           == Comparison::Less;
-  }
-  return false;
+std::strong_ordering operator<=>(const HeaderInfo &lhs, const HeaderInfo &rhs) {
+  CMP_EXPR(lhs.hashValue, rhs.hashValue);
+  CMP_STR(lhs.headerPath, rhs.headerPath);
+  return std::strong_ordering::equal;
 }
 
-bool operator<(const HeaderInfoMulti &lhs, const HeaderInfoMulti &rhs) {
-  auto cmp = std::strcmp(lhs.headerPath.c_str(), rhs.headerPath.c_str());
-  if (cmp < 0) {
-    return true;
-  }
-  if (cmp == 0) {
-    return lhs.hashValues < rhs.hashValues;
-  }
-  return false;
+std::strong_ordering operator<=>(const HeaderInfoMulti &lhs,
+                                 const HeaderInfoMulti &rhs) {
+  CMP_STR(lhs.headerPath, rhs.headerPath);
+  CMP_RANGE(lhs.hashValues, rhs.hashValues);
+  return std::strong_ordering::equal;
 }
 
 llvm::json::Value toJSON(const IndexJobResponse &r) {
