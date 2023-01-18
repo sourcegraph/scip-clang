@@ -53,21 +53,19 @@ std::strong_ordering operator<=>(const OccurrenceExt &lhs,
 
 void SymbolInformationBuilder::finish(bool deterministic,
                                       scip::SymbolInformation &out) {
+  this->_bomb.defuse();
+
+  out.mutable_documentation()->Reserve(this->documentation.size());
   for (auto &doc : this->documentation) {
     *out.add_documentation() = std::move(doc);
   }
-  if (!deterministic) {
-    for (auto &relExt : this->relationships) {
-      *out.add_relationships() = std::move(relExt.rel);
-    }
-  } else {
-    std::vector<RelationshipExt> rels{};
-    absl::c_move(this->relationships, std::back_inserter(rels));
-    absl::c_sort(rels);
-    for (auto &relExt : rels) {
-      *out.add_relationships() = std::move(relExt.rel);
-    }
-  }
+
+  out.mutable_relationships()->Reserve(this->relationships.size());
+  scip_clang::extractTransform(
+      std::move(this->relationships), deterministic,
+      absl::FunctionRef<void(RelationshipExt &&)>([&](auto &&relExt) {
+        *out.add_relationships() = std::move(relExt.rel);
+      }));
 }
 
 DocumentBuilder::DocumentBuilder(scip::Document &&first) : soFar() {
