@@ -248,8 +248,7 @@ public:
   bool isMultiplyIndexed(const std::string &relativePath) const {
     auto it = this->hashesSoFar.find(relativePath);
     if (it == this->hashesSoFar.end()) {
-      // It's probably a C++ file which wasn't sent over in the header list?
-      // TODO: Check this!
+      ENFORCE(false, "found path '{}' with no recorded hashes", relativePath);
       return false;
     }
     return it->second.size() > 1;
@@ -537,6 +536,24 @@ private:
       std::exit(EXIT_FAILURE);
     }
 
+    scip::Index fullIndex{};
+    if (this->options.deterministic) {
+      // Sorting before merging so that mergeIndexParts can be const
+      absl::c_sort(
+          this->indexPartPaths, [](const Path &p1, const Path &p2) -> bool {
+            auto cmp = cmp::compareStrings(p1.filename(), p2.filename());
+            ENFORCE(cmp != cmp::Equal, "2+ index parts have same path '{}'",
+                    p1.asStringView());
+            return cmp == cmp::Less;
+          });
+    }
+    this->mergeIndexParts(fullIndex);
+    fullIndex.SerializeToOstream(&outputStream);
+  }
+
+  void mergeIndexParts(scip::Index &fullIndex) const {
+    LogTimerRAII timer("index merging");
+
     scip::ToolInfo toolInfo;
     toolInfo.set_name("scip-clang");
     toolInfo.set_version("0.0.0"); // See TODO(ref: add-version)
@@ -564,17 +581,8 @@ private:
     //
     // The implementation is also fully serial to avoid introducing
     // a dependency on a library with a concurrent hash table.
-    scip::Index fullIndex;
     *fullIndex.mutable_metadata() = std::move(metadata);
-    if (this->options.deterministic) {
-      absl::c_sort(
-          this->indexPartPaths, [](const Path &p1, const Path &p2) -> bool {
-            auto cmp = cmp::compareStrings(p1.filename(), p2.filename());
-            ENFORCE(cmp != cmp::Equal, "2+ index parts have same path '{}'",
-                    p1.asStringView());
-            return cmp == cmp::Less;
-          });
-    }
+
     scip::IndexBuilder builder{fullIndex};
     // TODO: Measure how much time this is taking and parallelize if too slow.
     for (auto &ownedPath : this->indexPartPaths) {
@@ -605,8 +613,6 @@ private:
       }
     }
     builder.finish(this->options.deterministic);
-
-    fullIndex.SerializeToOstream(&outputStream);
   }
 
   size_t numWorkers() const {
