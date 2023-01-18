@@ -521,7 +521,7 @@ public:
     this->spawnWorkers(compdbGuard);
     this->runJobsTillCompletionAndShutdownWorkers();
     this->emitScipIndex();
-    spdlog::debug("worker(s) exited; going now kthxbai");
+    spdlog::debug("indexing complete; driver shutting down now, kthxbai");
   }
 
 private:
