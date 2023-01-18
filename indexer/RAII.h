@@ -1,5 +1,5 @@
-#ifndef SCIP_CLANG_UTILS_H
-#define SCIP_CLANG_UTILS_H
+#ifndef SCIP_CLANG_RAII_H
+#define SCIP_CLANG_RAII_H
 
 #include <utility>
 
@@ -53,7 +53,7 @@ public:
 /// Type to put inside other types to make them ConsumeOnce<>
 /// to avoid having to deal with wrapping/unwrapping.
 class Bomb final {
-  ConsumeOnce<int> impl;
+  ConsumeOnce<uint8_t> impl;
 
 public:
   Bomb() : impl(0) {}
@@ -67,4 +67,4 @@ public:
 
 } // namespace scip_clang
 
-#endif // SCIP_CLANG_TYPE_UTILS
+#endif // SCIP_CLANG_RAII_H

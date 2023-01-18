@@ -84,4 +84,4 @@ struct MessageQueuePair {
 
 } // namespace scip_clang
 
-#endif
+#endif // SCIP_CLANG_JSON_IPC_QUEUE_H

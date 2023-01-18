@@ -56,4 +56,4 @@ void extractTransform(absl::flat_hash_set<T> &&set, bool deterministic,
 
 } // namespace scip_clang
 
-#endif
+#endif // SCIP_CLANG_ABSL_EXTRAS_H

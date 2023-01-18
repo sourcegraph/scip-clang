@@ -53,4 +53,4 @@
            && mapper.map(#_Field2, t._Field2);                \
   }
 
-#endif
+#endif // SCIP_CLANG_DERIVE_H
