@@ -16,10 +16,6 @@
 #include "indexer/Enforce.h"
 #include "indexer/RAII.h"
 
-// NOTE: Avoid dependencies on indexer-specific stuff in this file.
-// We may want to move this into the SCIP repo in the future
-// or just copy certain bits of code into scip-ruby.
-
 namespace scip {
 
 struct RelationshipExt {
