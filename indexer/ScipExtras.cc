@@ -91,11 +91,12 @@ void DocumentBuilder::merge(scip::Document &&doc) {
                std::move(*symbolInfo.mutable_relationships())}});
       continue;
     }
-    if (!it->second.hasDocumentation()) {
+    auto &symbolInfoBuilder = it->second;
+    if (!symbolInfoBuilder.hasDocumentation()) {
       auto &docs = *symbolInfo.mutable_documentation();
-      it->second.setDocumentation(std::move(docs));
+      symbolInfoBuilder.setDocumentation(std::move(docs));
     }
-    it->second.mergeRelationships(
+    symbolInfoBuilder.mergeRelationships(
         std::move(*symbolInfo.mutable_relationships()));
   }
 }
@@ -135,7 +136,8 @@ void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
       this->multiplyIndexed.insert(
           {docPath, std::make_unique<DocumentBuilder>(std::move(doc))});
     } else {
-      it->second->merge(std::move(doc));
+      auto &docBuilder = it->second;
+      docBuilder->merge(std::move(doc));
     }
   } else {
     ENFORCE(!this->multiplyIndexed.contains(doc.relative_path()),
