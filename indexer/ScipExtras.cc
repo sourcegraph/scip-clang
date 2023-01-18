@@ -177,9 +177,6 @@ void IndexBuilder::finish(bool deterministic) {
   this->_bomb.defuse();
 
   this->fullIndex.mutable_documents()->Reserve(this->multiplyIndexed.size());
-  this->fullIndex.mutable_external_symbols()->Reserve(
-      this->externalSymbols.size());
-
   scip_clang::extractTransform(
       std::move(this->multiplyIndexed), deterministic,
       absl::FunctionRef<void(std::string &&,
@@ -190,6 +187,8 @@ void IndexBuilder::finish(bool deterministic) {
             *this->fullIndex.add_documents() = std::move(doc);
           }));
 
+  this->fullIndex.mutable_external_symbols()->Reserve(
+      this->externalSymbols.size());
   scip_clang::extractTransform(
       std::move(this->externalSymbols), deterministic,
       absl::FunctionRef<void(std::string &&,
