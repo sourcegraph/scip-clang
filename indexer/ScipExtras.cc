@@ -80,21 +80,23 @@ void DocumentBuilder::merge(scip::Document &&doc) {
   for (auto &occ : *doc.mutable_occurrences()) {
     this->occurrences.insert({std::move(occ)});
   }
-  for (auto &rel : *doc.mutable_symbols()) {
-    auto &name = *rel.mutable_symbol();
+  for (auto &symbolInfo : *doc.mutable_symbols()) {
+    auto &name = *symbolInfo.mutable_symbol();
     auto it = this->symbolInfos.find(name);
     if (it == this->symbolInfos.end()) {
       this->symbolInfos.insert(
           {std::move(name),
-           SymbolInformationBuilder{std::move(*rel.mutable_documentation()),
-                                    std::move(*rel.mutable_relationships())}});
+           SymbolInformationBuilder{
+               std::move(*symbolInfo.mutable_documentation()),
+               std::move(*symbolInfo.mutable_relationships())}});
       continue;
     }
     if (!it->second.hasDocumentation()) {
-      auto &docs = *rel.mutable_documentation();
+      auto &docs = *symbolInfo.mutable_documentation();
       it->second.setDocumentation(std::move(docs));
     }
-    it->second.mergeRelationships(std::move(*rel.mutable_relationships()));
+    it->second.mergeRelationships(
+        std::move(*symbolInfo.mutable_relationships()));
   }
 }
 
