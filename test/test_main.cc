@@ -17,6 +17,8 @@
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/YAMLTraits.h"
 
+#include "scip/scip.pb.h"
+
 #include "indexer/CliOptions.h"
 #include "indexer/CompilationDatabase.h"
 #include "indexer/Enforce.h"
@@ -317,33 +319,34 @@ TEST_CASE("PREPROCESSING") {
 
   SnapshotTest(std::move(root),
                ::replaceExtension(".preprocessor-history.yaml"))
-      .testCompareOrUpdate(
-          [](clang::tooling::CompileCommand &&command) -> std::string {
-            TempFile tmpYamlFile(
-                fmt::format("{}.yaml", testCliOptions.testName));
+      .testCompareOrUpdate([](clang::tooling::CompileCommand &&command)
+                               -> std::string {
+        TempFile tmpYamlFile(fmt::format("{}.yaml", testCliOptions.testName));
 
-            // HACK(def: derive-root-path)
-            // Get the real path to the file and compute the root relative
-            // to that, instead of using the synthetic sandbox root, because
-            // we want the root to be a prefix of the real path (the real path
-            // is used when tracking preprocessor history)
-            auto derivedRoot =
-                ::deriveRootFromTUPath(command.Filename, command.Directory);
+        // HACK(def: derive-root-path)
+        // Get the real path to the file and compute the root relative
+        // to that, instead of using the synthetic sandbox root, because
+        // we want the root to be a prefix of the real path (the real path
+        // is used when tracking preprocessor history)
+        auto derivedRoot =
+            ::deriveRootFromTUPath(command.Filename, command.Directory);
 
-            Worker worker(WorkerOptions{
-                IpcOptions::testingStub,
-                spdlog::level::level_enum::info,
-                true,
-                PreprocessorHistoryRecordingOptions{".*", tmpYamlFile.path,
-                                                    true, derivedRoot},
-            });
-            SemanticAnalysisJobResult result{};
-            worker.performSemanticAnalysis(
-                SemanticAnalysisJobDetails{std::move(command)}, result);
-            worker.flushStreams();
-            std::string actual(::readFileToString(tmpYamlFile.path));
-            return actual;
-          });
+        Worker worker(WorkerOptions{
+            IpcOptions::testingStub,
+            spdlog::level::level_enum::info,
+            true,
+            PreprocessorHistoryRecordingOptions{".*", tmpYamlFile.path, true,
+                                                derivedRoot},
+        });
+        scip::Index index{};
+        auto callback = [](SemanticAnalysisJobResult &&,
+                           EmitIndexJobDetails &) -> bool { return false; };
+        worker.processTranslationUnit(
+            SemanticAnalysisJobDetails{std::move(command)}, callback, index);
+        worker.flushStreams();
+        std::string actual(::readFileToString(tmpYamlFile.path));
+        return actual;
+      });
 }
 
 TEST_CASE("ROBUSTNESS") {

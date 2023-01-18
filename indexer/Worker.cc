@@ -1,8 +1,11 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <ios>
 #include <iterator>
 #include <memory>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -23,7 +26,10 @@
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/YAMLTraits.h"
 
+#include "scip/scip.pb.h"
+
 #include "indexer/CliOptions.h"
+#include "indexer/Comparison.h"
 #include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
 #include "indexer/Hash.h"
@@ -33,8 +39,6 @@
 #include "indexer/Logging.h"
 #include "indexer/Path.h"
 #include "indexer/Worker.h"
-
-#include "scip/scip.pb.h"
 
 namespace boost_ip = boost::interprocess;
 
@@ -189,9 +193,10 @@ struct PreprocessorDebugContext {
   std::string tuMainFilePath;
 };
 
-class IndexerPPCallbacks final : public clang::PPCallbacks {
+using PathToIdMap = absl::flat_hash_map<AbsolutePathRef, clang::FileID>;
+
+class IndexerPreprocessorWrapper final : public clang::PPCallbacks {
   const IndexerPreprocessorOptions &options;
-  SemanticAnalysisJobResult &result;
 
   clang::SourceManager &sourceManager;
   IndexerPreprocessorStack stack;
@@ -214,15 +219,14 @@ class IndexerPPCallbacks final : public clang::PPCallbacks {
   const PreprocessorDebugContext debugContext;
 
 public:
-  IndexerPPCallbacks(clang::SourceManager &sourceManager,
-                     const IndexerPreprocessorOptions &options,
-                     SemanticAnalysisJobResult &result,
-                     PreprocessorDebugContext &&debugContext)
-      : options(options), result(result), sourceManager(sourceManager), stack(),
+  IndexerPreprocessorWrapper(clang::SourceManager &sourceManager,
+                             const IndexerPreprocessorOptions &options,
+                             PreprocessorDebugContext &&debugContext)
+      : options(options), sourceManager(sourceManager), stack(),
         finishedProcessing(), finishedProcessingMulti(),
         debugContext(std::move(debugContext)) {}
 
-  ~IndexerPPCallbacks() {
+  void flushState(SemanticAnalysisJobResult &result, PathToIdMap &pathToIdMap) {
     bool emittedEmptyPathWarning = false;
     auto getAbsPath =
         [&](clang::FileID fileId) -> std::optional<AbsolutePathRef> {
@@ -249,19 +253,17 @@ public:
       return optAbsPath;
     };
     {
-      auto &headerHashes = this->finishedProcessing;
-
-      for (auto it = headerHashes.begin(), end = headerHashes.end(); it != end;
-           ++it) {
-        if (it->second.isMultiple) {
+      for (auto [wrappedFileId, hashInfo] : this->finishedProcessing) {
+        if (hashInfo.isMultiple) {
           continue;
         }
-        auto hashValue = it->second.hashValue;
-        auto fileId = it->first.data;
+        auto hashValue = hashInfo.hashValue;
+        auto fileId = wrappedFileId.data;
         if (auto optPath = getAbsPath(fileId)) {
           auto absPath = optPath.value();
           result.singlyExpandedHeaders.emplace_back(
               HeaderInfo{std::string(absPath.data()), hashValue});
+          pathToIdMap.insert({absPath, fileId});
         }
       }
       if (this->options.ensureDeterminism) {
@@ -270,17 +272,20 @@ public:
     }
     {
       auto &headerHashes = this->finishedProcessingMulti;
-      std::vector<HashValue> buf;
       for (auto it = headerHashes.begin(), end = headerHashes.end(); it != end;
            ++it) {
-        buf.clear();
-        absl::c_move(it->second, std::back_inserter(buf));
-        auto hashes = std::move(it->second);
         auto fileId = it->first.data;
         if (auto optPath = getAbsPath(fileId)) {
           auto absPath = optPath.value();
+          std::vector<HashValue> hashes{};
+          hashes.reserve(it->second.size());
+          absl::c_move(it->second, std::back_inserter(hashes));
+          if (this->options.ensureDeterminism) {
+            absl::c_sort(hashes);
+          }
           result.multiplyExpandedHeaders.emplace_back(
-              HeaderInfoMulti{std::string(absPath.data()), std::move(buf)});
+              HeaderInfoMulti{std::string(absPath.data()), std::move(hashes)});
+          pathToIdMap.insert({absPath, fileId});
         }
       }
       if (this->options.ensureDeterminism) {
@@ -351,7 +356,7 @@ private:
 public:
   /// \param sourceLoc corresponds to the top of the newly entered file (if
   /// valid).
-  /// \param reason describes
+  /// \param reason
   ///   EnterFile is the reason when an #include is first expanded.
   ///   ExitFile is the reason when an #include finishes processing.
   ///     - With ExitFile, the sourceLoc points to the line _after_ the
@@ -428,24 +433,169 @@ public:
   // END overrides from PPCallbacks
 };
 
-class IndexerASTVisitor : public clang::RecursiveASTVisitor<IndexerASTVisitor> {
+class IndexerAstVisitor;
+
+/// Type to track which files should be indexed.
+///
+/// For files that do not belong to this project; their symbols should be
+/// tracked in external symbols instead of creating a \c scip::Document.
+class FilesToBeIndexedMap final {
+  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
+                      ProjectRootRelativePathRef>
+      map;
+  AbsolutePath rootPath;
+
+public:
+  FilesToBeIndexedMap() = delete;
+  FilesToBeIndexedMap(std::string_view rootPath)
+      : map(),
+        rootPath(AbsolutePath(AbsolutePathRef::tryFrom(rootPath).value())) {}
+  FilesToBeIndexedMap(const FilesToBeIndexedMap &) = delete;
+  FilesToBeIndexedMap &operator=(const FilesToBeIndexedMap &) = delete;
+  FilesToBeIndexedMap(FilesToBeIndexedMap &&other) = default;
+  FilesToBeIndexedMap &operator=(FilesToBeIndexedMap &&) = default;
+
+  /// Returns true iff a new entry was inserted.
+  bool insert(clang::FileID fileId, AbsolutePathRef absPath) {
+    ENFORCE(fileId.isValid(),
+            "invalid FileIDs should be filtered out after preprocessing");
+    ENFORCE(!absPath.data().empty(), "inserting file with empty absolute path");
+
+    // FIXME(clarify-root): We should disambiguate between the project root
+    // (needed by SCIP) and the build root, which is the directory wrt paths
+    // in compile_commands.json can be interpreted (this may not coincide
+    // with the directory containing the compile_commands.json!).
+    // For example, LLVM's compile_commands.json contains absolute paths,
+    // whereas Chromium's uses relative paths; distinguishing between
+    // the different roots properly is esp. important in the second case.
+    //
+    // Right now we are relying on substring checks, but with CMake,
+    // it is common to have the build root be inside the project root,
+    // so making the distinction is important for CMake too.
+
+    auto rootPathRef = this->rootPath.asRef();
+    if (auto relPath = rootPathRef.makeRelative(absPath)) {
+      ENFORCE(!relPath->empty(),
+              "file path is unexpectedly equal to project root");
+      auto [_, inserted] = this->map.insert({{fileId}, relPath.value()});
+      return inserted;
+    } else {
+      auto [_, inserted] = this->map.insert({{fileId}, std::string_view()});
+      return inserted;
+    }
+  }
+
+  void reserve(size_t totalCapacity) {
+    this->map.reserve(totalCapacity);
+  }
+
+  void forEachProjectLocalFile(
+      absl::FunctionRef<void(ProjectRootRelativePathRef)> doStuff) {
+    for (auto &[_, relPathRef] : this->map) {
+      if (relPathRef.data().empty()) { // external file
+        continue;
+      }
+      doStuff(relPathRef);
+    }
+  }
+};
+
+class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
   using Base = RecursiveASTVisitor;
+
+  FilesToBeIndexedMap toBeIndexed;
+  bool deterministic;
+
+public:
+  IndexerAstVisitor(FilesToBeIndexedMap &&map, bool deterministic)
+      : toBeIndexed(std::move(map)), deterministic(deterministic) {}
+
+  void writeIndex(scip::Index &scipIndex) {
+    std::vector<ProjectRootRelativePathRef> relativePaths;
+    toBeIndexed.forEachProjectLocalFile(
+        [&](ProjectRootRelativePathRef relPathRef) -> void {
+          relativePaths.push_back(relPathRef);
+        });
+    if (this->deterministic) {
+      absl::c_sort(relativePaths,
+                   [](const ProjectRootRelativePathRef &s1,
+                      const ProjectRootRelativePathRef &s2) -> bool {
+                     auto cmp = cmp::compareStrings(s1.data(), s2.data());
+                     ENFORCE(
+                         cmp != cmp::Equal,
+                         "document with path '{}' is present 2+ times in index",
+                         s1.data());
+                     return cmp == cmp::Less;
+                   });
+    }
+    for (auto relPathRef : relativePaths) {
+      scip::Document document;
+      auto relPath = relPathRef.data();
+      document.set_relative_path(relPath.data(), relPath.size());
+      // FIXME(def: set-language): Use Clang's built-in detection logic here.
+      // Q: With Clang's built-in language detection, does the built-in fake
+      // header differ between C, C++ and Obj-C (it presumably should?)?
+      // Otherwise, do we need to mix in the language into the hash?
+      // Or do we fall back to the common denominator (= C)?
+      // Or should we add an other_languages in SCIP?
+      document.set_language(scip::Language_Name(scip::Language::CPP));
+      *scipIndex.add_documents() = std::move(document);
+    }
+  }
 
   // For the various hierarchies, see clang/Basic/.*.td files
   // https://sourcegraph.com/search?q=context:global+repo:llvm/llvm-project%24+file:clang/Basic/.*.td&patternType=standard&sm=1&groupBy=repo
 };
 
-class IndexerASTConsumer : public clang::SemaConsumer {
+class IndexerAstConsumer : public clang::SemaConsumer {
   clang::Sema *sema;
+  IndexerPreprocessorWrapper *preprocessorWrapper;
+  WorkerCallback getEmitIndexDetails;
+  scip::Index &scipIndex;
+  bool deterministic;
 
 public:
-  IndexerASTConsumer(clang::CompilerInstance &, llvm::StringRef filepath) {
-    (void)filepath;
-  }
+  IndexerAstConsumer(clang::CompilerInstance &, llvm::StringRef /*filepath*/,
+                     IndexerPreprocessorWrapper *preprocessorWrapper,
+                     WorkerCallback getEmitIndexDetails, scip::Index &scipIndex,
+                     bool deterministic)
+      : preprocessorWrapper(preprocessorWrapper),
+        getEmitIndexDetails(getEmitIndexDetails), scipIndex(scipIndex),
+        deterministic(deterministic) {}
 
   void HandleTranslationUnit(clang::ASTContext &astContext) override {
-    IndexerASTVisitor visitor{};
+    // NOTE(ref: preprocessor-traversal-ordering): The call order is
+    // 1. The preprocessor wrapper finishes running.
+    // 2. This function is called.
+    // 3. EndOfMainFile is called in the preprocessor wrapper.
+    // 4. The preprocessor wrapper is destroyed.
+    //
+    // So flush the state from the wrapper in this function, and use
+    // it during the traversal (instead of say flushing state in the dtor
+    // would arguably be more idiomatic).
+    SemanticAnalysisJobResult semaResult{};
+    PathToIdMap pathToIdMap{};
+    this->preprocessorWrapper->flushState(semaResult, pathToIdMap);
+
+    EmitIndexJobDetails emitIndexDetails{};
+    bool shouldEmitIndex =
+        this->getEmitIndexDetails(std::move(semaResult), emitIndexDetails);
+    if (!shouldEmitIndex) {
+      return;
+    }
+
+    // See FIXME(ref: clarify-root)
+    auto rootPath = std::filesystem::current_path().string();
+    auto optRootPathRef = AbsolutePathRef::tryFrom(std::string_view(rootPath));
+    ENFORCE(optRootPathRef.has_value());
+    (void)optRootPathRef;
+    FilesToBeIndexedMap toBeIndexed(rootPath);
+    this->computePathsToBeIndexed(astContext, emitIndexDetails, pathToIdMap,
+                                  toBeIndexed);
+
+    IndexerAstVisitor visitor{std::move(toBeIndexed), deterministic};
     visitor.VisitTranslationUnitDecl(astContext.getTranslationUnitDecl());
+    visitor.writeIndex(scipIndex);
   }
 
   void InitializeSema(clang::Sema &S) override {
@@ -455,45 +605,90 @@ public:
   void ForgetSema() override {
     this->sema = nullptr;
   }
+
+private:
+  void computePathsToBeIndexed(const clang::ASTContext &astContext,
+                               const EmitIndexJobDetails &emitIndexDetails,
+                               const PathToIdMap &pathToIdMap,
+                               FilesToBeIndexedMap &toBeIndexed) {
+    toBeIndexed.reserve(1 + emitIndexDetails.headersToBeEmitted.size());
+
+    auto &sourceManager = astContext.getSourceManager();
+    auto mainFileId = sourceManager.getMainFileID();
+    if (auto *mainFileEntry = sourceManager.getFileEntryForID(mainFileId)) {
+      if (auto optMainFileAbsPath =
+              AbsolutePathRef::tryFrom(mainFileEntry->tryGetRealPathName())) {
+        toBeIndexed.insert(mainFileId, optMainFileAbsPath.value());
+      } else {
+        spdlog::debug("tryGetRealPathName() returned non-absolute path '{}'",
+                      toStringView(mainFileEntry->tryGetRealPathName()));
+      }
+    }
+
+    for (auto &path : emitIndexDetails.headersToBeEmitted) {
+      if (auto optAbsPath = AbsolutePathRef::tryFrom(std::string_view(path))) {
+        auto absPath = optAbsPath.value();
+        auto it = pathToIdMap.find(absPath);
+        if (it == pathToIdMap.end()) {
+          spdlog::debug(
+              "failed to find clang::FileID for path '{}' received from Driver",
+              absPath.data());
+          continue;
+        }
+        toBeIndexed.insert(it->second, absPath);
+      } else {
+        spdlog::debug("received non-absolute path from Driver '{}'",
+                      path.c_str());
+      }
+    }
+  }
 };
 
 class IndexerFrontendAction : public clang::ASTFrontendAction {
   const IndexerPreprocessorOptions &options;
-  SemanticAnalysisJobResult &result;
-  // ^ These fields are just for passing down information
-  // down to the IndexerPPCallbacks value.
+  WorkerCallback workerCallback;
+  scip::Index &scipIndex;
+
 public:
   IndexerFrontendAction(const IndexerPreprocessorOptions &options,
-                        SemanticAnalysisJobResult &result)
-      : options(options), result(result) {}
 
-  bool usesPreprocessorOnly() const override {
-    return false;
+                        WorkerCallback workerCallback, scip::Index &scipIndex)
+      : options(options), workerCallback(workerCallback), scipIndex(scipIndex) {
   }
 
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &compilerInstance,
                     llvm::StringRef filepath) override {
     auto &preprocessor = compilerInstance.getPreprocessor();
-    preprocessor.addPPCallbacks(std::make_unique<IndexerPPCallbacks>(
-        compilerInstance.getSourceManager(), options, result,
-        PreprocessorDebugContext{filepath.str()}));
-    return std::make_unique<IndexerASTConsumer>(compilerInstance, filepath);
+    auto callbacks = std::make_unique<IndexerPreprocessorWrapper>(
+        compilerInstance.getSourceManager(), options,
+        PreprocessorDebugContext{filepath.str()});
+    // SAFETY: See NOTE(ref: preprocessor-traversal-ordering)
+    // Ideally, we'd use a shared_ptr, but addPPCallbacks needs a unique_ptr.
+    auto preprocessorWrapper = callbacks.get();
+    preprocessor.addPPCallbacks(std::move(callbacks));
+    return std::make_unique<IndexerAstConsumer>(
+        compilerInstance, filepath, preprocessorWrapper, this->workerCallback,
+        this->scipIndex, this->options.ensureDeterminism);
   }
 };
 
 class IndexerFrontendActionFactory
     : public clang::tooling::FrontendActionFactory {
   const IndexerPreprocessorOptions &options;
-  SemanticAnalysisJobResult &result;
+  WorkerCallback workerCallback;
+  scip::Index &scipIndex;
 
 public:
   IndexerFrontendActionFactory(const IndexerPreprocessorOptions &options,
-                               SemanticAnalysisJobResult &result)
-      : options(options), result(result) {}
+                               WorkerCallback workerCallback,
+                               scip::Index &scipIndex)
+      : options(options), workerCallback(workerCallback), scipIndex(scipIndex) {
+  }
 
   virtual std::unique_ptr<clang::FrontendAction> create() override {
-    return std::make_unique<IndexerFrontendAction>(options, result);
+    return std::make_unique<IndexerFrontendAction>(
+        this->options, this->workerCallback, this->scipIndex);
   }
 };
 
@@ -509,11 +704,13 @@ public:
 } // namespace
 
 WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
-  return WorkerOptions{cliOptions.ipcOptions(), cliOptions.logLevel,
+  return WorkerOptions{cliOptions.ipcOptions(),
+                       cliOptions.logLevel,
                        cliOptions.deterministic,
                        PreprocessorHistoryRecordingOptions{
                            cliOptions.preprocessorRecordHistoryFilterRegex,
                            cliOptions.preprocessorHistoryLogPath, false, ""},
+                       cliOptions.temporaryOutputDir,
                        cliOptions.workerFault};
 }
 
@@ -559,8 +756,9 @@ const IpcOptions &Worker::ipcOptions() const {
   return this->options.ipcOptions;
 }
 
-void Worker::performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
-                                     SemanticAnalysisJobResult &result) {
+void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
+                                    WorkerCallback workerCallback,
+                                    scip::Index &scipIndex) {
   clang::FileSystemOptions fileSystemOptions;
   fileSystemOptions.WorkingDir = std::move(job.command.Directory);
 
@@ -575,12 +773,14 @@ void Worker::performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
   // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
   // clang-format on
 
+  // See FIXME(ref: clarify-root)
   auto projectRoot = std::filesystem::current_path().string();
   IndexerPreprocessorOptions options{
       AbsolutePathRef::tryFrom(std::string_view(projectRoot)).value(),
       this->recorder.has_value() ? &this->recorder->second : nullptr,
       this->options.deterministic};
-  auto frontendActionFactory = IndexerFrontendActionFactory(options, result);
+  auto frontendActionFactory =
+      IndexerFrontendActionFactory(options, workerCallback, scipIndex);
 
   clang::tooling::ToolInvocation Invocation(
       std::move(args), &frontendActionFactory, fileManager.get(),
@@ -607,17 +807,68 @@ void Worker::performSemanticAnalysis(SemanticAnalysisJobDetails &&job,
   }
 }
 
-void Worker::processRequest(IndexJobRequest &&request, IndexJobResult &result) {
-  result.kind = request.job.kind;
-  switch (request.job.kind) {
-  case IndexJob::Kind::EmitIndex:
-    result.emitIndex = EmitIndexJobResult{"lol"};
-    break;
-  case IndexJob::Kind::SemanticAnalysis:
-    this->performSemanticAnalysis(std::move(request.job.semanticAnalysis),
-                                  result.semanticAnalysis);
-    break;
+void Worker::emitIndex(scip::Index &&scipIndex, const StdPath &outputPath) {
+  std::ofstream outputStream(outputPath, std::ios_base::out
+                                             | std::ios_base::binary
+                                             | std::ios_base::trunc);
+  if (outputStream.fail()) {
+    spdlog::warn("failed to open file to write partial index at '{}' ({})",
+                 outputPath.c_str(), std::strerror(errno));
+    std::exit(EXIT_FAILURE);
   }
+  scipIndex.SerializeToOstream(&outputStream);
+}
+
+void Worker::sendResult(JobId requestId, IndexJobResult &&result) {
+  this->messageQueues->workerToDriver.send(IndexJobResponse{
+      this->ipcOptions().workerId, requestId, std::move(result)});
+  this->flushStreams();
+}
+
+Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
+    IndexJobRequest &&semanticAnalysisRequest) {
+  SemanticAnalysisJobResult semaResult{};
+  auto semaRequestId = semanticAnalysisRequest.id;
+  Worker::ReceiveStatus innerStatus;
+  JobId emitIndexRequestId;
+  unsigned callbackInvoked = 0;
+  auto callback =
+      [this, semaRequestId, &innerStatus, &emitIndexRequestId,
+       &callbackInvoked](SemanticAnalysisJobResult &&semaResult,
+                         EmitIndexJobDetails &emitIndexDetails) -> bool {
+    callbackInvoked++;
+    this->sendResult(semaRequestId,
+                     IndexJobResult{.kind = IndexJob::Kind::SemanticAnalysis,
+                                    .semanticAnalysis = std::move(semaResult)});
+    IndexJobRequest emitIndexRequest{};
+    innerStatus = this->waitForRequest(emitIndexRequest);
+    if (innerStatus != ReceiveStatus::OK) {
+      return false;
+    }
+    ENFORCE(emitIndexRequest.job.kind == IndexJob::Kind::EmitIndex);
+    emitIndexDetails = std::move(emitIndexRequest.job.emitIndex);
+    emitIndexRequestId = emitIndexRequest.id;
+    return true;
+  };
+  scip::Index scipIndex{};
+  auto &semaDetails = semanticAnalysisRequest.job.semanticAnalysis;
+  this->processTranslationUnit(std::move(semaDetails), callback, scipIndex);
+  ENFORCE(callbackInvoked == 1);
+  if (innerStatus != ReceiveStatus::OK) {
+    return innerStatus;
+  }
+
+  StdPath outputPath =
+      (this->options.temporaryOutputDir
+       / fmt::format("job-{}-worker-{}.index.scip", emitIndexRequestId.id(),
+                     this->ipcOptions().workerId));
+  this->emitIndex(std::move(scipIndex), outputPath);
+  EmitIndexJobResult emitIndexResult{outputPath.string()};
+
+  this->sendResult(emitIndexRequestId,
+                   IndexJobResult{.kind = IndexJob::Kind::EmitIndex,
+                                  .emitIndex = std::move(emitIndexResult)});
+  return Worker::ReceiveStatus::OK;
 }
 
 void Worker::flushStreams() {
@@ -658,35 +909,50 @@ void Worker::triggerFaultIfApplicable() const {
   }
 }
 
+Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
+  auto recvError = this->messageQueues->driverToWorker.timedReceive(
+      request, this->ipcOptions().receiveTimeout);
+  using Status = Worker::ReceiveStatus;
+  if (recvError.isA<TimeoutError>()) {
+    spdlog::error("timeout in worker; is the driver dead?... shutting down");
+    return Status::DriverTimeout;
+  }
+  if (recvError) {
+    spdlog::error("received malformed message: {}",
+                  scip_clang::formatLlvm(recvError));
+    return Status::MalformedMessage;
+  }
+  if (request.id == JobId::Shutdown()) {
+    spdlog::debug("shutting down");
+    return Status::Shutdown;
+  }
+  spdlog::debug("received job {}", request.id.id());
+  this->triggerFaultIfApplicable();
+  return Status::OK;
+}
+
 void Worker::run() {
   ENFORCE(this->messageQueues,
           "Called Worker::run() while initializing worker in testing");
-  auto &mq = *this->messageQueues.get();
-  while (true) {
-    IndexJobRequest request{};
-    auto recvError = mq.driverToWorker.timedReceive(
-        request, this->ipcOptions().receiveTimeout);
-    if (recvError.isA<TimeoutError>()) {
-      spdlog::error("timeout in worker; is the driver dead?... shutting down");
-      break;
-    }
-    if (recvError) {
-      spdlog::error("received malformed message: {}",
-                    scip_clang::formatLlvm(recvError));
-      continue;
-    }
-    if (request.id == JobId::Shutdown()) {
-      spdlog::debug("shutting down");
-      break;
-    }
-    this->triggerFaultIfApplicable();
-    auto requestId = request.id;
-    IndexJobResult result;
-    this->processRequest(std::move(request), result);
-    mq.workerToDriver.send(IndexJobResponse{this->ipcOptions().workerId,
-                                            requestId, std::move(result)});
-    this->flushStreams();
+  [&]() {
+    while (true) {
+      IndexJobRequest request{};
+      using Status = Worker::ReceiveStatus;
+#define CHECK_STATUS(_expr)      \
+  switch (_expr) {               \
+  case Status::Shutdown:         \
+  case Status::DriverTimeout:    \
+    return;                      \
+  case Status::MalformedMessage: \
+    continue;                    \
+  case Status::OK:               \
+    break;                       \
   }
+      CHECK_STATUS(this->waitForRequest(request));
+      ENFORCE(request.job.kind == IndexJob::Kind::SemanticAnalysis);
+      CHECK_STATUS(this->processTranslationUnitAndRespond(std::move(request)));
+    }
+  }();
 }
 
 int workerMain(CliOptions &&cliOptions) {

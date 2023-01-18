@@ -26,7 +26,7 @@ template <typename T> struct LlvmToAbslHashAdapter final {
   T data;
 
   DERIVE_HASH_1(LlvmToAbslHashAdapter<T>, self.data.getHashValue())
-  DERIVE_EQ_1(LlvmToAbslHashAdapter<T>, self.data)
+  DERIVE_EQ_ALL(LlvmToAbslHashAdapter<T>)
 };
 
 } // namespace scip_clang

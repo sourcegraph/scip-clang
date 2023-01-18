@@ -8,6 +8,7 @@
 #include <string_view>
 #include <sys/types.h>
 #include <utility>
+#include <vector>
 
 #include "spdlog/fwd.h"
 
@@ -28,6 +29,7 @@ struct IpcOptions {
 struct CliOptions {
   std::string compdbPath;
   std::string scipClangExecutablePath;
+  std::string temporaryOutputDir;
 
   std::chrono::seconds receiveTimeout;
   uint32_t numWorkers;
@@ -38,6 +40,10 @@ struct CliOptions {
   std::string preprocessorRecordHistoryFilterRegex;
   std::string supplementaryOutputDir;
 
+  // For recording inside the index.
+  std::vector<std::string> originalArgv;
+
+  // For testing only
   std::string workerFault;
 
   // Worker-specific options

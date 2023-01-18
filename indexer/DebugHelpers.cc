@@ -1,3 +1,5 @@
+#include "spdlog/fmt/fmt.h"
+
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/PPCallbacks.h"
@@ -35,6 +37,10 @@ llvm::StringRef tryGetPath(const clang::SourceManager &sourceManager,
     return "<null-FileEntry>";
   }
   return "<invalid-FileID>";
+}
+
+std::string formatPtr(void *ptr) {
+  return fmt::format("0x{:16x}", (uint64_t)ptr);
 }
 
 } // namespace debug

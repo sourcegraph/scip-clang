@@ -2,6 +2,7 @@
 #define SCIP_CLANG_DRIVER_WORKER_COMMS_H
 
 #include <chrono>
+#include <compare>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -37,7 +38,8 @@ public:
   JobId &operator=(const JobId &) = default;
   JobId(uint64_t id) : _id(id) {}
 
-  DERIVE_HASH_EQ_1(JobId, self._id)
+  DERIVE_HASH_1(JobId, self._id)
+  DERIVE_EQ_ALL(JobId)
 
   uint64_t id() const {
     return this->_id;
@@ -56,7 +58,6 @@ SERIALIZABLE(SemanticAnalysisJobDetails)
 
 struct EmitIndexJobDetails {
   std::vector<std::string> headersToBeEmitted;
-  std::string outputDirectory;
 };
 SERIALIZABLE(EmitIndexJobDetails)
 
@@ -91,7 +92,8 @@ struct HeaderInfo {
   std::string headerPath;
   HashValue hashValue;
 
-  friend bool operator<(const HeaderInfo &lhs, const HeaderInfo &rhs);
+  friend std::strong_ordering operator<=>(const HeaderInfo &lhs,
+                                          const HeaderInfo &rhs);
 };
 SERIALIZABLE(HeaderInfo)
 
@@ -99,7 +101,8 @@ struct HeaderInfoMulti {
   std::string headerPath;
   std::vector<HashValue> hashValues;
 
-  friend bool operator<(const HeaderInfoMulti &lhs, const HeaderInfoMulti &rhs);
+  friend std::strong_ordering operator<=>(const HeaderInfoMulti &lhs,
+                                          const HeaderInfoMulti &rhs);
 };
 SERIALIZABLE(HeaderInfoMulti)
 
