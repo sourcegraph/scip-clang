@@ -99,6 +99,8 @@ void DocumentBuilder::merge(scip::Document &&doc) {
 }
 
 void DocumentBuilder::finish(bool deterministic, scip::Document &out) {
+  this->_bomb.defuse();
+
   this->soFar.mutable_occurrences()->Reserve(this->occurrences.size());
   this->soFar.mutable_symbols()->Reserve(this->symbolInfos.size());
 
