@@ -195,7 +195,7 @@ void IndexBuilder::finish(bool deterministic) {
       absl::FunctionRef<void(std::string &&,
                              std::unique_ptr<SymbolInformationBuilder> &&)>(
           [&](auto &&name, auto &&builder) -> void {
-            scip::SymbolInformation extSym;
+            scip::SymbolInformation extSym{};
             extSym.set_symbol(std::move(name));
             builder->finish(deterministic, extSym);
             *this->fullIndex.add_external_symbols() = std::move(extSym);
