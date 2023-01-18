@@ -554,16 +554,16 @@ private:
     // TODO(def: faster-index-merging): Right now, the index merging
     // implementation has the overhead of serializing + deserializing all data
     // twice (once in the worker and once in the driver). In principle, we
-    // couple optimize this to be just once by taking advantage of Protobuf's
-    // wire format, which allows us to efficiently concatentate the `documents`
-    // and `externalSymbols` arrays. Then the driver could "simply" fallocate a
-    // large file, put in a top level message at the start, and then append the
-    // contents of the arrays without any serialization or deserialization.
-    // However, that is more finicky to do, so we should measure the overhead
-    // before doing that.
+    // could have a fast path for the common case (most documents always
+    // have the same hash) by taking advantage of Protobuf's wire format.
+    // Specifically, we can avoid deserializing well-behaved Documents,
+    // and just concatenate them. (We still need to merge the external
+    // symbols because different index parts may have different information
+    // about external symbols). However, that is more finicky to do,
+    // so we should measure the overhead before doing that.
     //
-    // We could also avoid extra copies by using raw file descriptors instead
-    // of iostreams.
+    // The implementation is also fully serial to avoid introducing
+    // a dependency on a library with a concurrent hash table.
     scip::Index fullIndex;
     *fullIndex.mutable_metadata() = std::move(metadata);
     if (this->options.deterministic) {
