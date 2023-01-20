@@ -296,12 +296,42 @@ public:
   }
 
 private:
-  void enterInclude(bool recordHistory, clang::FileID enteredFileId) {
+  void enterFile(clang::FileID enteredFileId) {
+    if (!enteredFileId.isValid()) {
+      return;
+    }
+    if (auto *recorder = this->options.recorder) {
+      if (auto *enteredFileEntry =
+              this->sourceManager.getFileEntryForID(enteredFileId)) {
+        auto path = enteredFileEntry->tryGetRealPathName();
+        if (!path.empty() && recorder->filter.matches(path)) {
+          this->enterFileImpl(true, enteredFileId);
+          MIX_WITH_KEY(this->stack.topHash(),
+                        toStringView(recorder->normalizePath(path)), "",
+                        "self path");
+          return;
+        }
+      }
+    }
+    this->enterFileImpl(false, enteredFileId);
+  }
+
+  void enterFileImpl(bool recordHistory, clang::FileID enteredFileId) {
     this->stack.push(
         HeaderInfoBuilder{HashValueBuilder(recordHistory), enteredFileId});
   }
 
-  std::optional<HashValue> exitInclude(clang::FileID fileId) {
+  void exitFile(clang::FileID previousFileId) {
+    auto optHash = this->exitFileImpl(previousFileId);
+    if (!optHash || this->stack.empty()) {
+      return;
+    }
+    MIX_WITH_KEY(this->stack.topHash(), optHash->rawValue,
+                 this->pathKeyForHistory(previousFileId),
+                 "hash for #include");
+  }
+
+  std::optional<HashValue> exitFileImpl(clang::FileID fileId) {
     if (fileId.isInvalid()) {
       return {};
     }
@@ -381,13 +411,7 @@ public:
     case Reason::RenameFile:
       return;
     case Reason::ExitFile: {
-      auto optHash = this->exitInclude(previousFileId);
-      if (!optHash || this->stack.empty()) {
-        break;
-      }
-      MIX_WITH_KEY(this->stack.topHash(), optHash->rawValue,
-                   this->pathKeyForHistory(previousFileId),
-                   "hash for #include");
+      this->exitFile(previousFileId);
       break;
     }
     case Reason::EnterFile: {
@@ -396,23 +420,7 @@ public:
       }
       ENFORCE(sourceLoc.isFileID(), "EnterFile called on a non-FileID");
       auto enteredFileId = this->sourceManager.getFileID(sourceLoc);
-      if (!enteredFileId.isValid()) {
-        break;
-      }
-      if (auto *recorder = this->options.recorder) {
-        if (auto *enteredFileEntry =
-                this->sourceManager.getFileEntryForID(enteredFileId)) {
-          auto path = enteredFileEntry->tryGetRealPathName();
-          if (!path.empty() && recorder->filter.matches(path)) {
-            this->enterInclude(true, enteredFileId);
-            MIX_WITH_KEY(this->stack.topHash(),
-                         toStringView(recorder->normalizePath(path)), "",
-                         "self path");
-            break;
-          }
-        }
-      }
-      this->enterInclude(false, enteredFileId);
+      this->enterFile(enteredFileId);
       break;
     }
     }
