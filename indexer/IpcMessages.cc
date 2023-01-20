@@ -116,9 +116,9 @@ bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
   return false;
 }
 
-DERIVE_SERIALIZE_1(scip_clang::EmitIndexJobResult, indexPartPath)
-DERIVE_SERIALIZE_1(scip_clang::EmitIndexJobDetails, headersToBeEmitted)
-DERIVE_SERIALIZE_1(scip_clang::IpcTestMessage, content)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobResult, indexPartPath)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobDetails, headersToBeEmitted)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::IpcTestMessage, content)
 
 DERIVE_SERIALIZE_2(scip_clang::HeaderInfo, headerPath, hashValue)
 DERIVE_SERIALIZE_2(scip_clang::HeaderInfoMulti, headerPath, hashValues)

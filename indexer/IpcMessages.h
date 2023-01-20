@@ -21,10 +21,6 @@ std::string driverToWorkerQueueName(std::string_view driverId,
                                     WorkerId workerId);
 std::string workerToDriverQueueName(std::string_view driverId);
 
-#define SERIALIZABLE(T)                \
-  llvm::json::Value toJSON(const T &); \
-  bool fromJSON(const llvm::json::Value &value, T &, llvm::json::Path path);
-
 class JobId {
   uint64_t _id;
 
@@ -144,8 +140,6 @@ struct IpcTestMessage {
   std::string content;
 };
 SERIALIZABLE(IpcTestMessage)
-
-#undef SERIALIZABLE
 
 } // namespace scip_clang
 
