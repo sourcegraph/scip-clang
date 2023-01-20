@@ -62,7 +62,7 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     cxxopts::value<bool>(cliOptions.deterministic));
   parser.add_options("Advanced")(
     "preprocessor-record-history-filter",
-    "Regex for identifying headers for which textual descriptions of preprocessor"
+    "Regex for identifying files for which textual descriptions of preprocessor"
     " effects should be recorded while computing transcripts, instead of"
     " only maintaining a running hash value. The effects are recorded in YAML"
     " format under --supplementary-output-dir.",

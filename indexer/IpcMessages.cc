@@ -117,14 +117,14 @@ bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
 }
 
 DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobResult, indexPartPath)
-DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobDetails, headersToBeEmitted)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobDetails, filesToBeIndexed)
 DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::IpcTestMessage, content)
 
-DERIVE_SERIALIZE_2(scip_clang::HeaderInfo, headerPath, hashValue)
-DERIVE_SERIALIZE_2(scip_clang::HeaderInfoMulti, headerPath, hashValues)
+DERIVE_SERIALIZE_2(scip_clang::PreprocessedFileInfo, path, hashValue)
+DERIVE_SERIALIZE_2(scip_clang::PreprocessedFileInfoMulti, path, hashValues)
 DERIVE_SERIALIZE_2(scip_clang::IndexJobRequest, id, job)
-DERIVE_SERIALIZE_2(scip_clang::SemanticAnalysisJobResult, singlyExpandedHeaders,
-                   multiplyExpandedHeaders)
+DERIVE_SERIALIZE_2(scip_clang::SemanticAnalysisJobResult, wellBehavedFiles,
+                   illBehavedFiles)
 
 llvm::json::Value toJSON(const SemanticAnalysisJobDetails &val) {
   return llvm::json::Object{{"workdir", val.command.Directory},
@@ -142,15 +142,15 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
          && mapper.map("args", d.command.CommandLine);
 }
 
-std::strong_ordering operator<=>(const HeaderInfo &lhs, const HeaderInfo &rhs) {
+std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs, const PreprocessedFileInfo &rhs) {
   CMP_EXPR(lhs.hashValue, rhs.hashValue);
-  CMP_STR(lhs.headerPath, rhs.headerPath);
+  CMP_STR(lhs.path, rhs.path);
   return std::strong_ordering::equal;
 }
 
-std::strong_ordering operator<=>(const HeaderInfoMulti &lhs,
-                                 const HeaderInfoMulti &rhs) {
-  CMP_STR(lhs.headerPath, rhs.headerPath);
+std::strong_ordering operator<=>(const PreprocessedFileInfoMulti &lhs,
+                                 const PreprocessedFileInfoMulti &rhs) {
+  CMP_STR(lhs.path, rhs.path);
   CMP_RANGE(lhs.hashValues, rhs.hashValues);
   return std::strong_ordering::equal;
 }

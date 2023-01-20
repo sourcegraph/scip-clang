@@ -66,8 +66,8 @@ private:
 
   // Optional field to track all the inputs that went into computing
   // a hash, meant for debugging. We buffer all the history for a
-  // header instead of directly writing to a stream because if there
-  // are multiple headers which match, having the output be interleaved
+  // file instead of directly writing to a stream because if there
+  // are multiple files which match, having the output be interleaved
   // (due to the ~DAG nature of includes) would be confusing.
   std::unique_ptr<History> history;
 
@@ -261,18 +261,18 @@ public:
         auto fileId = wrappedFileId.data;
         if (auto optPath = getAbsPath(fileId)) {
           auto absPath = optPath.value();
-          result.singlyExpandedHeaders.emplace_back(
-              HeaderInfo{std::string(absPath.asStringView()), hashValue});
+          result.wellBehavedFiles.emplace_back(
+              PreprocessedFileInfo{std::string(absPath.asStringView()), hashValue});
           pathToIdMap.insert({absPath, fileId});
         }
       }
       if (this->options.ensureDeterminism) {
-        absl::c_sort(result.singlyExpandedHeaders);
+        absl::c_sort(result.wellBehavedFiles);
       }
     }
     {
-      auto &headerHashes = this->finishedProcessingMulti;
-      for (auto it = headerHashes.begin(), end = headerHashes.end(); it != end;
+      auto &fileHashes = this->finishedProcessingMulti;
+      for (auto it = fileHashes.begin(), end = fileHashes.end(); it != end;
            ++it) {
         auto fileId = it->first.data;
         if (auto optPath = getAbsPath(fileId)) {
@@ -283,13 +283,13 @@ public:
           if (this->options.ensureDeterminism) {
             absl::c_sort(hashes);
           }
-          result.multiplyExpandedHeaders.emplace_back(
-              HeaderInfoMulti{std::string(absPath.asStringView()), std::move(hashes)});
+          result.illBehavedFiles.emplace_back(
+              PreprocessedFileInfoMulti{std::string(absPath.asStringView()), std::move(hashes)});
           pathToIdMap.insert({absPath, fileId});
         }
       }
       if (this->options.ensureDeterminism) {
-        absl::c_sort(result.multiplyExpandedHeaders);
+        absl::c_sort(result.illBehavedFiles);
       }
     }
   }
@@ -307,18 +307,18 @@ private:
     auto optHeaderInfo = this->stack.pop();
     ENFORCE(optHeaderInfo.has_value(),
             "missing matching enterInclude for exit");
-    auto headerInfo = std::move(optHeaderInfo.value());
-    bool fileIdMatchesTopOfStack = headerInfo.fileId == fileId;
+    auto fileInfo = std::move(optHeaderInfo.value());
+    bool fileIdMatchesTopOfStack = fileInfo.fileId == fileId;
     if (!fileIdMatchesTopOfStack) {
       ENFORCE(fileIdMatchesTopOfStack,
               "fileId mismatch:\ntop of stack: {}\nexitInclude: {}",
-              debug::tryGetPath(this->sourceManager, headerInfo.fileId),
+              debug::tryGetPath(this->sourceManager, fileInfo.fileId),
               debug::tryGetPath(this->sourceManager, fileId));
     }
 
-    auto key = LlvmToAbslHashAdapter<clang::FileID>{headerInfo.fileId};
+    auto key = LlvmToAbslHashAdapter<clang::FileID>{fileInfo.fileId};
     auto it = this->finishedProcessing.find(key);
-    auto [hashValue, history] = headerInfo.hashValueBuilder.finish();
+    auto [hashValue, history] = fileInfo.hashValueBuilder.finish();
     if (it == this->finishedProcessing.end()) {
       this->finishedProcessing.insert({key, MultiHashValue{hashValue, false}});
     } else if (it->second.isMultiple) {
@@ -338,7 +338,7 @@ private:
     if (history) {
       ENFORCE(this->options.recorder,
               "Recorded history even though output stream is missing 🤔");
-      auto path = this->pathKeyForHistory(headerInfo.fileId);
+      auto path = this->pathKeyForHistory(fileInfo.fileId);
       PreprocessorHistory entry{path, *history.get(), {hashValue.rawValue}};
       this->options.recorder->yamlStream << entry;
     }
@@ -611,7 +611,7 @@ private:
                                const EmitIndexJobDetails &emitIndexDetails,
                                const PathToIdMap &pathToIdMap,
                                FilesToBeIndexedMap &toBeIndexed) {
-    toBeIndexed.reserve(1 + emitIndexDetails.headersToBeEmitted.size());
+    toBeIndexed.reserve(1 + emitIndexDetails.filesToBeIndexed.size());
 
     auto &sourceManager = astContext.getSourceManager();
     auto mainFileId = sourceManager.getMainFileID();
@@ -625,7 +625,7 @@ private:
       }
     }
 
-    for (auto &path : emitIndexDetails.headersToBeEmitted) {
+    for (auto &path : emitIndexDetails.filesToBeIndexed) {
       if (auto optAbsPath = AbsolutePathRef::tryFrom(std::string_view(path))) {
         auto absPath = optAbsPath.value();
         auto it = pathToIdMap.find(absPath);

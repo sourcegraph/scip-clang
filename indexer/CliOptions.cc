@@ -29,7 +29,7 @@ HeaderFilter::HeaderFilter(std::string &&re) {
   this->matcher = {llvm::Regex(this->regexText)};
   std::string errMsg;
   if (!matcher->isValid(errMsg)) {
-    spdlog::error("ill-formed regex {} for recording headers: {}",
+    spdlog::error("ill-formed regex {} for recording preprocessor history: {}",
                   this->regexText, errMsg);
     std::exit(EXIT_FAILURE);
   }

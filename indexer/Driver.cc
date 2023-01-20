@@ -218,8 +218,8 @@ struct LatestIdleWorkerId {
   WorkerId id;
 };
 
-/// Type that decides which headers to emit symbols and occurrences for
-/// given a set of header+hashes emitted by a worker.
+/// Type that decides which files to emit symbols and occurrences for
+/// given a set of paths+hashes emitted by a worker.
 ///
 /// NOTE(def: header-recovery) We are assuming here that we will be
 /// normally be able to successfully index a large fraction of code,
@@ -232,37 +232,37 @@ struct LatestIdleWorkerId {
 /// that header, and later spin up new indexing jobs which forced
 /// indexing of that header. However, that would make the code more
 /// complex, so let's skip that for now.
-class HeaderIndexingPlanner {
+class FileIndexingPlanner {
   absl::flat_hash_map<AbsolutePath, absl::flat_hash_set<HashValue>> hashesSoFar;
   const ProjectRootPath &projectRootPath;
 
 public:
-  HeaderIndexingPlanner(const ProjectRootPath &projectRootPath)
+  FileIndexingPlanner(const ProjectRootPath &projectRootPath)
     : hashesSoFar(), projectRootPath(projectRootPath) {}
-  HeaderIndexingPlanner(HeaderIndexingPlanner &&) = default;
-  HeaderIndexingPlanner(const HeaderIndexingPlanner &) = delete;
+  FileIndexingPlanner(FileIndexingPlanner &&) = default;
+  FileIndexingPlanner(const FileIndexingPlanner &) = delete;
 
   void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
-                      std::vector<std::string> &headersToBeEmitted) {
+                      std::vector<std::string> &filesToBeIndexed) {
     absl::flat_hash_set<HashValue> emptyHashSet{};
-    for (auto &header : semaResult.multiplyExpandedHeaders) {
-      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(header.headerPath)), emptyHashSet});
+    for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
+      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(fileInfoMulti.path)), emptyHashSet});
       auto &[path, hashes] = *it;
-      bool addedHeader = false;
-      for (auto hashValue : header.hashValues) {
+      bool addedFile = false;
+      for (auto hashValue : fileInfoMulti.hashValues) {
         auto [_, inserted] = hashes.insert(hashValue);
-        if (inserted && !addedHeader) {
-          headersToBeEmitted.push_back(path.asStringRef());
-          addedHeader = true;
+        if (inserted && !addedFile) {
+          filesToBeIndexed.push_back(path.asStringRef());
+          addedFile = true;
         }
       }
     }
-    for (auto &header : semaResult.singlyExpandedHeaders) {
-      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(header.headerPath)), emptyHashSet});
+    for (auto &fileInfo : semaResult.wellBehavedFiles) {
+      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(fileInfo.path)), emptyHashSet});
       auto &[path, hashes] = *it;
-      auto [__, inserted] = hashes.insert(header.hashValue);
+      auto [__, inserted] = hashes.insert(fileInfo.hashValue);
       if (inserted) {
-        headersToBeEmitted.push_back(path.asStringRef());
+        filesToBeIndexed.push_back(path.asStringRef());
       }
     }
   }
@@ -501,7 +501,7 @@ class Driver {
   std::string id;
   MessageQueues queues;
   Scheduler scheduler;
-  HeaderIndexingPlanner planner;
+  FileIndexingPlanner planner;
 
   std::vector<AbsolutePath> indexPartPaths;
 
@@ -741,14 +741,14 @@ private:
     switch (response.result.kind) {
     case IndexJob::Kind::SemanticAnalysis: {
       auto &semaResult = response.result.semanticAnalysis;
-      std::vector<std::string> headersToBeEmitted{};
-      this->planner.saveSemaResult(std::move(semaResult), headersToBeEmitted);
+      std::vector<std::string> filesToBeIndexed{};
+      this->planner.saveSemaResult(std::move(semaResult), filesToBeIndexed);
       auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
       queue.send(this->scheduler.createJobAndScheduleOnWorker(
           latestIdleWorkerId,
           IndexJob{
               .kind = IndexJob::Kind::EmitIndex,
-              .emitIndex = EmitIndexJobDetails{std::move(headersToBeEmitted)},
+              .emitIndex = EmitIndexJobDetails{std::move(filesToBeIndexed)},
           }));
       break;
     }

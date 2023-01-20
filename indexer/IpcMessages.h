@@ -53,7 +53,7 @@ struct SemanticAnalysisJobDetails {
 SERIALIZABLE(SemanticAnalysisJobDetails)
 
 struct EmitIndexJobDetails {
-  std::vector<std::string> headersToBeEmitted;
+  std::vector<std::string> filesToBeIndexed;
 };
 SERIALIZABLE(EmitIndexJobDetails)
 
@@ -84,27 +84,27 @@ SERIALIZABLE(IndexJobRequest)
 
 SERIALIZABLE(HashValue)
 
-struct HeaderInfo {
-  std::string headerPath;
+struct PreprocessedFileInfo {
+  std::string path;
   HashValue hashValue;
 
-  friend std::strong_ordering operator<=>(const HeaderInfo &lhs,
-                                          const HeaderInfo &rhs);
+  friend std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs,
+                                          const PreprocessedFileInfo &rhs);
 };
-SERIALIZABLE(HeaderInfo)
+SERIALIZABLE(PreprocessedFileInfo)
 
-struct HeaderInfoMulti {
-  std::string headerPath;
+struct PreprocessedFileInfoMulti {
+  std::string path;
   std::vector<HashValue> hashValues;
 
-  friend std::strong_ordering operator<=>(const HeaderInfoMulti &lhs,
-                                          const HeaderInfoMulti &rhs);
+  friend std::strong_ordering operator<=>(const PreprocessedFileInfoMulti &lhs,
+                                          const PreprocessedFileInfoMulti &rhs);
 };
-SERIALIZABLE(HeaderInfoMulti)
+SERIALIZABLE(PreprocessedFileInfoMulti)
 
 struct SemanticAnalysisJobResult {
-  std::vector<HeaderInfo> singlyExpandedHeaders;
-  std::vector<HeaderInfoMulti> multiplyExpandedHeaders;
+  std::vector<PreprocessedFileInfo> wellBehavedFiles;
+  std::vector<PreprocessedFileInfoMulti> illBehavedFiles;
 
   // clang-format off
   SemanticAnalysisJobResult() = default;

@@ -54,7 +54,7 @@ struct WorkerOptions {
 };
 
 /// Callback passed into the AST consumer so that it can decide
-/// which headers to index when traversing the translation unit.
+/// which files to index when traversing the translation unit.
 ///
 /// The return value is true iff the indexing job should be run.
 using WorkerCallback = absl::FunctionRef<bool(SemanticAnalysisJobResult &&,
