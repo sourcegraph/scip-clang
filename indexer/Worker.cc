@@ -262,7 +262,7 @@ public:
         if (auto optPath = getAbsPath(fileId)) {
           auto absPath = optPath.value();
           result.singlyExpandedHeaders.emplace_back(
-              HeaderInfo{std::string(absPath.data()), hashValue});
+              HeaderInfo{std::string(absPath.asStringView()), hashValue});
           pathToIdMap.insert({absPath, fileId});
         }
       }
@@ -284,7 +284,7 @@ public:
             absl::c_sort(hashes);
           }
           result.multiplyExpandedHeaders.emplace_back(
-              HeaderInfoMulti{std::string(absPath.data()), std::move(hashes)});
+              HeaderInfoMulti{std::string(absPath.asStringView()), std::move(hashes)});
           pathToIdMap.insert({absPath, fileId});
         }
       }
@@ -459,7 +459,7 @@ public:
   bool insert(clang::FileID fileId, AbsolutePathRef absPath) {
     ENFORCE(fileId.isValid(),
             "invalid FileIDs should be filtered out after preprocessing");
-    ENFORCE(!absPath.data().empty(), "inserting file with empty absolute path");
+    ENFORCE(!absPath.asStringView().empty(), "inserting file with empty absolute path");
 
     // FIXME(clarify-root): We should disambiguate between the project root
     // (needed by SCIP) and the build root, which is the directory wrt paths
@@ -477,10 +477,10 @@ public:
     if (auto relPath = rootPathRef.makeRelative(absPath)) {
       ENFORCE(!relPath->empty(),
               "file path is unexpectedly equal to project root");
-      auto [_, inserted] = this->map.insert({{fileId}, relPath.value()});
+      auto [_, inserted] = this->map.insert({{fileId}, ProjectRootRelativePathRef{relPath.value()}});
       return inserted;
     } else {
-      auto [_, inserted] = this->map.insert({{fileId}, std::string_view()});
+      auto [_, inserted] = this->map.insert({{fileId}, ProjectRootRelativePathRef{}});
       return inserted;
     }
   }
@@ -492,7 +492,7 @@ public:
   void forEachProjectLocalFile(
       absl::FunctionRef<void(ProjectRootRelativePathRef)> doStuff) {
     for (auto &[_, relPathRef] : this->map) {
-      if (relPathRef.data().empty()) { // external file
+      if (relPathRef.asStringView().empty()) { // external file
         continue;
       }
       doStuff(relPathRef);
@@ -520,17 +520,17 @@ public:
       absl::c_sort(relativePaths,
                    [](const ProjectRootRelativePathRef &s1,
                       const ProjectRootRelativePathRef &s2) -> bool {
-                     auto cmp = cmp::compareStrings(s1.data(), s2.data());
+                     auto cmp = cmp::compareStrings(s1.asStringView(), s2.asStringView());
                      ENFORCE(
                          cmp != cmp::Equal,
                          "document with path '{}' is present 2+ times in index",
-                         s1.data());
+                         s1.asStringView());
                      return cmp == cmp::Less;
                    });
     }
     for (auto relPathRef : relativePaths) {
       scip::Document document;
-      auto relPath = relPathRef.data();
+      auto relPath = relPathRef.asStringView();
       document.set_relative_path(relPath.data(), relPath.size());
       // FIXME(def: set-language): Use Clang's built-in detection logic here.
       // Q: With Clang's built-in language detection, does the built-in fake
@@ -632,7 +632,7 @@ private:
         if (it == pathToIdMap.end()) {
           spdlog::debug(
               "failed to find clang::FileID for path '{}' received from Driver",
-              absPath.data());
+              absPath.asStringView());
           continue;
         }
         toBeIndexed.insert(it->second, absPath);
