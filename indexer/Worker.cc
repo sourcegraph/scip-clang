@@ -551,7 +551,7 @@ public:
                      IndexerPreprocessorWrapper *preprocessorWrapper,
                      scip::Index &scipIndex)
       : options(options), preprocessorWrapper(preprocessorWrapper),
-        scipIndex(scipIndex) {}
+        sema(nullptr), scipIndex(scipIndex) {}
 
   void HandleTranslationUnit(clang::ASTContext &astContext) override {
     // NOTE(ref: preprocessor-traversal-ordering): The call order is
