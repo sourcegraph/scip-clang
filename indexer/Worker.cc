@@ -103,7 +103,7 @@ public:
   }
 };
 
-#define MIX_WITH_KEY(_hash, _value, _path_expr, _context_expr)          \
+#define MIX_INTO_HASH(_hash, _value, _path_expr, _context_expr)          \
   {                                                                     \
     if (_hash.isRecordingHistory()) {                                   \
       _hash.mixWithContext(                                             \
@@ -306,7 +306,7 @@ private:
         auto path = enteredFileEntry->tryGetRealPathName();
         if (!path.empty() && recorder->filter.matches(path)) {
           this->enterFileImpl(true, enteredFileId);
-          MIX_WITH_KEY(this->stack.topHash(),
+          MIX_INTO_HASH(this->stack.topHash(),
                         toStringView(recorder->normalizePath(path)), "",
                         "self path");
           return;
@@ -326,7 +326,7 @@ private:
     if (!optHash || this->stack.empty()) {
       return;
     }
-    MIX_WITH_KEY(this->stack.topHash(), optHash->rawValue,
+    MIX_INTO_HASH(this->stack.topHash(), optHash->rawValue,
                  this->pathKeyForHistory(previousFileId),
                  "hash for #include");
   }
