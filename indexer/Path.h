@@ -26,8 +26,7 @@ public:
     return this->value;
   }
 
-  DERIVE_HASH_1(ProjectRootRelativePathRef, self.value)
-  DERIVE_EQ_ALL(ProjectRootRelativePathRef)
+  DERIVE_HASH_CMP_NEWTYPE(ProjectRootRelativePathRef, value, CMP_STR)
 };
 
 class AbsolutePathRef {

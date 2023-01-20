@@ -1,4 +1,5 @@
 #include <chrono>
+#include <compare>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -503,16 +504,14 @@ public:
           relativePaths.push_back(relPathRef);
         });
     if (this->deterministic) {
-      absl::c_sort(relativePaths,
-                   [](const ProjectRootRelativePathRef &s1,
-                      const ProjectRootRelativePathRef &s2) -> bool {
-                     auto cmp = cmp::compareStrings(s1.asStringView(), s2.asStringView());
-                     ENFORCE(
-                         cmp != cmp::Equal,
-                         "document with path '{}' is present 2+ times in index",
-                         s1.asStringView());
-                     return cmp == cmp::Less;
-                   });
+      auto comparePaths = [](const auto &p1, const auto &p2) -> bool {
+        auto cmp = p1 <=> p2;
+        ENFORCE(cmp != 0,
+                "document with path '{}' is present 2+ times in index",
+                p1.asStringView());
+        return cmp == std::strong_ordering::less;
+      };
+      absl::c_sort(relativePaths, comparePaths);
     }
     for (auto relPathRef : relativePaths) {
       scip::Document document;
