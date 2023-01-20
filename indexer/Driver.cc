@@ -248,10 +248,12 @@ public:
     for (auto &header : semaResult.multiplyExpandedHeaders) {
       auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(header.headerPath)), emptyHashSet});
       auto &[path, hashes] = *it;
+      bool addedHeader = false;
       for (auto hashValue : header.hashValues) {
         auto [_, inserted] = hashes.insert(hashValue);
-        if (inserted) {
+        if (inserted && !addedHeader) {
           headersToBeEmitted.push_back(path.asStringRef());
+          addedHeader = true;
         }
       }
     }
