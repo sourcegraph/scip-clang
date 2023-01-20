@@ -144,7 +144,7 @@ public:
 };
 
 struct IndexerPreprocessorOptions {
-  AbsolutePathRef projectRoot;
+  ProjectRootPath projectRootPath;
 
   // Debugging-related
   PreprocessorHistoryRecorder *recorder;
@@ -703,7 +703,9 @@ public:
 } // namespace
 
 WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
-  return WorkerOptions{cliOptions.ipcOptions(),
+  ProjectRootPath projectRootPath{AbsolutePath{std::filesystem::current_path().string()}};
+  return WorkerOptions{projectRootPath,
+                       cliOptions.ipcOptions(),
                        cliOptions.logLevel,
                        cliOptions.deterministic,
                        PreprocessorHistoryRecordingOptions{
@@ -772,10 +774,8 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
   // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
   // clang-format on
 
-  // See FIXME(ref: clarify-root)
-  auto projectRoot = std::filesystem::current_path().string();
   IndexerPreprocessorOptions options{
-      AbsolutePathRef::tryFrom(std::string_view(projectRoot)).value(),
+      this->options.projectRootPath,
       this->recorder.has_value() ? &this->recorder->second : nullptr,
       this->options.deterministic};
   auto frontendActionFactory =

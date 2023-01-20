@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "Path.h"
 #include "absl/functional/function_ref.h"
 #include "spdlog/fwd.h"
 
@@ -40,6 +41,7 @@ struct PreprocessorHistoryRecordingOptions {
 };
 
 struct WorkerOptions {
+  ProjectRootPath projectRootPath;
   IpcOptions ipcOptions;
   spdlog::level::level_enum logLevel;
   bool deterministic;
