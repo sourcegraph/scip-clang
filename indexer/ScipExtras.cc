@@ -160,7 +160,7 @@ void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
 }
 
 void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
-  auto &name = extSym.symbol();
+  SymbolName name{std::move(*extSym.mutable_symbol())};
   auto it = this->externalSymbols.find(name);
   if (it == this->externalSymbols.end()) {
     std::vector<std::string> docs{};
@@ -169,9 +169,12 @@ void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
     for (auto &rel : *extSym.mutable_relationships()) {
       rels.insert({std::move(rel)});
     }
-    this->externalSymbols.insert(
-        {name, std::make_unique<SymbolInformationBuilder>(std::move(docs),
-                                                          std::move(rels))});
+    // SAFETY: Don't inline this assignment statement since lack of
+    // guarantees around subexpression evaluation order mean that
+    // the std::move(name) may happen before name.asStringRef() is called.
+    auto builder = std::make_unique<SymbolInformationBuilder>(
+        std::move(docs), std::move(rels));
+    this->externalSymbols.insert({std::move(name), std::move(builder)});
     return;
   }
   // NOTE(def: precondition-deterministic-ext-symbol-docs)
@@ -202,11 +205,11 @@ void IndexBuilder::finish(bool deterministic) {
       this->externalSymbols.size());
   scip_clang::extractTransform(
       std::move(this->externalSymbols), deterministic,
-      absl::FunctionRef<void(std::string &&,
+      absl::FunctionRef<void(SymbolName &&,
                              std::unique_ptr<SymbolInformationBuilder> &&)>(
           [&](auto &&name, auto &&builder) -> void {
             scip::SymbolInformation extSym{};
-            extSym.set_symbol(std::move(name));
+            extSym.set_symbol(std::move(name.asStringRefMut()));
             builder->finish(deterministic, extSym);
             *this->fullIndex.add_external_symbols() = std::move(extSym);
           }));

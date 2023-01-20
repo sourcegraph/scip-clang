@@ -114,13 +114,29 @@ public:
   DERIVE_HASH_CMP_NEWTYPE(ProjectRootRelativePath, value, CMP_STR)
 };
 
+class SymbolName {
+  std::string value;
+
+public:
+  SymbolName(std::string &&value) : value(std::move(value)) {
+    ENFORCE(!this->value.empty());
+  }
+  const std::string &asStringRef() const {
+    return this->value;
+  }
+  std::string &asStringRefMut() {
+    return this->value;
+  }
+  DERIVE_HASH_CMP_NEWTYPE(SymbolName, value, CMP_STR)
+};
+
 class IndexBuilder final {
   scip::Index &fullIndex;
   // The key is deliberately the path only, not the path+hash, so that we can
   // aggregate information across different hashes into a single Document.
   absl::flat_hash_map<ProjectRootRelativePath, std::unique_ptr<DocumentBuilder>>
       multiplyIndexed;
-  absl::flat_hash_map<std::string, std::unique_ptr<SymbolInformationBuilder>>
+  absl::flat_hash_map<SymbolName, std::unique_ptr<SymbolInformationBuilder>>
       externalSymbols;
   scip_clang::Bomb _bomb;
 
