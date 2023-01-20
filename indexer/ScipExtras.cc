@@ -9,6 +9,8 @@
 #include "absl/algorithm/container.h"
 #include "absl/functional/function_ref.h"
 
+#include "llvm/Support/Path.h"
+
 #include "scip/scip.pb.h"
 
 #include "indexer/AbslExtras.h"
@@ -125,22 +127,31 @@ void DocumentBuilder::finish(bool deterministic, scip::Document &out) {
   out = std::move(this->soFar);
 }
 
+ProjectRootRelativePath::ProjectRootRelativePath(std::string &&value)
+    : value(std::move(value)) {
+  ENFORCE(!this->value.empty());
+  ENFORCE(llvm::sys::path::is_relative(this->value));
+}
+
 IndexBuilder::IndexBuilder(scip::Index &fullIndex)
     : fullIndex(fullIndex), multiplyIndexed(), externalSymbols(), _bomb() {}
 
 void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
-  auto &docPath = doc.relative_path();
+  ENFORCE(!doc.relative_path().empty());
   if (isMultiplyIndexed) {
+    ProjectRootRelativePath docPath{std::string(doc.relative_path())};
     auto it = this->multiplyIndexed.find(docPath);
     if (it == this->multiplyIndexed.end()) {
       this->multiplyIndexed.insert(
-          {docPath, std::make_unique<DocumentBuilder>(std::move(doc))});
+          {std::move(docPath),
+          std::make_unique<DocumentBuilder>(std::move(doc))});
     } else {
       auto &docBuilder = it->second;
       docBuilder->merge(std::move(doc));
     }
   } else {
-    ENFORCE(!this->multiplyIndexed.contains(doc.relative_path()),
+    ENFORCE(!this->multiplyIndexed.contains(
+              ProjectRootRelativePath{std::string(doc.relative_path())}),
             "Document with path '{}' found in multiplyIndexed map despite "
             "!isMultiplyIndexed",
             doc.relative_path());
@@ -179,7 +190,7 @@ void IndexBuilder::finish(bool deterministic) {
   this->fullIndex.mutable_documents()->Reserve(this->multiplyIndexed.size());
   scip_clang::extractTransform(
       std::move(this->multiplyIndexed), deterministic,
-      absl::FunctionRef<void(std::string &&,
+      absl::FunctionRef<void(ProjectRootRelativePath &&,
                              std::unique_ptr<DocumentBuilder> &&)>(
           [&](auto && /*path*/, auto &&builder) -> void {
             scip::Document doc{};
