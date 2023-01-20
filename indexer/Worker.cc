@@ -150,7 +150,7 @@ struct IndexerPreprocessorOptions {
   PreprocessorHistoryRecorder *recorder;
 
   // Sort for deterministic output while running the preprocessor.
-  bool ensureDeterminism;
+  bool deterministic;
 };
 
 // Small wrapper type for YAML serialization.
@@ -266,7 +266,7 @@ public:
           pathToIdMap.insert({absPathRef, fileId});
         }
       }
-      if (this->options.ensureDeterminism) {
+      if (this->options.deterministic) {
         absl::c_sort(result.wellBehavedFiles);
       }
     }
@@ -280,7 +280,7 @@ public:
           std::vector<HashValue> hashes{};
           hashes.reserve(it->second.size());
           absl::c_move(it->second, std::back_inserter(hashes));
-          if (this->options.ensureDeterminism) {
+          if (this->options.deterministic) {
             absl::c_sort(hashes);
           }
           result.illBehavedFiles.emplace_back(
@@ -288,7 +288,7 @@ public:
           pathToIdMap.insert({absPathRef, fileId});
         }
       }
-      if (this->options.ensureDeterminism) {
+      if (this->options.deterministic) {
         absl::c_sort(result.illBehavedFiles);
       }
     }
@@ -668,7 +668,7 @@ public:
     preprocessor.addPPCallbacks(std::move(callbacks));
     return std::make_unique<IndexerAstConsumer>(
         compilerInstance, filepath, preprocessorWrapper, this->workerCallback,
-        this->scipIndex, this->options.ensureDeterminism);
+        this->scipIndex, this->options.deterministic);
   }
 };
 
