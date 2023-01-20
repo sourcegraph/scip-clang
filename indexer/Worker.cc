@@ -644,15 +644,15 @@ private:
 };
 
 class IndexerFrontendAction : public clang::ASTFrontendAction {
-  const IndexerPreprocessorOptions &options;
+  const IndexerPreprocessorOptions &preprocessorOptions;
   WorkerCallback workerCallback;
   scip::Index &scipIndex;
 
 public:
-  IndexerFrontendAction(const IndexerPreprocessorOptions &options,
-
+  IndexerFrontendAction(const IndexerPreprocessorOptions &preprocessorOptions,
                         WorkerCallback workerCallback, scip::Index &scipIndex)
-      : options(options), workerCallback(workerCallback), scipIndex(scipIndex) {
+      : preprocessorOptions(preprocessorOptions),
+        workerCallback(workerCallback), scipIndex(scipIndex) {
   }
 
   std::unique_ptr<clang::ASTConsumer>
@@ -660,7 +660,7 @@ public:
                     llvm::StringRef filepath) override {
     auto &preprocessor = compilerInstance.getPreprocessor();
     auto callbacks = std::make_unique<IndexerPreprocessorWrapper>(
-        compilerInstance.getSourceManager(), options,
+        compilerInstance.getSourceManager(), this->preprocessorOptions,
         PreprocessorDebugContext{filepath.str()});
     // SAFETY: See NOTE(ref: preprocessor-traversal-ordering)
     // Ideally, we'd use a shared_ptr, but addPPCallbacks needs a unique_ptr.
@@ -668,26 +668,27 @@ public:
     preprocessor.addPPCallbacks(std::move(callbacks));
     return std::make_unique<IndexerAstConsumer>(
         compilerInstance, filepath, preprocessorWrapper, this->workerCallback,
-        this->scipIndex, this->options.deterministic);
+        this->scipIndex, this->preprocessorOptions.deterministic);
   }
 };
 
 class IndexerFrontendActionFactory
     : public clang::tooling::FrontendActionFactory {
-  const IndexerPreprocessorOptions &options;
+  const IndexerPreprocessorOptions &preprocessorOptions;
   WorkerCallback workerCallback;
   scip::Index &scipIndex;
 
 public:
-  IndexerFrontendActionFactory(const IndexerPreprocessorOptions &options,
+  IndexerFrontendActionFactory(const IndexerPreprocessorOptions &preprocessorOptions,
                                WorkerCallback workerCallback,
                                scip::Index &scipIndex)
-      : options(options), workerCallback(workerCallback), scipIndex(scipIndex) {
+      : preprocessorOptions(preprocessorOptions),
+        workerCallback(workerCallback), scipIndex(scipIndex) {
   }
 
   virtual std::unique_ptr<clang::FrontendAction> create() override {
     return std::make_unique<IndexerFrontendAction>(
-        this->options, this->workerCallback, this->scipIndex);
+        this->preprocessorOptions, this->workerCallback, this->scipIndex);
   }
 };
 
@@ -774,12 +775,12 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
   // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
   // clang-format on
 
-  IndexerPreprocessorOptions options{
+  IndexerPreprocessorOptions preprocessorOptions{
       this->options.projectRootPath,
       this->recorder.has_value() ? &this->recorder->second : nullptr,
       this->options.deterministic};
   auto frontendActionFactory =
-      IndexerFrontendActionFactory(options, workerCallback, scipIndex);
+      IndexerFrontendActionFactory(preprocessorOptions, workerCallback, scipIndex);
 
   clang::tooling::ToolInvocation Invocation(
       std::move(args), &frontendActionFactory, fileManager.get(),
