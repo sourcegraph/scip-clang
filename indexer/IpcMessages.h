@@ -12,6 +12,7 @@
 
 #include "indexer/Derive.h"
 #include "indexer/Hash.h"
+#include "indexer/Path.h"
 
 namespace scip_clang {
 
@@ -53,7 +54,7 @@ struct SemanticAnalysisJobDetails {
 SERIALIZABLE(SemanticAnalysisJobDetails)
 
 struct EmitIndexJobDetails {
-  std::vector<std::string> filesToBeIndexed;
+  std::vector<AbsolutePath> filesToBeIndexed;
 };
 SERIALIZABLE(EmitIndexJobDetails)
 
@@ -85,7 +86,7 @@ SERIALIZABLE(IndexJobRequest)
 SERIALIZABLE(HashValue)
 
 struct PreprocessedFileInfo {
-  std::string path;
+  AbsolutePath path;
   HashValue hashValue;
 
   friend std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs,
@@ -94,7 +95,7 @@ struct PreprocessedFileInfo {
 SERIALIZABLE(PreprocessedFileInfo)
 
 struct PreprocessedFileInfoMulti {
-  std::string path;
+  AbsolutePath path;
   std::vector<HashValue> hashValues;
 
   friend std::strong_ordering operator<=>(const PreprocessedFileInfoMulti &lhs,
@@ -117,7 +118,7 @@ struct SemanticAnalysisJobResult {
 SERIALIZABLE(SemanticAnalysisJobResult)
 
 struct EmitIndexJobResult {
-  std::string indexPartPath;
+  AbsolutePath indexPartPath;
 };
 SERIALIZABLE(EmitIndexJobResult)
 

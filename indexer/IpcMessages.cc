@@ -144,13 +144,13 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
 
 std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs, const PreprocessedFileInfo &rhs) {
   CMP_EXPR(lhs.hashValue, rhs.hashValue);
-  CMP_STR(lhs.path, rhs.path);
+  CMP_EXPR(lhs.path, rhs.path);
   return std::strong_ordering::equal;
 }
 
 std::strong_ordering operator<=>(const PreprocessedFileInfoMulti &lhs,
                                  const PreprocessedFileInfoMulti &rhs) {
-  CMP_STR(lhs.path, rhs.path);
+  CMP_EXPR(lhs.path, rhs.path);
   CMP_RANGE(lhs.hashValues, rhs.hashValues);
   return std::strong_ordering::equal;
 }

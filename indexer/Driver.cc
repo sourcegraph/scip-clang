@@ -243,7 +243,7 @@ public:
   FileIndexingPlanner(const FileIndexingPlanner &) = delete;
 
   void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
-                      std::vector<std::string> &filesToBeIndexed) {
+                      std::vector<AbsolutePath> &filesToBeIndexed) {
     absl::flat_hash_set<HashValue> emptyHashSet{};
     for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
       auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(fileInfoMulti.path)), emptyHashSet});
@@ -252,7 +252,7 @@ public:
       for (auto hashValue : fileInfoMulti.hashValues) {
         auto [_, inserted] = hashes.insert(hashValue);
         if (inserted && !addedFile) {
-          filesToBeIndexed.push_back(path.asStringRef());
+          filesToBeIndexed.push_back(path); // deliberate copy
           addedFile = true;
         }
       }
@@ -262,7 +262,7 @@ public:
       auto &[path, hashes] = *it;
       auto [__, inserted] = hashes.insert(fileInfo.hashValue);
       if (inserted) {
-        filesToBeIndexed.push_back(path.asStringRef());
+        filesToBeIndexed.push_back(path); // deliberate copy
       }
     }
   }
@@ -741,7 +741,7 @@ private:
     switch (response.result.kind) {
     case IndexJob::Kind::SemanticAnalysis: {
       auto &semaResult = response.result.semanticAnalysis;
-      std::vector<std::string> filesToBeIndexed{};
+      std::vector<AbsolutePath> filesToBeIndexed{};
       this->planner.saveSemaResult(std::move(semaResult), filesToBeIndexed);
       auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
       queue.send(this->scheduler.createJobAndScheduleOnWorker(

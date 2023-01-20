@@ -260,10 +260,10 @@ public:
         auto hashValue = hashInfo.hashValue;
         auto fileId = wrappedFileId.data;
         if (auto optPath = getAbsPath(fileId)) {
-          auto absPath = optPath.value();
+          auto absPathRef = optPath.value();
           result.wellBehavedFiles.emplace_back(
-              PreprocessedFileInfo{std::string(absPath.asStringView()), hashValue});
-          pathToIdMap.insert({absPath, fileId});
+              PreprocessedFileInfo{AbsolutePath{absPathRef}, hashValue});
+          pathToIdMap.insert({absPathRef, fileId});
         }
       }
       if (this->options.ensureDeterminism) {
@@ -276,7 +276,7 @@ public:
            ++it) {
         auto fileId = it->first.data;
         if (auto optPath = getAbsPath(fileId)) {
-          auto absPath = optPath.value();
+          auto absPathRef = optPath.value();
           std::vector<HashValue> hashes{};
           hashes.reserve(it->second.size());
           absl::c_move(it->second, std::back_inserter(hashes));
@@ -284,8 +284,8 @@ public:
             absl::c_sort(hashes);
           }
           result.illBehavedFiles.emplace_back(
-              PreprocessedFileInfoMulti{std::string(absPath.asStringView()), std::move(hashes)});
-          pathToIdMap.insert({absPath, fileId});
+              PreprocessedFileInfoMulti{AbsolutePath{absPathRef}, std::move(hashes)});
+          pathToIdMap.insert({absPathRef, fileId});
         }
       }
       if (this->options.ensureDeterminism) {
@@ -625,21 +625,20 @@ private:
       }
     }
 
-    for (auto &path : emitIndexDetails.filesToBeIndexed) {
-      if (auto optAbsPath = AbsolutePathRef::tryFrom(std::string_view(path))) {
-        auto absPath = optAbsPath.value();
-        auto it = pathToIdMap.find(absPath);
-        if (it == pathToIdMap.end()) {
-          spdlog::debug(
-              "failed to find clang::FileID for path '{}' received from Driver",
-              absPath.asStringView());
-          continue;
-        }
-        toBeIndexed.insert(it->second, absPath);
-      } else {
-        spdlog::debug("received non-absolute path from Driver '{}'",
-                      path.c_str());
+    for (auto &absPath : emitIndexDetails.filesToBeIndexed) {
+      auto absPathRef = absPath.asRef();
+      auto it = pathToIdMap.find(absPathRef);
+      if (it == pathToIdMap.end()) {
+        spdlog::debug(
+            "failed to find clang::FileID for path '{}' received from Driver",
+            absPathRef.asStringView());
+        continue;
       }
+      // SAFETY: the key in pathToIdMap (i.e. it->first) will be alive;
+      // don't accidentally store a reference into emitIndexJobDetails
+      // as emitIndexJobDetails will soon be destroyed
+      absPathRef = it->first;
+      toBeIndexed.insert(it->second, it->first);
     }
   }
 };
@@ -863,7 +862,7 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
        / fmt::format("job-{}-worker-{}.index.scip", emitIndexRequestId.id(),
                      this->ipcOptions().workerId));
   this->emitIndex(std::move(scipIndex), outputPath);
-  EmitIndexJobResult emitIndexResult{outputPath.string()};
+  EmitIndexJobResult emitIndexResult{AbsolutePath{outputPath.string()}};
 
   this->sendResult(emitIndexRequestId,
                    IndexJobResult{.kind = IndexJob::Kind::EmitIndex,
