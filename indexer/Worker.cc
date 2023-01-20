@@ -443,17 +443,16 @@ class FilesToBeIndexedMap final {
   absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
                       ProjectRootRelativePathRef>
       map;
-  AbsolutePath rootPath;
+  const ProjectRootPath &projectRootPath;
 
 public:
   FilesToBeIndexedMap() = delete;
-  FilesToBeIndexedMap(std::string_view rootPath)
-      : map(),
-        rootPath(AbsolutePath(AbsolutePathRef::tryFrom(rootPath).value())) {}
+  FilesToBeIndexedMap(const ProjectRootPath &projectRootPath)
+      : map(), projectRootPath(projectRootPath) {}
+  FilesToBeIndexedMap(FilesToBeIndexedMap &&other) = default;
+  FilesToBeIndexedMap &operator=(FilesToBeIndexedMap &&) = delete;
   FilesToBeIndexedMap(const FilesToBeIndexedMap &) = delete;
   FilesToBeIndexedMap &operator=(const FilesToBeIndexedMap &) = delete;
-  FilesToBeIndexedMap(FilesToBeIndexedMap &&other) = default;
-  FilesToBeIndexedMap &operator=(FilesToBeIndexedMap &&) = default;
 
   /// Returns true iff a new entry was inserted.
   bool insert(clang::FileID fileId, AbsolutePathRef absPath) {
@@ -461,26 +460,13 @@ public:
             "invalid FileIDs should be filtered out after preprocessing");
     ENFORCE(!absPath.asStringView().empty(), "inserting file with empty absolute path");
 
-    // FIXME(clarify-root): We should disambiguate between the project root
-    // (needed by SCIP) and the build root, which is the directory wrt paths
-    // in compile_commands.json can be interpreted (this may not coincide
-    // with the directory containing the compile_commands.json!).
-    // For example, LLVM's compile_commands.json contains absolute paths,
-    // whereas Chromium's uses relative paths; distinguishing between
-    // the different roots properly is esp. important in the second case.
-    //
-    // Right now we are relying on substring checks, but with CMake,
-    // it is common to have the build root be inside the project root,
-    // so making the distinction is important for CMake too.
-
-    auto rootPathRef = this->rootPath.asRef();
-    if (auto relPath = rootPathRef.makeRelative(absPath)) {
-      ENFORCE(!relPath->empty(),
+    if (auto relPath = this->projectRootPath.tryMakeRelative(absPath)) {
+      ENFORCE(!relPath->asStringView().empty(),
               "file path is unexpectedly equal to project root");
-      auto [_, inserted] = this->map.insert({{fileId}, ProjectRootRelativePathRef{relPath.value()}});
+      auto [_, inserted] = this->map.insert({{fileId}, relPath.value()});
       return inserted;
     } else {
-      auto [_, inserted] = this->map.insert({{fileId}, ProjectRootRelativePathRef{}});
+      auto [_, inserted] = this->map.insert({{fileId}, {}});
       return inserted;
     }
   }
@@ -547,21 +533,25 @@ public:
   // https://sourcegraph.com/search?q=context:global+repo:llvm/llvm-project%24+file:clang/Basic/.*.td&patternType=standard&sm=1&groupBy=repo
 };
 
-class IndexerAstConsumer : public clang::SemaConsumer {
-  clang::Sema *sema;
-  IndexerPreprocessorWrapper *preprocessorWrapper;
+struct IndexerAstConsumerOptions {
+  ProjectRootPath projectRootPath;
   WorkerCallback getEmitIndexDetails;
-  scip::Index &scipIndex;
   bool deterministic;
+};
+
+class IndexerAstConsumer : public clang::SemaConsumer {
+  const IndexerAstConsumerOptions &options;
+  IndexerPreprocessorWrapper *preprocessorWrapper;
+  clang::Sema *sema;
+  scip::Index &scipIndex;
 
 public:
   IndexerAstConsumer(clang::CompilerInstance &, llvm::StringRef /*filepath*/,
+                     const IndexerAstConsumerOptions &options,
                      IndexerPreprocessorWrapper *preprocessorWrapper,
-                     WorkerCallback getEmitIndexDetails, scip::Index &scipIndex,
-                     bool deterministic)
-      : preprocessorWrapper(preprocessorWrapper),
-        getEmitIndexDetails(getEmitIndexDetails), scipIndex(scipIndex),
-        deterministic(deterministic) {}
+                     scip::Index &scipIndex)
+      : options(options), preprocessorWrapper(preprocessorWrapper),
+        scipIndex(scipIndex) {}
 
   void HandleTranslationUnit(clang::ASTContext &astContext) override {
     // NOTE(ref: preprocessor-traversal-ordering): The call order is
@@ -579,21 +569,16 @@ public:
 
     EmitIndexJobDetails emitIndexDetails{};
     bool shouldEmitIndex =
-        this->getEmitIndexDetails(std::move(semaResult), emitIndexDetails);
+        this->options.getEmitIndexDetails(std::move(semaResult), emitIndexDetails);
     if (!shouldEmitIndex) {
       return;
     }
 
-    // See FIXME(ref: clarify-root)
-    auto rootPath = std::filesystem::current_path().string();
-    auto optRootPathRef = AbsolutePathRef::tryFrom(std::string_view(rootPath));
-    ENFORCE(optRootPathRef.has_value());
-    (void)optRootPathRef;
-    FilesToBeIndexedMap toBeIndexed(rootPath);
+    FilesToBeIndexedMap toBeIndexed(this->options.projectRootPath);
     this->computePathsToBeIndexed(astContext, emitIndexDetails, pathToIdMap,
                                   toBeIndexed);
 
-    IndexerAstVisitor visitor{std::move(toBeIndexed), deterministic};
+    IndexerAstVisitor visitor{std::move(toBeIndexed), this->options.deterministic};
     visitor.VisitTranslationUnitDecl(astContext.getTranslationUnitDecl());
     visitor.writeIndex(scipIndex);
   }
@@ -645,14 +630,15 @@ private:
 
 class IndexerFrontendAction : public clang::ASTFrontendAction {
   const IndexerPreprocessorOptions &preprocessorOptions;
-  WorkerCallback workerCallback;
+  const IndexerAstConsumerOptions &astConsumerOptions;
   scip::Index &scipIndex;
 
 public:
   IndexerFrontendAction(const IndexerPreprocessorOptions &preprocessorOptions,
-                        WorkerCallback workerCallback, scip::Index &scipIndex)
+                        const IndexerAstConsumerOptions &astConsumerOptions,
+                        scip::Index &scipIndex)
       : preprocessorOptions(preprocessorOptions),
-        workerCallback(workerCallback), scipIndex(scipIndex) {
+        astConsumerOptions(astConsumerOptions), scipIndex(scipIndex) {
   }
 
   std::unique_ptr<clang::ASTConsumer>
@@ -667,28 +653,28 @@ public:
     auto preprocessorWrapper = callbacks.get();
     preprocessor.addPPCallbacks(std::move(callbacks));
     return std::make_unique<IndexerAstConsumer>(
-        compilerInstance, filepath, preprocessorWrapper, this->workerCallback,
-        this->scipIndex, this->preprocessorOptions.deterministic);
+        compilerInstance, filepath, this->astConsumerOptions,
+        preprocessorWrapper, this->scipIndex);
   }
 };
 
 class IndexerFrontendActionFactory
     : public clang::tooling::FrontendActionFactory {
   const IndexerPreprocessorOptions &preprocessorOptions;
-  WorkerCallback workerCallback;
+  const IndexerAstConsumerOptions &astConsumerOptions;
   scip::Index &scipIndex;
 
 public:
   IndexerFrontendActionFactory(const IndexerPreprocessorOptions &preprocessorOptions,
-                               WorkerCallback workerCallback,
+                               const IndexerAstConsumerOptions &astConsumerOptions,
                                scip::Index &scipIndex)
       : preprocessorOptions(preprocessorOptions),
-        workerCallback(workerCallback), scipIndex(scipIndex) {
+        astConsumerOptions(astConsumerOptions), scipIndex(scipIndex) {
   }
 
   virtual std::unique_ptr<clang::FrontendAction> create() override {
     return std::make_unique<IndexerFrontendAction>(
-        this->preprocessorOptions, this->workerCallback, this->scipIndex);
+        this->preprocessorOptions, this->astConsumerOptions, this->scipIndex);
   }
 };
 
@@ -779,8 +765,11 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
       this->options.projectRootPath,
       this->recorder.has_value() ? &this->recorder->second : nullptr,
       this->options.deterministic};
+  IndexerAstConsumerOptions astConsumerOptions{this->options.projectRootPath,
+                                               std::move(workerCallback),
+                                               this->options.deterministic};
   auto frontendActionFactory =
-      IndexerFrontendActionFactory(preprocessorOptions, workerCallback, scipIndex);
+      IndexerFrontendActionFactory(preprocessorOptions, astConsumerOptions, scipIndex);
 
   clang::tooling::ToolInvocation Invocation(
       std::move(args), &frontendActionFactory, fileManager.get(),
