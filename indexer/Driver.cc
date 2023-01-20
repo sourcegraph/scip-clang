@@ -111,7 +111,7 @@ struct WorkerInfo {
 struct DriverOptions {
   std::string workerExecutablePath;
   ProjectRootPath projectRootPath;
-  StdPath compdbPath;
+  AbsolutePath compdbPath;
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
   bool deterministic;
@@ -126,9 +126,8 @@ struct DriverOptions {
 
   explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
-        projectRootPath(AbsolutePath("/")),
-        compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
-        receiveTimeout(cliOpts.receiveTimeout),
+        projectRootPath(AbsolutePath("/")), compdbPath(),
+        numWorkers(cliOpts.numWorkers), receiveTimeout(cliOpts.receiveTimeout),
         deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
@@ -143,6 +142,13 @@ struct DriverOptions {
             "std::filesystem::current_path() returned non-absolute path '{}'",
             cwd);
     this->projectRootPath = ProjectRootPath{AbsolutePath{std::move(cwd)}};
+
+    if (llvm::sys::path::is_absolute(cliOpts.compdbPath)) {
+      this->compdbPath = AbsolutePath(std::string(cliOpts.compdbPath));
+    } else {
+      auto relPath = ProjectRootRelativePathRef(cliOpts.compdbPath);
+      this->compdbPath = this->projectRootPath.makeAbsolute(relPath);
+    }
 
     auto makeDirs = [](const StdPath &path, const char *name) {
       std::error_code error;
@@ -508,14 +514,6 @@ public:
   Driver(std::string driverId, DriverOptions &&options)
       : options(std::move(options)), id(driverId), planner(this->options.projectRootPath),
         compdbParser() {
-    auto &compdbPath = this->options.compdbPath;
-    if (!compdbPath.is_absolute()) {
-      // See FIXME(ref: clarify-root)
-      auto absPath = std::filesystem::current_path();
-      absPath /= compdbPath;
-      compdbPath = absPath;
-    }
-
     MessageQueues::deleteIfPresent(this->id, this->numWorkers());
     this->queues = MessageQueues(this->id, this->numWorkers(),
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
@@ -634,7 +632,7 @@ private:
   size_t numWorkers() const {
     return this->options.numWorkers;
   }
-  const StdPath &compdbPath() const {
+  const AbsolutePath &compdbPath() const {
     return this->options.compdbPath;
   }
   std::chrono::seconds receiveTimeout() const {
@@ -680,10 +678,11 @@ private:
 
   FileGuard openCompilationDatabase() {
     std::error_code error;
+    StdPath compdbStdPath{this->compdbPath().asStringRef()};
     auto compdbFile =
-        compdb::CompilationDatabaseFile::open(this->compdbPath(), error);
+        compdb::CompilationDatabaseFile::open(compdbStdPath, error);
     if (!compdbFile.file) {
-      spdlog::error("failed to open {}: {}", this->compdbPath().string(),
+      spdlog::error("failed to open {}: {}", this->compdbPath().asStringRef(),
                     std::strerror(errno));
       std::exit(EXIT_FAILURE);
     }
