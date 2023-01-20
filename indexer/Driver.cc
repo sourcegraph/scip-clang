@@ -542,8 +542,8 @@ public:
 
 private:
   void emitScipIndex() {
-    // See FIXME(ref: clarify-root)
-    auto indexScipPath = AbsolutePath((std::filesystem::current_path() / "index.scip").string());
+    auto indexScipPath = this->options.projectRootPath.makeAbsolute(
+      ProjectRootRelativePathRef{"index.scip"});
     std::ofstream outputStream(indexScipPath.asStringRef(), std::ios_base::out
                                                   | std::ios_base::binary
                                                   | std::ios_base::trunc);
@@ -579,9 +579,9 @@ private:
     }
 
     scip::Metadata metadata;
-    metadata.set_project_root("file:/"
-                              + std::filesystem::current_path().string());
-    // ^ See FIXME(ref: clarify-root)
+    auto projectRootUnixStyle = llvm::sys::path::convert_to_slash(
+      this->options.projectRootPath.asRef().asStringView());
+    metadata.set_project_root("file:/" + projectRootUnixStyle);
     metadata.set_version(scip::UnspecifiedProtocolVersion);
     *metadata.mutable_tool_info() = std::move(toolInfo);
 
