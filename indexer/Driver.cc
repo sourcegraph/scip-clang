@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <compare>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -480,7 +481,7 @@ class Driver {
   Scheduler scheduler;
   HeaderIndexingPlanner planner;
 
-  std::vector<Path> indexPartPaths;
+  std::vector<AbsolutePath> indexPartPaths;
 
   /// Total number of commands in the compilation database.
   size_t compdbCommandCount = 0;
@@ -526,13 +527,13 @@ public:
 private:
   void emitScipIndex() {
     // See FIXME(ref: clarify-root)
-    auto indexScipPath = std::filesystem::current_path() / "index.scip";
-    std::ofstream outputStream(indexScipPath, std::ios_base::out
+    auto indexScipPath = AbsolutePath((std::filesystem::current_path() / "index.scip").string());
+    std::ofstream outputStream(indexScipPath.asStringRef(), std::ios_base::out
                                                   | std::ios_base::binary
                                                   | std::ios_base::trunc);
     if (outputStream.fail()) {
       spdlog::error("failed to open '{}' for writing index ({})",
-                    indexScipPath.c_str(), std::strerror(errno));
+                    indexScipPath.asStringRef(), std::strerror(errno));
       std::exit(EXIT_FAILURE);
     }
 
@@ -540,11 +541,11 @@ private:
     if (this->options.deterministic) {
       // Sorting before merging so that mergeIndexParts can be const
       absl::c_sort(
-          this->indexPartPaths, [](const Path &p1, const Path &p2) -> bool {
-            auto cmp = cmp::compareStrings(p1.filename(), p2.filename());
-            ENFORCE(cmp != cmp::Equal, "2+ index parts have same path '{}'",
-                    p1.asStringView());
-            return cmp == cmp::Less;
+          this->indexPartPaths, [](const AbsolutePath &p1, const AbsolutePath &p2) -> bool {
+            auto cmp = p1 <=> p2;
+            ENFORCE(cmp != 0, "2+ index parts have same path '{}'",
+                    p1.asStringRef());
+            return cmp == std::strong_ordering::less;
           });
     }
     this->mergeIndexParts(fullIndex);
@@ -585,18 +586,18 @@ private:
 
     scip::IndexBuilder builder{fullIndex};
     // TODO: Measure how much time this is taking and parallelize if too slow.
-    for (auto &ownedPath : this->indexPartPaths) {
-      auto path = ownedPath.asStringView();
-      std::ifstream inputStream(std::string(path),
+    for (auto &indexPartAbsPath : this->indexPartPaths) {
+      auto &indexPartPath = indexPartAbsPath.asStringRef();
+      std::ifstream inputStream(indexPartPath,
                                 std::ios_base::in | std::ios_base::binary);
       if (inputStream.fail()) {
-        spdlog::warn("failed to open partial index at '{}' ({})", path,
+        spdlog::warn("failed to open partial index at '{}' ({})", indexPartPath,
                      std::strerror(errno));
         continue;
       }
       scip::Index partialIndex;
       if (!partialIndex.ParseFromIstream(&inputStream)) {
-        spdlog::warn("failed to parse partial index at '{}'", path);
+        spdlog::warn("failed to parse partial index at '{}'", indexPartPath);
         continue;
       }
       for (auto &doc : *partialIndex.mutable_documents()) {

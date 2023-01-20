@@ -27,6 +27,15 @@
   DERIVE_EQ_ALL(_Type)                                                    \
   friend bool operator<(const _Type &, const _Type &) = default;
 
+#define DERIVE_HASH_CMP_NEWTYPE(_Type, _Field, _CMP_MACRO)    \
+  DERIVE_HASH_1(_Type, self._Field)                           \
+  friend std::strong_ordering operator<=>(const _Type &lhs,   \
+                                          const _Type &rhs) { \
+    _CMP_MACRO(lhs._Field, rhs._Field);                       \
+    return std::strong_ordering::equal;                       \
+  }                                                           \
+  DERIVE_EQ_VIA_CMP(_Type)
+
 #define SERIALIZABLE(T)                \
   llvm::json::Value toJSON(const T &); \
   bool fromJSON(const llvm::json::Value &value, T &, llvm::json::Path path);

@@ -48,11 +48,6 @@ AbsolutePathRef::makeRelative(AbsolutePathRef longerPath) {
   return {};
 }
 
-const std::string_view Path::filename() const {
-  ENFORCE(llvm::sys::path::has_filename(this->_data));
-  return scip_clang::toStringView(llvm::sys::path::filename(this->_data));
-}
-
 AbsolutePathRef AbsolutePath::asRef() const {
   auto sv = std::string_view(this->value.data(), this->value.size());
   auto optRef = AbsolutePathRef::tryFrom(sv);

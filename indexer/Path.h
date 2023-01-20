@@ -85,30 +85,12 @@ public:
 
   AbsolutePathRef asRef() const;
 
+  DERIVE_HASH_CMP_NEWTYPE(AbsolutePath, value, CMP_STR)
   static llvm::json::Value toJSON(const AbsolutePath &);
   static bool fromJSON(const llvm::json::Value &value, AbsolutePath &,
                        llvm::json::Path path);
 };
 SERIALIZABLE(AbsolutePath)
-
-// std::filesystem::path APIs allocate all over the place, and neither
-// LLVM nor Abseil have a dedicated path type, so roll our own. Sigh.
-class Path final {
-  std::string _data;
-
-public:
-  Path() = default;
-  Path(Path &&) = default;
-  Path &operator=(Path &&) = default;
-  Path(const Path &) = delete;
-  Path &operator=(const Path &) = delete;
-
-  Path(std::string data) : _data(data) {}
-  const std::string_view asStringView() const {
-    return std::string_view(this->_data);
-  }
-  const std::string_view filename() const;
-};
 
 class ProjectRootPath final {
   AbsolutePath value;
