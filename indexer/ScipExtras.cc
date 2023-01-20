@@ -70,7 +70,9 @@ void SymbolInformationBuilder::finish(bool deterministic,
       }));
 }
 
-DocumentBuilder::DocumentBuilder(scip::Document &&first) : soFar() {
+DocumentBuilder::DocumentBuilder(scip::Document &&first)
+  : soFar(),
+    _bomb(BOMB_INIT(fmt::format("DocumentBuilder for '{}", first.relative_path()))) {
   auto &language = *first.mutable_language();
   this->soFar.set_language(std::move(language));
   auto &relativePath = *first.mutable_relative_path();
@@ -86,11 +88,14 @@ void DocumentBuilder::merge(scip::Document &&doc) {
     auto &name = *symbolInfo.mutable_symbol();
     auto it = this->symbolInfos.find(name);
     if (it == this->symbolInfos.end()) {
-      this->symbolInfos.insert(
-          {std::move(name),
-           SymbolInformationBuilder{
-               std::move(*symbolInfo.mutable_documentation()),
-               std::move(*symbolInfo.mutable_relationships())}});
+      // SAFETY: Don't inline this initializer call since lack of
+      // guarantees around subexpression evaluation order mean that
+      // the std::move(name) may happen before passing name to
+      // the initializer.
+      SymbolInformationBuilder builder{
+          name, std::move(*symbolInfo.mutable_documentation()),
+          std::move(*symbolInfo.mutable_relationships())};
+      this->symbolInfos.insert({std::move(name), std::move(builder)});
       continue;
     }
     auto &symbolInfoBuilder = it->second;
@@ -134,7 +139,8 @@ ProjectRootRelativePath::ProjectRootRelativePath(std::string &&value)
 }
 
 IndexBuilder::IndexBuilder(scip::Index &fullIndex)
-    : fullIndex(fullIndex), multiplyIndexed(), externalSymbols(), _bomb() {}
+    : fullIndex(fullIndex), multiplyIndexed(), externalSymbols(),
+      _bomb(BOMB_INIT("IndexBuilder")) {}
 
 void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
   ENFORCE(!doc.relative_path().empty());
@@ -173,7 +179,7 @@ void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
     // guarantees around subexpression evaluation order mean that
     // the std::move(name) may happen before name.asStringRef() is called.
     auto builder = std::make_unique<SymbolInformationBuilder>(
-        std::move(docs), std::move(rels));
+        name.asStringRef(), std::move(docs), std::move(rels));
     this->externalSymbols.insert({std::move(name), std::move(builder)});
     return;
   }

@@ -37,33 +37,58 @@ public:
       ENFORCE(this->consumed, "forgot to call getValueAndConsume");
     }
   }
+
   T getValueAndConsume() {
     ENFORCE(!this->movedOut, "use after move");
     ENFORCE(!this->consumed, "trying to consume worker guard twice");
     this->consumed = true;
     return std::move(this->value);
   }
-  const T &getValueNonConsuming() {
+
+  const T &getValueNonConsuming() const {
     ENFORCE(!this->movedOut, "use after move");
     ENFORCE(!this->consumed, "trying to access id for consumed guard");
     return this->value;
   }
+
+  bool isConsumed() const {
+    return !this->movedOut && this->consumed;
+  }
 };
+
+#ifdef DEBUG_MODE
 
 /// Type to put inside other types to make them ConsumeOnce<>
 /// to avoid having to deal with wrapping/unwrapping.
 class Bomb final {
-  ConsumeOnce<uint8_t> impl;
+  ConsumeOnce<std::string> msg;
 
 public:
-  Bomb() : impl(0) {}
+  Bomb(std::string &&unconsumedHint) : msg(std::move(unconsumedHint)) {}
   Bomb(Bomb &&) = default;
   Bomb &operator=(Bomb &&) = default;
 
+  ~Bomb() {
+    if (!this->msg.isConsumed()) {
+      spdlog::error("unconsumed message: {}", this->msg.getValueNonConsuming());
+    }
+    this->msg.~ConsumeOnce<std::string>();
+  }
+
   void defuse() {
-    (void)this->impl.getValueAndConsume();
+    (void)this->msg.getValueAndConsume();
   }
 };
+
+#define BOMB_INIT(__msg) scip_clang::Bomb(__msg)
+
+#else
+
+struct Bomb {};
+
+#define BOMB_INIT(__msg) scip_clang::Bomb()
+
+#endif
 
 } // namespace scip_clang
 

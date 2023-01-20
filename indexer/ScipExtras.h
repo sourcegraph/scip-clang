@@ -9,6 +9,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "spdlog/fmt/fmt.h"
 
 #include "scip/scip.pb.h"
 
@@ -69,8 +70,9 @@ class SymbolInformationBuilder final {
 
 public:
   template <typename C1, typename C2>
-  SymbolInformationBuilder(C1 &&docs, C2 &&rels)
-      : documentation(), relationships() {
+  SymbolInformationBuilder(std::string_view name, C1 &&docs, C2 &&rels)
+      : documentation(), relationships(),
+        _bomb(BOMB_INIT(fmt::format("SymbolInformationBuilder for '{}'", name))) {
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
   }
