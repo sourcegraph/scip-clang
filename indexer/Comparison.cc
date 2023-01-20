@@ -15,7 +15,7 @@ Comparison compareStrings(std::string_view s1, std::string_view s2) {
   if (s1size > s2size) {
     return cmp::Greater;
   }
-  auto cmp = std::memcmp(s2.data(), s2.data(), s2size);
+  auto cmp = std::memcmp(s1.data(), s2.data(), s2size);
   if (cmp < 0) {
     return cmp::Less;
   } else if (cmp == 0) {
