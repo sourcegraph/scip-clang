@@ -39,7 +39,7 @@ llvm::StringRef tryGetPath(const clang::SourceManager &sourceManager,
   return "<invalid-FileID>";
 }
 
-std::string formatPtr(void *ptr) {
+std::string formatPtr(const void *ptr) {
   return fmt::format("0x{:16x}", (uint64_t)ptr);
 }
 
