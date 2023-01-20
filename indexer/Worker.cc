@@ -228,6 +228,17 @@ public:
         debugContext(std::move(debugContext)) {}
 
   void flushState(SemanticAnalysisJobResult &result, PathToIdMap &pathToIdMap) {
+    // HACK: It seems like EnterInclude and ExitInclude events are not
+    // perfectly balanced in Clang. Work around that.
+    auto optNullFileEntryId = this->stack.pop();
+    ENFORCE(optNullFileEntryId.has_value());
+    ENFORCE(this->sourceManager.getFileEntryForID(optNullFileEntryId->fileId)
+            == nullptr);
+    this->exitFile(this->sourceManager.getMainFileID());
+    ENFORCE(this->stack.empty(), "entry for '{}' present at top of stack",
+            debug::tryGetPath(this->sourceManager, this->stack.pop()->fileId));
+    // END HACK
+
     bool emittedEmptyPathWarning = false;
     auto getAbsPath =
         [&](clang::FileID fileId) -> std::optional<AbsolutePathRef> {
