@@ -25,7 +25,7 @@ Comparison compareStrings(std::string_view s1, std::string_view s2) {
 }
 
 std::strong_ordering operator<=>(const CmpStr &s1, const CmpStr &s2) {
-  return cmp::comparisonToStrongOrdering(cmp::compareStrings(s1.s, s2.s));
+  return cmp::comparisonToStrongOrdering(cmp::compareStrings(s1.sv, s2.sv));
 }
 
 } // namespace cmp
