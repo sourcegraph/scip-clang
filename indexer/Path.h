@@ -110,6 +110,24 @@ public:
   const std::string_view filename() const;
 };
 
+class ProjectRootPath final {
+  AbsolutePath value;
+
+public:
+  explicit ProjectRootPath(AbsolutePath &&value) : value(std::move(value)) {}
+
+  AbsolutePathRef asRef() const {
+    return this->value.asRef();
+  }
+
+  /// If the result is non-null, it points to the storage of
+  /// \p maybePathInsideProject
+  std::optional<ProjectRootRelativePathRef>
+  tryMakeRelative(AbsolutePathRef maybePathInsideProject) const;
+
+  AbsolutePath makeAbsolute(ProjectRootRelativePathRef) const;
+};
+
 } // namespace scip_clang
 
 #endif // SCIP_CLANG_PATH_H

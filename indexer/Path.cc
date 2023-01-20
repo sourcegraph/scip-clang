@@ -76,5 +76,25 @@ bool fromJSON(const llvm::json::Value &value, AbsolutePath &p,
   return AbsolutePath::fromJSON(value, p, path);
 }
 
+std::optional<ProjectRootRelativePathRef>
+ProjectRootPath::tryMakeRelative(AbsolutePathRef maybePathInsideProject) const {
+  if (auto optStrView =
+          this->value.asRef().makeRelative(maybePathInsideProject)) {
+    return ProjectRootRelativePathRef(optStrView.value());
+  }
+  return std::nullopt;
+}
+
+AbsolutePath ProjectRootPath::makeAbsolute(
+    ProjectRootRelativePathRef relativePathRef) const {
+  std::string buf{};
+  auto &absPath = this->value.asStringRef();
+  auto relPath = relativePathRef.asStringView();
+  auto nativeSeparator = std::filesystem::path::preferred_separator;
+  if (absPath.ends_with(nativeSeparator)) {
+    return AbsolutePath(fmt::format("{}{}", absPath, relPath));
+  }
+  return AbsolutePath(fmt::format("{}{}{}", absPath, nativeSeparator, relPath));
+}
 
 } // namespace scip_clang
