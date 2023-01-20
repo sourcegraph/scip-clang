@@ -297,6 +297,9 @@ public:
 
 private:
   void enterFile(clang::FileID enteredFileId) {
+    // NOTE(def: skip-invalid-fileids)
+    // Not 100% sure what are all the situations when these can arise,
+    // but they do not correspond to actual files (with paths), so skip them
     if (!enteredFileId.isValid()) {
       return;
     }
@@ -332,8 +335,8 @@ private:
   }
 
   std::optional<HashValue> exitFileImpl(clang::FileID fileId) {
-    if (fileId.isInvalid()) {
-      return {};
+    if (fileId.isInvalid()) { // See NOTE(ref: skip-invalid-fileids)
+      return {}; // Didn't get pushed onto the stack, so nothing to return
     }
     auto optHeaderInfo = this->stack.pop();
     ENFORCE(optHeaderInfo.has_value(),
