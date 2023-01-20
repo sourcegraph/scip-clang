@@ -514,7 +514,8 @@ public:
   Driver &operator=(const Driver &) = delete;
 
   Driver(std::string driverId, DriverOptions &&options)
-      : options(std::move(options)), id(driverId), planner(this->options.projectRootPath),
+      : options(std::move(options)), id(driverId), scheduler(),
+        planner(this->options.projectRootPath), indexPartPaths(),
         compdbParser() {
     MessageQueues::deleteIfPresent(this->id, this->numWorkers());
     this->queues = MessageQueues(this->id, this->numWorkers(),
