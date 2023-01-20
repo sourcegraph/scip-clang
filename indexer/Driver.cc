@@ -110,6 +110,7 @@ struct WorkerInfo {
 
 struct DriverOptions {
   std::string workerExecutablePath;
+  ProjectRootPath projectRootPath;
   StdPath compdbPath;
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
@@ -125,6 +126,7 @@ struct DriverOptions {
 
   explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
+        projectRootPath(AbsolutePath("/")),
         compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
         receiveTimeout(cliOpts.receiveTimeout),
         deterministic(cliOpts.deterministic),
@@ -135,6 +137,13 @@ struct DriverOptions {
         temporaryOutputDir(cliOpts.temporaryOutputDir),
         deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()),
         originalArgv(cliOpts.originalArgv) {
+
+    auto cwd = std::filesystem::current_path().string();
+    ENFORCE(llvm::sys::path::is_absolute(cwd),
+            "std::filesystem::current_path() returned non-absolute path '{}'",
+            cwd);
+    this->projectRootPath = ProjectRootPath{AbsolutePath{std::move(cwd)}};
+
     auto makeDirs = [](const StdPath &path, const char *name) {
       std::error_code error;
       std::filesystem::create_directories(path, error);
@@ -218,38 +227,43 @@ struct LatestIdleWorkerId {
 /// indexing of that header. However, that would make the code more
 /// complex, so let's skip that for now.
 class HeaderIndexingPlanner {
-  absl::flat_hash_map<std::string, absl::flat_hash_set<HashValue>> hashesSoFar;
+  absl::flat_hash_map<AbsolutePath, absl::flat_hash_set<HashValue>> hashesSoFar;
+  const ProjectRootPath &projectRootPath;
 
 public:
-  HeaderIndexingPlanner() = default;
+  HeaderIndexingPlanner(const ProjectRootPath &projectRootPath)
+    : hashesSoFar(), projectRootPath(projectRootPath) {}
   HeaderIndexingPlanner(HeaderIndexingPlanner &&) = default;
   HeaderIndexingPlanner(const HeaderIndexingPlanner &) = delete;
 
   void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
                       std::vector<std::string> &headersToBeEmitted) {
-    // Default initialization due to [..] is load-bearing.
+    absl::flat_hash_set<HashValue> emptyHashSet{};
     for (auto &header : semaResult.multiplyExpandedHeaders) {
-      auto &hashes = hashesSoFar[header.headerPath];
+      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(header.headerPath)), emptyHashSet});
+      auto &[path, hashes] = *it;
       for (auto hashValue : header.hashValues) {
         auto [_, inserted] = hashes.insert(hashValue);
         if (inserted) {
-          headersToBeEmitted.push_back(std::move(header.headerPath));
+          headersToBeEmitted.push_back(path.asStringRef());
         }
       }
     }
     for (auto &header : semaResult.singlyExpandedHeaders) {
-      auto &hashes = hashesSoFar[header.headerPath];
-      auto [_, inserted] = hashes.insert(header.hashValue);
+      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(header.headerPath)), emptyHashSet});
+      auto &[path, hashes] = *it;
+      auto [__, inserted] = hashes.insert(header.hashValue);
       if (inserted) {
-        headersToBeEmitted.push_back(std::move(header.headerPath));
+        headersToBeEmitted.push_back(path.asStringRef());
       }
     }
   }
 
-  bool isMultiplyIndexed(const std::string &relativePath) const {
-    auto it = this->hashesSoFar.find(relativePath);
+  bool isMultiplyIndexed(ProjectRootRelativePathRef relativePath) const {
+    auto absPath = this->projectRootPath.makeAbsolute(relativePath);
+    auto it = this->hashesSoFar.find(absPath);
     if (it == this->hashesSoFar.end()) {
-      ENFORCE(false, "found path '{}' with no recorded hashes", relativePath);
+      ENFORCE(false, "found path '{}' with no recorded hashes", relativePath.asStringView());
       return false;
     }
     return it->second.size() > 1;
@@ -492,7 +506,8 @@ public:
   Driver &operator=(const Driver &) = delete;
 
   Driver(std::string driverId, DriverOptions &&options)
-      : options(std::move(options)), id(driverId), compdbParser() {
+      : options(std::move(options)), id(driverId), planner(this->options.projectRootPath),
+        compdbParser() {
     auto &compdbPath = this->options.compdbPath;
     if (!compdbPath.is_absolute()) {
       // See FIXME(ref: clarify-root)
@@ -602,7 +617,7 @@ private:
       }
       for (auto &doc : *partialIndex.mutable_documents()) {
         bool isMultiplyIndexed =
-            this->planner.isMultiplyIndexed(doc.relative_path());
+            this->planner.isMultiplyIndexed(ProjectRootRelativePathRef{doc.relative_path()});
         builder.addDocument(std::move(doc), isMultiplyIndexed);
       }
       // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
