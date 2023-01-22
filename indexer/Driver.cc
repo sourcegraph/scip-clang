@@ -213,7 +213,7 @@ using ToBeScheduledWorkerId = ConsumeOnce<WorkerId>;
 
 /// Wrapper type that indicates a WorkerId was just marked idle,
 /// and hence can be directly be assigned a job using
-/// \c Scheduler::createJobAndScheduleOnWorker
+/// \c Scheduler::createSubtaskAndScheduleOnWorker
 struct LatestIdleWorkerId {
   WorkerId id;
 };
@@ -285,7 +285,7 @@ class Scheduler final {
   std::deque<unsigned> idleWorkers;
 
   /// Monotonically growing counter.
-  uint64_t nextJobId = 0;
+  uint32_t nextTaskId = 0;
   /// Monotonically growing map of all jobs that have been created so far.
   /// This number will generally be unrelated to \c compdbCommandCount
   /// because a single compilation database entry will typically lead
@@ -355,7 +355,7 @@ public:
           auto oldJobId = workerInfo.currentlyProcessing.value();
           bool erased = this->wipJobs.erase(oldJobId);
           ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
-          spdlog::warn("skipping job {} due to worker timeout", oldJobId.id());
+          spdlog::warn("skipping job {} due to worker timeout", oldJobId.debugString());
           auto newHandle =
               killAndRespawn(std::move(workerInfo.processHandle), workerId);
           workerInfo = WorkerInfo(std::move(newHandle));
@@ -372,17 +372,16 @@ public:
     }
   }
 
-  void queueJob(IndexJob &&j) {
-    auto jobId = JobId(this->nextJobId);
-    this->nextJobId++;
+  void queueNewTask(IndexJob &&j) {
+    auto jobId = JobId::newTask(this->nextTaskId);
+    this->nextTaskId++;
     this->allJobList.insert({jobId, std::move(j)});
     this->pendingJobs.push_back(jobId);
   }
 
   [[nodiscard]] IndexJobRequest
-  createJobAndScheduleOnWorker(LatestIdleWorkerId workerId, IndexJob &&job) {
-    auto jobId = JobId(this->nextJobId);
-    this->nextJobId++;
+  createSubtaskAndScheduleOnWorker(LatestIdleWorkerId workerId, JobId previousId, IndexJob &&job) {
+    auto jobId = previousId.nextSubtask();
     this->allJobList.insert({jobId, std::move(job)});
     this->wipJobs.insert(jobId);
     ENFORCE(!this->idleWorkers.empty());
@@ -397,7 +396,7 @@ public:
     ENFORCE(absl::c_find(this->idleWorkers, workerId.getValueNonConsuming())
             == this->idleWorkers.end());
     // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
-    spdlog::debug("assigning jobId {} to worker {}", jobId.id(),
+    spdlog::debug("assigning jobId {} to worker {}", jobId.debugString(),
                   workerId.getValueNonConsuming());
     ENFORCE(this->wipJobs.contains(jobId),
             "should've marked job WIP before scheduling");
@@ -660,7 +659,7 @@ private:
     std::vector<clang::tooling::CompileCommand> commands{};
     this->compdbParser.parseMore(commands);
     for (auto &command : commands) {
-      this->scheduler.queueJob(
+      this->scheduler.queueNewTask(
           IndexJob{IndexJob::Kind::SemanticAnalysis,
                    SemanticAnalysisJobDetails{std::move(command)},
                    EmitIndexJobDetails{}});
@@ -744,8 +743,9 @@ private:
       std::vector<AbsolutePath> filesToBeIndexed{};
       this->planner.saveSemaResult(std::move(semaResult), filesToBeIndexed);
       auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
-      queue.send(this->scheduler.createJobAndScheduleOnWorker(
+      queue.send(this->scheduler.createSubtaskAndScheduleOnWorker(
           latestIdleWorkerId,
+          response.jobId,
           IndexJob{
               .kind = IndexJob::Kind::EmitIndex,
               .emitIndex = EmitIndexJobDetails{std::move(filesToBeIndexed)},

@@ -23,28 +23,40 @@ std::string driverToWorkerQueueName(std::string_view driverId,
 std::string workerToDriverQueueName(std::string_view driverId);
 
 class JobId {
-  uint64_t _id;
+  // Corresponds 1-1 with an entry in a compilation database.
+  uint32_t _taskId;
+  uint32_t subtaskId;
 
-  constexpr static uint64_t SHUTDOWN_VALUE = UINT64_MAX;
+  constexpr static uint32_t SHUTDOWN_VALUE = UINT32_MAX;
+  JobId(uint32_t taskId, uint32_t subtaskId) : _taskId(taskId), subtaskId(subtaskId) {}
 
 public:
-  JobId() : _id(SHUTDOWN_VALUE) {}
+  JobId() : _taskId(SHUTDOWN_VALUE), subtaskId(SHUTDOWN_VALUE) {}
   JobId(JobId &&) = default;
   JobId &operator=(JobId &&) = default;
   JobId(const JobId &) = default;
   JobId &operator=(const JobId &) = default;
-  JobId(uint64_t id) : _id(id) {}
+  static JobId newTask(uint32_t taskId) { return JobId{taskId, 0}; }
+  JobId nextSubtask() { return JobId(this->_taskId, this->subtaskId + 1); }
 
-  DERIVE_HASH_1(JobId, self._id)
+  uint32_t taskId() const { return this->_taskId; }
+
+private:
+  uint64_t to64Bit() const { return (uint64_t(this->_taskId) << 32) + uint64_t(this->subtaskId); }
+  static JobId from64Bit(uint64_t v) { return JobId(v >> 32, static_cast<uint32_t>(v)); }
+
+public:
+  DERIVE_HASH_1(JobId, self.to64Bit())
   DERIVE_EQ_ALL(JobId)
 
-  uint64_t id() const {
-    return this->_id;
+  static const JobId Shutdown() {
+    return JobId();
   }
 
-  static const JobId Shutdown() {
-    return JobId(SHUTDOWN_VALUE);
-  }
+  static llvm::json::Value toJSON(const JobId &);
+  static bool fromJSON(const llvm::json::Value &, JobId &, llvm::json::Path);
+
+  std::string debugString() const;
 };
 SERIALIZABLE(JobId)
 

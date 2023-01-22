@@ -859,7 +859,7 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
 
   StdPath outputPath =
       (this->options.temporaryOutputDir
-       / fmt::format("job-{}-worker-{}.index.scip", emitIndexRequestId.id(),
+       / fmt::format("job-{}-worker-{}.index.scip", emitIndexRequestId.taskId(),
                      this->ipcOptions().workerId));
   this->emitIndex(std::move(scipIndex), outputPath);
   EmitIndexJobResult emitIndexResult{AbsolutePath{outputPath.string()}};
@@ -925,7 +925,7 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
     spdlog::debug("shutting down");
     return Status::Shutdown;
   }
-  spdlog::debug("received job {}", request.id.id());
+  spdlog::debug("received job {}", request.id.debugString());
   this->triggerFaultIfApplicable();
   return Status::OK;
 }

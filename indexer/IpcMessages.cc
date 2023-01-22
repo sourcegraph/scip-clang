@@ -21,17 +21,28 @@ std::string workerToDriverQueueName(std::string_view driverId) {
   return fmt::format("scip-clang-{}-worker-send", driverId);
 }
 
-llvm::json::Value toJSON(const JobId &jobId) {
-  return llvm::json::Value(jobId.id());
+llvm::json::Value JobId::toJSON(const JobId &jobId) {
+  return llvm::json::Value(jobId.to64Bit());
 }
-bool fromJSON(const llvm::json::Value &value, JobId &jobId,
-              llvm::json::Path path) {
+llvm::json::Value toJSON(const JobId &jobId) {
+  return JobId::toJSON(jobId);
+}
+bool JobId::fromJSON(const llvm::json::Value &value, JobId &jobId,
+                     llvm::json::Path path) {
   if (auto uint = value.getAsUINT64()) {
-    jobId = JobId(uint.value());
+    jobId = JobId::from64Bit(uint.value());
     return true;
   }
   path.report("expected uint64_t for job");
   return false;
+}
+bool fromJSON(const llvm::json::Value &value, JobId &jobId,
+              llvm::json::Path path) {
+  return JobId::fromJSON(value, jobId, path);
+}
+
+std::string JobId::debugString() const {
+  return fmt::format("{}.{}", this->_taskId, this->subtaskId);
 }
 
 llvm::json::Value toJSON(const IndexJob::Kind &kind) {
