@@ -828,6 +828,8 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     IndexJobRequest &&semanticAnalysisRequest) {
   SemanticAnalysisJobResult semaResult{};
   auto semaRequestId = semanticAnalysisRequest.id;
+  auto tuMainFilePath =
+      semanticAnalysisRequest.job.semanticAnalysis.command.Filename;
   Worker::ReceiveStatus innerStatus;
   JobId emitIndexRequestId;
   unsigned callbackInvoked = 0;
@@ -852,7 +854,9 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   scip::Index scipIndex{};
   auto &semaDetails = semanticAnalysisRequest.job.semanticAnalysis;
   this->processTranslationUnit(std::move(semaDetails), callback, scipIndex);
-  ENFORCE(callbackInvoked == 1);
+  ENFORCE(callbackInvoked == 1,
+          "callbackInvoked = {} for TU with main file '{}'",
+          callbackInvoked, tuMainFilePath);
   if (innerStatus != ReceiveStatus::OK) {
     return innerStatus;
   }
