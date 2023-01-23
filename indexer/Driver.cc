@@ -15,6 +15,7 @@
 
 #include "indexer/Enforce.h" // Defines ENFORCE required by rapidjson headers
 
+#include "absl/strings/str_join.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -738,6 +739,9 @@ private:
     args.push_back(fmt::format("--driver-id={}", this->id));
     args.push_back(fmt::format("--worker-id={}", workerId));
     this->options.addWorkerOptions(args, workerId);
+
+    spdlog::debug("spawning worker with arguments: '{}'",
+      absl::StrJoin(args, " "));
 
     boost::process::child worker(args, boost::process::std_out > stdout);
     spdlog::debug("worker info running {}, pid = {}", worker.running(),
