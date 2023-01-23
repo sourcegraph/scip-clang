@@ -333,6 +333,29 @@ public:
     this->checkInvariants();
   }
 
+  void logJobSkip(JobId jobId) const {
+    spdlog::info("the worker was {}", [&]() -> std::string {
+      auto it = this->allJobList.find(jobId);
+      ENFORCE(it != this->allJobList.end());
+      switch (it->second.kind) {
+      case IndexJob::Kind::SemanticAnalysis:
+        return fmt::format("running semantic analysis for '{}'", it->second.semanticAnalysis.command.Filename);
+      case IndexJob::Kind::EmitIndex:
+        auto &paths = it->second.emitIndex.filesToBeIndexed;
+        auto pathIt = absl::c_find_if(paths,
+          [](const AbsolutePath &p) -> bool {
+            auto &sv = p.asStringRef();
+            return sv.ends_with(".c") || sv.ends_with(".cc")
+              || sv.ends_with(".cxx") || sv.ends_with(".cpp");
+          });
+        if (pathIt != paths.end()) {
+          return fmt::format("emitting an index for '{}'", pathIt->asStringRef());
+        }
+        return "emitting a partial index";
+      }
+    }());
+  }
+
   /// Kills all workers which started before \p startedBefore and respawns them.
   ///
   /// \p killAndRespawn should not call back into the Scheduler (to make
@@ -356,6 +379,7 @@ public:
           bool erased = this->wipJobs.erase(oldJobId);
           ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
           spdlog::warn("skipping job {} due to worker timeout", oldJobId.debugString());
+          this->logJobSkip(oldJobId);
           auto newHandle =
               killAndRespawn(std::move(workerInfo.processHandle), workerId);
           workerInfo = WorkerInfo(std::move(newHandle));
