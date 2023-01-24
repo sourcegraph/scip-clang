@@ -20,6 +20,9 @@
    transparently.
 
 Bazel manages the C++ toolchain, so it doesn't need to be downloaded separately.
+(For unclear reasons, Bazel still requires
+a host toolchain to be present for configuring _something_
+but it will not be used for building the code in this project.)
 
 ## Building
 
@@ -30,8 +33,6 @@ Bazel manages the C++ toolchain, so it doesn't need to be downloaded separately.
 bazel build //... --spawn_strategy=local --config=dev
 
 # Linux
-export CC=clang
-export CXX=clang++
 bazel build //... --config=dev
 ```
 
@@ -84,9 +85,10 @@ need to reload the editor).
 ### UBSan stacktraces
 
 The default mode of UBSan will not print stack traces on failures.
-I recommend maintaining a parallel build of LLVM at the same commit
-as in [setup.bzl](setup.bzl), which will provide `llvm-symbolizer`
-that is needed by UBSan for printing stack traces.
+I recommend maintaining a parallel build of LLVM
+at the same commit as in [fetch_deps.bzl](/fetch_deps.bzl).
+UBSan needs a `llvm-symbolizer` binary on `PATH`
+to print stack traces, which can provided via the separate build.
 
 ```bash
 PATH="$PWD/../llvm-project/build/bin:$PATH" UBSAN_OPTIONS=print_stacktrace=1 <scip-clang invocation>
@@ -106,12 +108,16 @@ If you want to attach a debugger, run the worker directly instead.
 
 1. First, run the original `scip-clang` invocation with `--log-level=debug`
    and a short timeout (say `--receive-timeout-seconds=10`).
-   This will print job ids (`<compdb-index>.<subtask-index>`).
+   This will print job ids (`<compdb-index>.<subtask-index>`)
+   around when a task is being processed.
 2. Subset out the original compilation database using `jq` or similar.
     ```bash
     jq '[.[<compdb-index>]]' compile_commands.json > bad.json
     ```
-3. Run `scip-clang --worker-mode=compdb --compdb-path bad.json`.
+3. Run `scip-clang --worker-mode=compdb --compdb-path bad.json`
+   (the original `scip-clang` invocation will have printed more arguments
+   which were passed to the worker, but most of them
+   should be unnecessary).
 
 If you have not used LLDB before, check out this
 [LLDB cheat sheet](https://www.nesono.com/sites/default/files/lldb%20cheat%20sheet.pdf).
