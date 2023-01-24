@@ -2,6 +2,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 _BAZEL_SKYLIB_VERSION = "1.3.0"
 _PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
+_BAZEL_TOOLCHAIN_VERSION = "0.8.2"
 _RULES_BOOST_COMMIT = "e83dfef18d91a3e35c8eac9b9aeb1444473c0efd"
 _LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec"  # Keep in sync with Version.h
 _ABSL_COMMIT = "9a2c7bf98fa2482d0cbba727dcc4499e6e7c5ee2"
@@ -18,7 +19,7 @@ _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 _DOCTEST_VERSION = "2.4.9"
 _DTL_VERSION = "1.20"
 
-def scip_clang_rule_repositories():
+def fetch_direct_dependencies():
     http_archive(
         name = "bazel_skylib",
         sha256 = "74d544d96f4a5bb630d465ca8bbcfe231e3594e5aae57e1edbf17a6eb3ca2506",
@@ -33,6 +34,15 @@ def scip_clang_rule_repositories():
         sha256 = "b4a3b45dc4202e2b3e34e3bc49d2b5b37295fc23ea58d88fb9e01f3642ad9b55",
         strip_prefix = "platforms-%s" % _PLATFORMS_COMMIT,
         urls = ["https://github.com/bazelbuild/platforms/archive/%s.zip" % _PLATFORMS_COMMIT],
+    )
+
+    http_archive(
+        name = "com_grail_bazel_toolchain",
+        sha256 = "c4436850f2edece101371b56971a760aee4b65c0800d55a8b1b8e3f52296ebdd",
+        strip_prefix = "bazel-toolchain-%s" % _BAZEL_TOOLCHAIN_VERSION,
+        urls = [
+            "https://github.com/grailbio/bazel-toolchain/archive/refs/tags/%s.zip" % _BAZEL_TOOLCHAIN_VERSION,
+        ],
     )
 
     http_archive(
