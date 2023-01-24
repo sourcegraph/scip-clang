@@ -4,6 +4,9 @@ build --cxxopt="-std=c++20" --host_cxxopt="-std=c++20" --client_env=BAZEL_CXXOPT
 # We're using C++20 to access new methods on string_view
 # and operator<=> which simplifies comparisons
 
+# Per grailbio/bazel-toolchain docs
+build --incompatible_enable_cc_toolchain_resolution
+
 build --copt="-Wall" --copt="-Wextra" --copt="-Wwrite-strings" --copt="-Wcast-qual" --copt="-Wmissing-field-initializers" --copt="-Wimplicit-fallthrough" --copt="-Wcovered-switch-default" --copt="-Wsuggest-override" --copt="-Wstring-concatenation" --copt="-Wstring-conversion" --copt="-Wmisleading-indentation"
 
 # For dependencies with .BUILD files in third_party, prefer adding flags there

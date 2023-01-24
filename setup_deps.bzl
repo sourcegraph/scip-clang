@@ -6,7 +6,7 @@ load("@llvm_upstream//utils/bazel:terminfo.bzl", "llvm_terminfo_disable")
 load("@llvm_upstream//utils/bazel:zlib.bzl", "llvm_zlib_external")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 
-def scip_clang_dependencies():
+def setup_dependencies():
     bazel_skylib_workspace()
     boost_deps()
     bazel_compdb_deps()
