@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "spdlog/spdlog.h"
+
 #include "indexer/os/Os.h"
 
 namespace scip_clang {
@@ -14,7 +16,8 @@ std::string exec(std::string cmd) {
   std::string result;
   std::shared_ptr<FILE> pipe(popen(cmd.c_str(), "r"), pclose);
   if (!pipe) {
-    throw std::runtime_error("popen() failed!");
+    spdlog::error("popen() failed: {}", cmd.c_str());
+    std::exit(EXIT_FAILURE);
   }
   while (feof(pipe.get()) == 0) {
     if (fgets(buffer.data(), 128, pipe.get()) != nullptr) {
