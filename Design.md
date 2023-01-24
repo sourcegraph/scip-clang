@@ -46,7 +46,7 @@ by a significant amount for an extended period of time.
 
 ### Disk I/O
 
-Workers write out SCIP Documents based on paths
+Workers write out partial SCIP indexes based on paths
 provided by the driver after completing an indexing job.
 This write is done after each job is complete,
 instead of after completing all jobs,
@@ -54,7 +54,7 @@ because it reduces RSS as well as the blast radius
 in case the worker gets killed or crashes later.
 
 After all indexing work is completed, the driver
-assembles the Documents into a SCIP Index.
+assembles the partial indexes into a full SCIP index.
 
 ### Bazel and distributed builds
 
@@ -69,12 +69,15 @@ because they would do redundant work.
 "Flattening" the job DAG would get rid of
 intermediate link jobs.)
 
-Each job could output a compressed archive
-separately containing the different Documents.
-The final merge step would unique the Documents,
+Each job could output a partial index,
+along with hashes (for faster de-duplication
+during the merge step).
+The final merge step would take these
+hashes and partial indexes
 and assemble them into an Index.
 
-NOTE: This functionality would not be part of an MVP.
+NOTE: As of Jan 24 2023, this functionality is planned
+for [post-MVP](https://github.com/sourcegraph/scip-clang/issues/26).
 
 ## Reducing work across headers
 
@@ -153,7 +156,7 @@ argument is inapplicable.
 We will do well-behavedness analysis on-the-fly,
 instead of breaking indexing up into two passes,
 where first we determine all the well-behaved headers
-and then perform the indexing work.
+(across all TUs) and then perform the indexing work.
 The reason to do this on-the-fly is that
 checking well-behavedness requires completing
 semantic analysis, and we should preserve the AST contexts
@@ -191,8 +194,8 @@ to succeed anyways.
 
 We can work around this by computing a hash of the content
 after expansion and send that for comparison.
-I'm not 100% sure if this will be enough,
-but I think it makes sense to try this first.
+Both Kythe and Apple Clang also use hashes,
+which provides confidence that this is overall the right strategy.
 
 <details>
 <summary>Correctness of hashing post-expansion bytes</summary>
