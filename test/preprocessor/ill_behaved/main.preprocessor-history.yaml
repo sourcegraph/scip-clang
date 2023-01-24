@@ -30,3 +30,12 @@ history:
     mix-context:     self path
     after-hash:      0x537C59600F370102
 ...
+---
+path:            main.cc
+hash:            0xDEF5A12720EECE42
+history:
+  - before-hash:     0x0
+    mixed-value:     main.cc
+    mix-context:     self path
+    after-hash:      0xDEF5A12720EECE42
+...

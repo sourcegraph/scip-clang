@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <thread>
 
 #include "boost/process/child.hpp"
@@ -22,7 +23,7 @@ using namespace std::chrono_literals;
 
 enum class Mode { Hang, Crash };
 
-std::string modeToString(Mode mode) {
+static std::string modeToString(Mode mode) {
   switch (mode) {
   case Mode::Hang:
     return "--hang";
@@ -31,7 +32,7 @@ std::string modeToString(Mode mode) {
   }
 }
 
-Mode modeFromString(const char *s) {
+static Mode modeFromString(const char *s) {
   if (std::strcmp(s, "--hang") == 0) {
     return Mode::Hang;
   }
@@ -39,16 +40,18 @@ Mode modeFromString(const char *s) {
   return Mode::Crash;
 }
 
-void crash() {
+[[noreturn]]
+static void crash() {
   const char *p = nullptr;
   asm volatile("" ::: "memory");
   fmt::print("Gonna crash now!\n");
   char x = *p;
   (void)x;
   fmt::print("Shouldn't be printed");
+  std::exit(EXIT_SUCCESS); // to satisfy [[noreturn]]
 }
 
-void toyWorkerMain(IpcOptions ipcOptions, Mode mode) {
+static void toyWorkerMain(IpcOptions ipcOptions, Mode mode) {
   auto queues = MessageQueuePair::forWorker(ipcOptions);
   IpcTestMessage msg;
   auto err = queues.driverToWorker.timedReceive(msg, ipcOptions.receiveTimeout);
@@ -66,7 +69,7 @@ void toyWorkerMain(IpcOptions ipcOptions, Mode mode) {
   }
 }
 
-void toyDriverMain(const char *testExecutablePath, IpcOptions ipcOptions,
+static void toyDriverMain(const char *testExecutablePath, IpcOptions ipcOptions,
                    Mode mode) {
   namespace boost_ip = boost::interprocess;
   auto d2w = scip_clang::driverToWorkerQueueName(ipcOptions.driverId,

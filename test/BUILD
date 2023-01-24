@@ -9,6 +9,7 @@ cc_binary(
         "//indexer:scip-clang-lib",
         "@boost//:process",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/functional:function_ref",
         "@cxxopts",
         "@doctest//doctest",
         "@doctest//doctest:custom_main",

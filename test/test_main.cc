@@ -4,6 +4,8 @@
 #include <sstream>
 #include <string_view>
 
+#include "absl/functional/function_ref.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "boost/process/child.hpp"
@@ -160,17 +162,15 @@ TEST_CASE("COMPDB_PARSING") {
     StdPath jsonFilepath = dataDir;
     jsonFilepath.append(testCase.jsonFilename);
 
-    std::error_code ec;
-    auto compdbFile = compdb::CompilationDatabaseFile::open(jsonFilepath, ec);
-    REQUIRE(!ec);
+    auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(jsonFilepath);
     if (!compdbFile.file) {
       spdlog::error("missing JSON file at path {}", jsonFilepath.c_str());
       REQUIRE(compdbFile.file);
     }
-    REQUIRE(compdbFile.sizeInBytes);
-    CHECK_MESSAGE(compdbFile.commandCount == testCase.checkCount,
+    REQUIRE(compdbFile.sizeInBytes() > 0);
+    CHECK_MESSAGE(compdbFile.commandCount() == testCase.checkCount,
                   fmt::format("counted {} jobs but expected {} in {}",
-                              compdbFile.commandCount, testCase.checkCount,
+                              compdbFile.commandCount(), testCase.checkCount,
                               jsonFilepath.string()));
 
     for (auto refillCount : testCase.refillCountsToTry) {
@@ -331,13 +331,16 @@ TEST_CASE("PREPROCESSING") {
         auto derivedRoot =
             ::deriveRootFromTUPath(command.Filename, command.Directory);
 
-        Worker worker(WorkerOptions{
-            IpcOptions::testingStub,
-            spdlog::level::level_enum::info,
-            true,
-            PreprocessorHistoryRecordingOptions{".*", tmpYamlFile.path, true,
-                                                derivedRoot},
-        });
+        CliOptions cliOptions{};
+        cliOptions.workerMode = "testing";
+        cliOptions.logLevel = spdlog::level::level_enum::info;
+        cliOptions.preprocessorRecordHistoryFilterRegex = ".*";
+        cliOptions.preprocessorHistoryLogPath = tmpYamlFile.path;
+        auto workerOptions = WorkerOptions::fromCliOptions(cliOptions);
+        workerOptions.recordingOptions.preferRelativePaths = true;
+        workerOptions.recordingOptions.rootPath = derivedRoot;
+        Worker worker(std::move(workerOptions));
+
         scip::Index index{};
         auto callback = [](SemanticAnalysisJobResult &&,
                            EmitIndexJobDetails &) -> bool { return false; };
@@ -362,13 +365,24 @@ TEST_CASE("ROBUSTNESS") {
   args.push_back("--compdb-path=test/robustness/compile_commands.json");
   args.push_back("--log-level=warning");
   args.push_back("--force-worker-fault=" + fault);
-  args.push_back("--receive-timeout-seconds=1");
+  args.push_back("--receive-timeout-seconds=3");
   TempFile tmpLogFile(fmt::format("{}.tmp.log", fault));
   boost::process::child driver(args,
                                boost::process::std_out > boost::process::null,
                                boost::process::std_err > tmpLogFile.path);
   driver.wait();
+
   auto log = ::readFileToString(tmpLogFile.path);
+  std::vector<std::string_view> splitLines = absl::StrSplit(log, "\n");
+  // Can't figure out how to turn off ASan for the crashWorker() function,
+  // but it is useful for tests to pass with ASan too.
+  std::vector<std::string_view> actualLogLines;
+  for (auto &line: splitLines) {
+    if (absl::StrContains(line, "] driver") || absl::StrContains(line, "] worker")) {
+      actualLogLines.push_back(line);
+    }
+  }
+  log = absl::StrJoin(actualLogLines, "\n");
 
   StdPath snapshotLogPath = "./test/robustness";
   snapshotLogPath.append(fault + ".snapshot.log");

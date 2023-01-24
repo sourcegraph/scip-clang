@@ -918,17 +918,23 @@ void Worker::flushStreams() {
   }
 }
 
+[[clang::optnone]]
+__attribute__((no_sanitize("undefined")))
+void crashWorker() {
+  const char *p = nullptr;
+  asm volatile("" ::: "memory");
+  spdlog::warn("about to crash");
+  char x = *p;
+  (void)x;
+}
+
 void Worker::triggerFaultIfApplicable() const {
   auto &fault = this->options.workerFault;
   if (fault.empty()) {
     return;
   }
   if (fault == "crash") {
-    const char *p = nullptr;
-    asm volatile("" ::: "memory");
-    spdlog::warn("about to crash");
-    char x = *p;
-    (void)x;
+    crashWorker();
   } else if (fault == "sleep") {
     spdlog::warn("about to sleep");
     std::this_thread::sleep_for(this->ipcOptions().receiveTimeout * 10);
