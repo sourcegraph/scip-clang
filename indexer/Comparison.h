@@ -47,7 +47,7 @@ inline std::strong_ordering comparisonToStrongOrdering(Comparison c) {
 template <typename C>
 static std::strong_ordering compareRange(const C &c1, const C &c2) {
   CMP_EXPR(c1.size(), c2.size());
-  for (size_t i = 0; i < c1.size(); ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(c1.size()); ++i) { //
     CMP_EXPR(c1[i], c2[i]);
   }
   return std::strong_ordering::equal;
@@ -56,7 +56,7 @@ static std::strong_ordering compareRange(const C &c1, const C &c2) {
 template <typename C, typename F>
 static std::strong_ordering compareRange(const C &c1, const C &c2, F f) {
   CMP_EXPR(c1.size(), c2.size());
-  for (size_t i = 0; i < c1.size(); ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(c1.size()); ++i) {
     CMP_CHECK(f(c1[i], c2[i]));
   }
   return std::strong_ordering::equal;

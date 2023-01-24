@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-bazel build //tools:compdb
+bazel build //tools:compdb --spawn_strategy=local --config=dev
 
 PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/.."
 

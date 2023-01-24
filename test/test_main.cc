@@ -12,7 +12,10 @@
 #include "boost/process/io.hpp"
 #include "cxxopts.hpp"
 #include "doctest/doctest.h"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsuggest-override"
 #include "dtl/dtl.hpp"
+#pragma clang diagnostic pop
 #include "spdlog/fmt/fmt.h"
 
 #include "clang/Tooling/CompilationDatabase.h"

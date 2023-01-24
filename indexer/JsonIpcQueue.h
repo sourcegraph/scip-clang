@@ -4,7 +4,10 @@
 #include <chrono>
 #include <system_error>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcovered-switch-default"
 #include "boost/interprocess/ipc/message_queue.hpp"
+#pragma clang diagnostic pop
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/Error.h"
