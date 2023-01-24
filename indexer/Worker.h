@@ -7,13 +7,14 @@
 #include <utility>
 #include <vector>
 
-#include "Path.h"
 #include "absl/functional/function_ref.h"
 #include "spdlog/fwd.h"
 
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
+#include "clang/Tooling/CompilationDatabase.h"
 
+#include "indexer/Path.h"
 #include "indexer/CliOptions.h"
 #include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
@@ -40,9 +41,22 @@ struct PreprocessorHistoryRecordingOptions {
   std::string rootPath;
 };
 
+enum class WorkerMode {
+  /// The worker communicates with the driver over IPC (default)
+  Ipc,
+  /// The worker tries to process a compilation database directly (dev-only).
+  Compdb,
+  /// The worker will have methods called by testing code.
+  Testing,
+};
+
 struct WorkerOptions {
   ProjectRootPath projectRootPath;
-  IpcOptions ipcOptions;
+
+  WorkerMode mode;
+  IpcOptions ipcOptions; // only valid if mode == Ipc
+  StdPath compdbPath;    // only valid if mode == Compdb
+
   spdlog::level::level_enum logLevel;
   bool deterministic;
   PreprocessorHistoryRecordingOptions recordingOptions;
@@ -64,8 +78,13 @@ using WorkerCallback = absl::FunctionRef<bool(SemanticAnalysisJobResult &&,
 
 class Worker final {
   WorkerOptions options;
-  // Non-null in actual builds, null in testing.
+
+  // Non-null iff options.mode == Ipc
   std::unique_ptr<MessageQueuePair> messageQueues;
+
+  // Set iff options.mode == Compdb
+  std::vector<clang::tooling::CompileCommand> compileCommands;
+  size_t commandIndex;
 
   /// The llvm::yaml::Output object doesn't take ownership
   /// of the underlying stream, so hold it separately.

@@ -21,9 +21,6 @@ struct IpcOptions {
   std::chrono::seconds receiveTimeout;
   std::string driverId;
   uint64_t workerId;
-
-  static IpcOptions testingStub;
-  bool isTestingStub() const;
 };
 
 struct CliOptions {
@@ -48,7 +45,7 @@ struct CliOptions {
 
   // Worker-specific options
 
-  bool isWorker;
+  std::string workerMode;
 
   std::string preprocessorHistoryLogPath;
 

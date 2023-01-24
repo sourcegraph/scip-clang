@@ -37,7 +37,7 @@ public:
   JobId(const JobId &) = default;
   JobId &operator=(const JobId &) = default;
   static JobId newTask(uint32_t taskId) { return JobId{taskId, 0}; }
-  JobId nextSubtask() { return JobId(this->_taskId, this->subtaskId + 1); }
+  JobId nextSubtask() const { return JobId(this->_taskId, this->subtaskId + 1); }
 
   uint32_t taskId() const { return this->_taskId; }
 

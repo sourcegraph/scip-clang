@@ -80,9 +80,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "[worker-only] Path to log preprocessor history, if applicable.",
     cxxopts::value<std::string>(cliOptions.preprocessorHistoryLogPath));
   parser.add_options("Internal")(
-    "worker",
-    "[worker-only] Spawn an indexing worker instead of invoking the driver directly",
-    cxxopts::value<bool>(cliOptions.isWorker));
+    "worker-mode",
+    "[worker-only] Spawn an indexing worker instead of invoking the driver directly."
+    " One of 'ipc', 'compdb' or 'testing'.",
+    cxxopts::value<std::string>(cliOptions.workerMode)->default_value(""));
   parser.add_options("Internal")(
     "driver-id",
     "[worker-only] An opaque ID for the driver.",
@@ -136,6 +137,12 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
                  level);
   }
 
+  if (!cliOptions.workerMode.empty() && cliOptions.workerMode != "ipc"
+      && cliOptions.workerMode != "compdb" && cliOptions.workerMode != "testing") {
+    spdlog::error("--worker-mode must be 'ipc', 'compdb' or 'testing'");
+    std::exit(EXIT_FAILURE);
+  }
+
   cliOptions.receiveTimeout =
       std::chrono::seconds(result["receive-timeout-seconds"].as<uint32_t>());
 
@@ -162,12 +169,13 @@ static void initializeGlobalLogger(std::string name,
 int main(int argc, char *argv[]) {
   scip_clang::initializeSymbolizer(argv[0]);
   auto cliOptions = parseArguments(argc, argv);
-  auto loggerName = cliOptions.isWorker
+  bool isWorker = !cliOptions.workerMode.empty();
+  auto loggerName = isWorker
                         ? fmt::format("worker {}", cliOptions.workerId)
                         : "driver";
   initializeGlobalLogger(loggerName, cliOptions.logLevel,
                          !cliOptions.workerFault.empty());
-  if (cliOptions.isWorker) {
+  if (isWorker) {
     return scip_clang::workerMain(std::move(cliOptions));
   }
   return scip_clang::driverMain(std::move(cliOptions));

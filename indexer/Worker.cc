@@ -5,6 +5,7 @@
 #include <fstream>
 #include <ios>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <string_view>
 #include <thread>
@@ -29,6 +30,7 @@
 
 #include "scip/scip.pb.h"
 
+#include "indexer/CompilationDatabase.h"
 #include "indexer/CliOptions.h"
 #include "indexer/Comparison.h"
 #include "indexer/DebugHelpers.h"
@@ -712,8 +714,21 @@ public:
 
 WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
   ProjectRootPath projectRootPath{AbsolutePath{std::filesystem::current_path().string()}};
+  WorkerMode mode;
+  IpcOptions ipcOptions;
+  StdPath compdbPath;
+  if (cliOptions.workerMode == "ipc") {
+    mode = WorkerMode::Ipc;
+    ipcOptions = cliOptions.ipcOptions();
+  } else if (cliOptions.workerMode == "compdb") {
+    mode = WorkerMode::Compdb;
+    compdbPath = StdPath(cliOptions.compdbPath);
+  } else {
+    ENFORCE(cliOptions.workerMode == "testing");
+    mode = WorkerMode::Testing;
+  }
   return WorkerOptions{projectRootPath,
-                       cliOptions.ipcOptions(),
+                       mode, ipcOptions, compdbPath,
                        cliOptions.logLevel,
                        cliOptions.deterministic,
                        PreprocessorHistoryRecordingOptions{
@@ -724,13 +739,26 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
 }
 
 Worker::Worker(WorkerOptions &&options)
-    : options(std::move(options)),
-      messageQueues(
-          this->options.ipcOptions.isTestingStub()
-              ? nullptr
-              : std::make_unique<MessageQueuePair>(
-                  MessageQueuePair::forWorker(this->options.ipcOptions))),
-      recorder() {
+    : options(std::move(options)), messageQueues(),
+      compileCommands(), commandIndex(0), recorder() {
+  switch (this->options.mode) {
+  case WorkerMode::Ipc:
+    this->messageQueues = std::make_unique<MessageQueuePair>(
+                  MessageQueuePair::forWorker(this->options.ipcOptions));
+    break;
+  case WorkerMode::Compdb: {
+    auto compdbFile =
+        compdb::CompilationDatabaseFile::openAndExitOnErrors(this->options.compdbPath);
+    compdb::ResumableParser parser{};
+    parser.initialize(compdbFile, std::numeric_limits<size_t>::max());
+    parser.parseMore(this->compileCommands);
+    std::fclose(compdbFile.file);
+    break;
+  }
+  case WorkerMode::Testing:
+    break;
+  }
+
   auto &recordingOptions = this->options.recordingOptions;
   HeaderFilter filter(std::string(recordingOptions.filterRegex));
   if (filter.isIdentity()) {
@@ -792,16 +820,16 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
   auto frontendActionFactory =
       IndexerFrontendActionFactory(preprocessorOptions, astConsumerOptions, scipIndex);
 
-  clang::tooling::ToolInvocation Invocation(
+  clang::tooling::ToolInvocation invocation(
       std::move(args), &frontendActionFactory, fileManager.get(),
       std::make_shared<clang::PCHContainerOperations>());
 
   IndexerDiagnosticConsumer diagnosticConsumer;
-  Invocation.setDiagnosticConsumer(&diagnosticConsumer);
+  invocation.setDiagnosticConsumer(&diagnosticConsumer);
 
   {
     LogTimerRAII timer(fmt::format("invocation for {}", job.command.Filename));
-    bool ranSuccessfully = Invocation.run();
+    bool ranSuccessfully = invocation.run();
     (void)ranSuccessfully; // FIXME(ref: surface-diagnostics)
   }
 }
@@ -819,6 +847,7 @@ void Worker::emitIndex(scip::Index &&scipIndex, const StdPath &outputPath) {
 }
 
 void Worker::sendResult(JobId requestId, IndexJobResult &&result) {
+  ENFORCE(this->options.mode == WorkerMode::Ipc);
   this->messageQueues->workerToDriver.send(IndexJobResponse{
       this->ipcOptions().workerId, requestId, std::move(result)});
   this->flushStreams();
@@ -838,6 +867,15 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
        &callbackInvoked](SemanticAnalysisJobResult &&semaResult,
                          EmitIndexJobDetails &emitIndexDetails) -> bool {
     callbackInvoked++;
+    if (this->options.mode == WorkerMode::Compdb) {
+      for (auto &p: semaResult.wellBehavedFiles) {
+        emitIndexDetails.filesToBeIndexed.emplace_back(std::move(p.path));
+      }
+      for (auto &p: semaResult.illBehavedFiles) {
+        emitIndexDetails.filesToBeIndexed.emplace_back(std::move(p.path));
+      }
+      return true;
+    }
     this->sendResult(semaRequestId,
                      IndexJobResult{.kind = IndexJob::Kind::SemanticAnalysis,
                                     .semanticAnalysis = std::move(semaResult)});
@@ -913,9 +951,24 @@ void Worker::triggerFaultIfApplicable() const {
 }
 
 Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
+  using Status = Worker::ReceiveStatus;
+
+  if (this->options.mode == WorkerMode::Compdb) {
+    if (this->commandIndex >= this->compileCommands.size()) {
+      return Status::Shutdown;
+    }
+    request.id = JobId::newTask(this->commandIndex);
+    auto &command = this->compileCommands[this->commandIndex];
+    ++this->commandIndex;
+    request.job = IndexJob{
+        .kind = IndexJob::Kind::SemanticAnalysis,
+        .semanticAnalysis = SemanticAnalysisJobDetails{command}};
+    return Status::OK;
+  }
+
+  ENFORCE(this->options.mode == WorkerMode::Ipc);
   auto recvError = this->messageQueues->driverToWorker.timedReceive(
       request, this->ipcOptions().receiveTimeout);
-  using Status = Worker::ReceiveStatus;
   if (recvError.isA<TimeoutError>()) {
     spdlog::error("timeout in worker; is the driver dead?... shutting down");
     return Status::DriverTimeout;
@@ -935,8 +988,7 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
 }
 
 void Worker::run() {
-  ENFORCE(this->messageQueues,
-          "Called Worker::run() while initializing worker in testing");
+  ENFORCE(this->options.mode != WorkerMode::Testing, "tests typically call method individually");
   [&]() {
     while (true) {
       IndexJobRequest request{};

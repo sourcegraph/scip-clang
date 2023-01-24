@@ -10,12 +10,6 @@
 
 namespace scip_clang {
 
-IpcOptions IpcOptions::testingStub = IpcOptions{.driverId = "testing"};
-
-bool IpcOptions::isTestingStub() const {
-  return this->driverId == "testing";
-}
-
 IpcOptions CliOptions::ipcOptions() const {
   return IpcOptions{this->receiveTimeout, this->driverId, this->workerId};
 }

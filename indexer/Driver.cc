@@ -707,23 +707,8 @@ private:
     std::error_code error;
     StdPath compdbStdPath{this->compdbPath().asStringRef()};
     auto compdbFile =
-        compdb::CompilationDatabaseFile::open(compdbStdPath, error);
-    if (!compdbFile.file) {
-      spdlog::error("failed to open {}: {}", this->compdbPath().asStringRef(),
-                    std::strerror(errno));
-      std::exit(EXIT_FAILURE);
-    }
-    if (error) {
-      spdlog::error("failed to read file size for compile_commands.json: {}",
-                    error.message());
-      std::exit(EXIT_FAILURE);
-    }
-    if (compdbFile.commandCount == 0) {
-      spdlog::error("compile_commands.json has 0 objects in outermost array; "
-                    "nothing to index");
-      std::exit(EXIT_FAILURE);
-    }
-    this->compdbCommandCount = compdbFile.commandCount;
+        compdb::CompilationDatabaseFile::openAndExitOnErrors(compdbStdPath);
+    this->compdbCommandCount = compdbFile.commandCount();
     this->options.numWorkers =
         std::min(this->compdbCommandCount, this->numWorkers());
     spdlog::debug("total {} compilation jobs", this->compdbCommandCount);
@@ -735,7 +720,7 @@ private:
   boost::process::child spawnWorker(WorkerId workerId) {
     std::vector<std::string> args;
     args.push_back(this->options.workerExecutablePath);
-    args.push_back("--worker");
+    args.push_back("--worker-mode=ipc");
     args.push_back(fmt::format("--driver-id={}", this->id));
     args.push_back(fmt::format("--worker-id={}", workerId));
     this->options.addWorkerOptions(args, workerId);
