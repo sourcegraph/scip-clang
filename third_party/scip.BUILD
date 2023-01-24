@@ -17,5 +17,6 @@ cc_library(
       # Generated code uses sprintf in some places, which
       # is deprecated on macOS
       "-Wno-deprecated-declarations",
+      "-Wno-covered-switch-default",
     ],
 )

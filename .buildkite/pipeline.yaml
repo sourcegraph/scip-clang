@@ -13,6 +13,9 @@ steps:
       export CC=clang-15
       export CXX=clang++-15
 
+      # TODO(def: test-with-sanitizers) Using --config=dev
+      # increases build time from 18min to 31min. Can we trim
+      # some options to keep a fast build while having sanitizers?
       bazel build //...
 
       # Don't use //... as that will also try to update snapshots
