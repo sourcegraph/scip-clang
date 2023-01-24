@@ -4,39 +4,35 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/JSON.h"
 
+#include "indexer/Comparison.h"
 #include "indexer/Derive.h"
 #include "indexer/Enforce.h"
 
 namespace scip_clang {
 
 class ProjectRootRelativePathRef {
-  std::string_view _data;
+  std::string_view value; // may be empty
 
 public:
-  ProjectRootRelativePathRef(std::string_view data) : _data(data) {
-    ENFORCE(data.size() > 0);
-    ENFORCE(data.front() != '/');
-  }
-  std::string_view data() const {
-    return this->_data;
+  ProjectRootRelativePathRef() = default;
+  explicit ProjectRootRelativePathRef(std::string_view);
+
+  std::string_view asStringView() const {
+    return this->value;
   }
 
-  DERIVE_HASH_1(ProjectRootRelativePathRef, self._data)
-  DERIVE_EQ_ALL(ProjectRootRelativePathRef)
+  DERIVE_HASH_CMP_NEWTYPE(ProjectRootRelativePathRef, value, CMP_STR)
 };
 
-class AbsolutePath;
-
-// Non-owning absolute path which is not necessarily null-terminated.
-// Meant to be used together with an interner like llvm::StringSaver.
 class AbsolutePathRef {
-  std::string_view _data;
+  std::string_view value; // is non-empty
 
-  AbsolutePathRef(std::string_view data) : _data(data) {}
-  friend AbsolutePath;
+  explicit AbsolutePathRef(std::string_view);
 
 public:
   AbsolutePathRef() = delete;
@@ -45,49 +41,72 @@ public:
   AbsolutePathRef(AbsolutePathRef &&) = default;
   AbsolutePathRef &operator=(AbsolutePathRef &&) = default;
 
-  static std::optional<AbsolutePathRef> tryFrom(std::string_view path);
-  static std::optional<AbsolutePathRef> tryFrom(llvm::StringRef path) {
-    return AbsolutePathRef::tryFrom(std::string_view(path.data(), path.size()));
-  }
+  static std::optional<AbsolutePathRef> tryFrom(std::string_view);
+  static std::optional<AbsolutePathRef> tryFrom(llvm::StringRef);
 
-  DERIVE_HASH_1(AbsolutePathRef, self._data)
+  DERIVE_HASH_1(AbsolutePathRef, self.value)
   DERIVE_EQ_ALL(AbsolutePathRef)
 
-  std::string_view data() const {
-    return this->_data;
+  std::string_view asStringView() const {
+    return this->value;
   }
 
   // Basic prefix-based implementation; does not handle lexical normalization.
   std::optional<std::string_view> makeRelative(AbsolutePathRef longerPath);
 };
 
+/// Typically used when referring to paths for files which may or may not
+/// be inside the project root. Otherwise, \c ProjectRootRelativePathRef
+/// should be used instead.
 class AbsolutePath {
-  std::string _data;
+  std::string value; // non-empty, but allow default constructor for avoiding
+                     // PITA as a hashmap key
 
 public:
-  AbsolutePath(AbsolutePathRef ref) : _data(ref.data()) {}
-  AbsolutePathRef asRef() const {
-    return AbsolutePathRef(std::string_view(this->_data));
+  AbsolutePath() = default;
+  AbsolutePath(AbsolutePath &&) = default;
+  AbsolutePath &operator=(AbsolutePath &&) = default;
+  // Allow copy constructor+assignment for use in hashmap key +
+  // (de)serialization. Avoid calling these otherwise.
+  AbsolutePath(const AbsolutePath &) = default;
+  AbsolutePath &operator=(const AbsolutePath &) = default;
+
+  explicit AbsolutePath(std::string &&value) : value(std::move(value)) {
+    ENFORCE(
+        AbsolutePathRef::tryFrom(std::string_view(this->value)).has_value());
   }
+
+  explicit AbsolutePath(AbsolutePathRef ref) : value(ref.asStringView()) {}
+
+  const std::string &asStringRef() const {
+    return this->value;
+  }
+
+  AbsolutePathRef asRef() const;
+
+  DERIVE_HASH_CMP_NEWTYPE(AbsolutePath, value, CMP_STR)
+  static llvm::json::Value toJSON(const AbsolutePath &);
+  static bool fromJSON(const llvm::json::Value &value, AbsolutePath &,
+                       llvm::json::Path path);
 };
+SERIALIZABLE(AbsolutePath)
 
-// std::filesystem::path APIs allocate all over the place, and neither
-// LLVM nor Abseil have a dedicated path type, so roll our own. Sigh.
-class Path final {
-  std::string _data;
+class ProjectRootPath final {
+  AbsolutePath value;
 
 public:
-  Path() = default;
-  Path(Path &&) = default;
-  Path &operator=(Path &&) = default;
-  Path(const Path &) = delete;
-  Path &operator=(const Path &) = delete;
+  explicit ProjectRootPath(AbsolutePath &&value) : value(std::move(value)) {}
 
-  Path(std::string data) : _data(data) {}
-  const std::string_view asStringView() const {
-    return std::string_view(this->_data);
+  AbsolutePathRef asRef() const {
+    return this->value.asRef();
   }
-  const std::string_view filename() const;
+
+  /// If the result is non-null, it points to the storage of
+  /// \p maybePathInsideProject
+  std::optional<ProjectRootRelativePathRef>
+  tryMakeRelative(AbsolutePathRef maybePathInsideProject) const;
+
+  AbsolutePath makeAbsolute(ProjectRootRelativePathRef) const;
 };
 
 } // namespace scip_clang

@@ -40,12 +40,6 @@ public:
   }
 };
 
-class LogicError : public std::logic_error {
-public:
-  LogicError(const std::string &message) : logic_error(message) {}
-  LogicError(const char *message) : logic_error(message) {}
-};
-
 template <typename... TArgs>
 [[noreturn]] bool Exception::raise(fmt::format_string<TArgs...> fmt,
                                    TArgs &&...args) {
@@ -59,7 +53,7 @@ template <typename... TArgs>
   }
   Exception::printBacktrace();
   scip_clang::stopInDebugger();
-  throw LogicError(message);
+  std::exit(EXIT_FAILURE);
 }
 
 } // namespace scip_clang

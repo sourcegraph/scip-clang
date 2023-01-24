@@ -21,17 +21,28 @@ std::string workerToDriverQueueName(std::string_view driverId) {
   return fmt::format("scip-clang-{}-worker-send", driverId);
 }
 
-llvm::json::Value toJSON(const JobId &jobId) {
-  return llvm::json::Value(jobId.id());
+llvm::json::Value JobId::toJSON(const JobId &jobId) {
+  return llvm::json::Value(jobId.to64Bit());
 }
-bool fromJSON(const llvm::json::Value &value, JobId &jobId,
-              llvm::json::Path path) {
+llvm::json::Value toJSON(const JobId &jobId) {
+  return JobId::toJSON(jobId);
+}
+bool JobId::fromJSON(const llvm::json::Value &value, JobId &jobId,
+                     llvm::json::Path path) {
   if (auto uint = value.getAsUINT64()) {
-    jobId = JobId(uint.value());
+    jobId = JobId::from64Bit(uint.value());
     return true;
   }
   path.report("expected uint64_t for job");
   return false;
+}
+bool fromJSON(const llvm::json::Value &value, JobId &jobId,
+              llvm::json::Path path) {
+  return JobId::fromJSON(value, jobId, path);
+}
+
+std::string JobId::debugString() const {
+  return fmt::format("{}.{}", this->_taskId, this->subtaskId);
 }
 
 llvm::json::Value toJSON(const IndexJob::Kind &kind) {
@@ -116,15 +127,15 @@ bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
   return false;
 }
 
-DERIVE_SERIALIZE_1(scip_clang::EmitIndexJobResult, indexPartPath)
-DERIVE_SERIALIZE_1(scip_clang::EmitIndexJobDetails, headersToBeEmitted)
-DERIVE_SERIALIZE_1(scip_clang::IpcTestMessage, content)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobResult, indexPartPath)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobDetails, filesToBeIndexed)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::IpcTestMessage, content)
 
-DERIVE_SERIALIZE_2(scip_clang::HeaderInfo, headerPath, hashValue)
-DERIVE_SERIALIZE_2(scip_clang::HeaderInfoMulti, headerPath, hashValues)
+DERIVE_SERIALIZE_2(scip_clang::PreprocessedFileInfo, path, hashValue)
+DERIVE_SERIALIZE_2(scip_clang::PreprocessedFileInfoMulti, path, hashValues)
 DERIVE_SERIALIZE_2(scip_clang::IndexJobRequest, id, job)
-DERIVE_SERIALIZE_2(scip_clang::SemanticAnalysisJobResult, singlyExpandedHeaders,
-                   multiplyExpandedHeaders)
+DERIVE_SERIALIZE_2(scip_clang::SemanticAnalysisJobResult, wellBehavedFiles,
+                   illBehavedFiles)
 
 llvm::json::Value toJSON(const SemanticAnalysisJobDetails &val) {
   return llvm::json::Object{{"workdir", val.command.Directory},
@@ -142,15 +153,15 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
          && mapper.map("args", d.command.CommandLine);
 }
 
-std::strong_ordering operator<=>(const HeaderInfo &lhs, const HeaderInfo &rhs) {
+std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs, const PreprocessedFileInfo &rhs) {
   CMP_EXPR(lhs.hashValue, rhs.hashValue);
-  CMP_STR(lhs.headerPath, rhs.headerPath);
+  CMP_EXPR(lhs.path, rhs.path);
   return std::strong_ordering::equal;
 }
 
-std::strong_ordering operator<=>(const HeaderInfoMulti &lhs,
-                                 const HeaderInfoMulti &rhs) {
-  CMP_STR(lhs.headerPath, rhs.headerPath);
+std::strong_ordering operator<=>(const PreprocessedFileInfoMulti &lhs,
+                                 const PreprocessedFileInfoMulti &rhs) {
+  CMP_EXPR(lhs.path, rhs.path);
   CMP_RANGE(lhs.hashValues, rhs.hashValues);
   return std::strong_ordering::equal;
 }

@@ -63,7 +63,7 @@ static std::strong_ordering compareRange(const C &c1, const C &c2, F f) {
 }
 
 struct CmpStr {
-  const std::string &s;
+  std::string_view sv;
 
   friend std::strong_ordering operator<=>(const CmpStr &s1, const CmpStr &s2);
 };

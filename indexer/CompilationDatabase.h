@@ -3,7 +3,6 @@
 
 #include <cstdint>
 #include <cstdio>
-#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -22,12 +21,24 @@
 namespace scip_clang {
 namespace compdb {
 
-struct CompilationDatabaseFile {
-  FILE *file;
-  size_t sizeInBytes;
-  size_t commandCount;
+class CompilationDatabaseFile {
+  size_t _sizeInBytes;
+  size_t _commandCount;
 
-  static CompilationDatabaseFile open(const StdPath &path, std::error_code &ec);
+public:
+  FILE *file;
+
+  static CompilationDatabaseFile openAndExitOnErrors(const StdPath &path);
+
+  size_t sizeInBytes() const {
+    return this->_sizeInBytes;
+  }
+  size_t commandCount() const {
+    return this->_commandCount;
+  }
+
+private:
+  static CompilationDatabaseFile open(const StdPath &path, std::error_code &fileSizeError);
 };
 
 // Key to identify fields in a command object

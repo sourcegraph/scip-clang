@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <compare>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -14,6 +15,7 @@
 
 #include "indexer/Enforce.h" // Defines ENFORCE required by rapidjson headers
 
+#include "absl/strings/str_join.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -109,7 +111,8 @@ struct WorkerInfo {
 
 struct DriverOptions {
   std::string workerExecutablePath;
-  StdPath compdbPath;
+  ProjectRootPath projectRootPath;
+  AbsolutePath compdbPath;
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
   bool deterministic;
@@ -124,8 +127,8 @@ struct DriverOptions {
 
   explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
-        compdbPath(cliOpts.compdbPath), numWorkers(cliOpts.numWorkers),
-        receiveTimeout(cliOpts.receiveTimeout),
+        projectRootPath(AbsolutePath("/")), compdbPath(),
+        numWorkers(cliOpts.numWorkers), receiveTimeout(cliOpts.receiveTimeout),
         deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
@@ -134,6 +137,20 @@ struct DriverOptions {
         temporaryOutputDir(cliOpts.temporaryOutputDir),
         deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()),
         originalArgv(cliOpts.originalArgv) {
+
+    auto cwd = std::filesystem::current_path().string();
+    ENFORCE(llvm::sys::path::is_absolute(cwd),
+            "std::filesystem::current_path() returned non-absolute path '{}'",
+            cwd);
+    this->projectRootPath = ProjectRootPath{AbsolutePath{std::move(cwd)}};
+
+    if (llvm::sys::path::is_absolute(cliOpts.compdbPath)) {
+      this->compdbPath = AbsolutePath(std::string(cliOpts.compdbPath));
+    } else {
+      auto relPath = ProjectRootRelativePathRef(cliOpts.compdbPath);
+      this->compdbPath = this->projectRootPath.makeAbsolute(relPath);
+    }
+
     auto makeDirs = [](const StdPath &path, const char *name) {
       std::error_code error;
       std::filesystem::create_directories(path, error);
@@ -197,13 +214,13 @@ using ToBeScheduledWorkerId = ConsumeOnce<WorkerId>;
 
 /// Wrapper type that indicates a WorkerId was just marked idle,
 /// and hence can be directly be assigned a job using
-/// \c Scheduler::createJobAndScheduleOnWorker
+/// \c Scheduler::createSubtaskAndScheduleOnWorker
 struct LatestIdleWorkerId {
   WorkerId id;
 };
 
-/// Type that decides which headers to emit symbols and occurrences for
-/// given a set of header+hashes emitted by a worker.
+/// Type that decides which files to emit symbols and occurrences for
+/// given a set of paths+hashes emitted by a worker.
 ///
 /// NOTE(def: header-recovery) We are assuming here that we will be
 /// normally be able to successfully index a large fraction of code,
@@ -216,39 +233,46 @@ struct LatestIdleWorkerId {
 /// that header, and later spin up new indexing jobs which forced
 /// indexing of that header. However, that would make the code more
 /// complex, so let's skip that for now.
-class HeaderIndexingPlanner {
-  absl::flat_hash_map<std::string, absl::flat_hash_set<HashValue>> hashesSoFar;
+class FileIndexingPlanner {
+  absl::flat_hash_map<AbsolutePath, absl::flat_hash_set<HashValue>> hashesSoFar;
+  const ProjectRootPath &projectRootPath;
 
 public:
-  HeaderIndexingPlanner() = default;
-  HeaderIndexingPlanner(HeaderIndexingPlanner &&) = default;
-  HeaderIndexingPlanner(const HeaderIndexingPlanner &) = delete;
+  FileIndexingPlanner(const ProjectRootPath &projectRootPath)
+    : hashesSoFar(), projectRootPath(projectRootPath) {}
+  FileIndexingPlanner(FileIndexingPlanner &&) = default;
+  FileIndexingPlanner(const FileIndexingPlanner &) = delete;
 
   void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
-                      std::vector<std::string> &headersToBeEmitted) {
-    // Default initialization due to [..] is load-bearing.
-    for (auto &header : semaResult.multiplyExpandedHeaders) {
-      auto &hashes = hashesSoFar[header.headerPath];
-      for (auto hashValue : header.hashValues) {
+                      std::vector<AbsolutePath> &filesToBeIndexed) {
+    absl::flat_hash_set<HashValue> emptyHashSet{};
+    for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
+      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(fileInfoMulti.path)), emptyHashSet});
+      auto &[path, hashes] = *it;
+      bool addedFile = false;
+      for (auto hashValue : fileInfoMulti.hashValues) {
         auto [_, inserted] = hashes.insert(hashValue);
-        if (inserted) {
-          headersToBeEmitted.push_back(std::move(header.headerPath));
+        if (inserted && !addedFile) {
+          filesToBeIndexed.push_back(path); // deliberate copy
+          addedFile = true;
         }
       }
     }
-    for (auto &header : semaResult.singlyExpandedHeaders) {
-      auto &hashes = hashesSoFar[header.headerPath];
-      auto [_, inserted] = hashes.insert(header.hashValue);
+    for (auto &fileInfo : semaResult.wellBehavedFiles) {
+      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(fileInfo.path)), emptyHashSet});
+      auto &[path, hashes] = *it;
+      auto [__, inserted] = hashes.insert(fileInfo.hashValue);
       if (inserted) {
-        headersToBeEmitted.push_back(std::move(header.headerPath));
+        filesToBeIndexed.push_back(path); // deliberate copy
       }
     }
   }
 
-  bool isMultiplyIndexed(const std::string &relativePath) const {
-    auto it = this->hashesSoFar.find(relativePath);
+  bool isMultiplyIndexed(ProjectRootRelativePathRef relativePath) const {
+    auto absPath = this->projectRootPath.makeAbsolute(relativePath);
+    auto it = this->hashesSoFar.find(absPath);
     if (it == this->hashesSoFar.end()) {
-      ENFORCE(false, "found path '{}' with no recorded hashes", relativePath);
+      ENFORCE(false, "found path '{}' with no recorded hashes", relativePath.asStringView());
       return false;
     }
     return it->second.size() > 1;
@@ -262,7 +286,7 @@ class Scheduler final {
   std::deque<unsigned> idleWorkers;
 
   /// Monotonically growing counter.
-  uint64_t nextJobId = 0;
+  uint32_t nextTaskId = 0;
   /// Monotonically growing map of all jobs that have been created so far.
   /// This number will generally be unrelated to \c compdbCommandCount
   /// because a single compilation database entry will typically lead
@@ -310,6 +334,29 @@ public:
     this->checkInvariants();
   }
 
+  void logJobSkip(JobId jobId) const {
+    spdlog::info("the worker was {}", [&]() -> std::string {
+      auto it = this->allJobList.find(jobId);
+      ENFORCE(it != this->allJobList.end());
+      switch (it->second.kind) {
+      case IndexJob::Kind::SemanticAnalysis:
+        return fmt::format("running semantic analysis for '{}'", it->second.semanticAnalysis.command.Filename);
+      case IndexJob::Kind::EmitIndex:
+        auto &paths = it->second.emitIndex.filesToBeIndexed;
+        auto pathIt = absl::c_find_if(paths,
+          [](const AbsolutePath &p) -> bool {
+            auto &sv = p.asStringRef();
+            return sv.ends_with(".c") || sv.ends_with(".cc")
+              || sv.ends_with(".cxx") || sv.ends_with(".cpp");
+          });
+        if (pathIt != paths.end()) {
+          return fmt::format("emitting an index for '{}'", pathIt->asStringRef());
+        }
+        return "emitting a partial index";
+      }
+    }());
+  }
+
   /// Kills all workers which started before \p startedBefore and respawns them.
   ///
   /// \p killAndRespawn should not call back into the Scheduler (to make
@@ -332,7 +379,8 @@ public:
           auto oldJobId = workerInfo.currentlyProcessing.value();
           bool erased = this->wipJobs.erase(oldJobId);
           ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
-          spdlog::warn("skipping job {} due to worker timeout", oldJobId.id());
+          spdlog::warn("skipping job {} due to worker timeout", oldJobId.debugString());
+          this->logJobSkip(oldJobId);
           auto newHandle =
               killAndRespawn(std::move(workerInfo.processHandle), workerId);
           workerInfo = WorkerInfo(std::move(newHandle));
@@ -349,17 +397,16 @@ public:
     }
   }
 
-  void queueJob(IndexJob &&j) {
-    auto jobId = JobId(this->nextJobId);
-    this->nextJobId++;
+  void queueNewTask(IndexJob &&j) {
+    auto jobId = JobId::newTask(this->nextTaskId);
+    this->nextTaskId++;
     this->allJobList.insert({jobId, std::move(j)});
     this->pendingJobs.push_back(jobId);
   }
 
   [[nodiscard]] IndexJobRequest
-  createJobAndScheduleOnWorker(LatestIdleWorkerId workerId, IndexJob &&job) {
-    auto jobId = JobId(this->nextJobId);
-    this->nextJobId++;
+  createSubtaskAndScheduleOnWorker(LatestIdleWorkerId workerId, JobId previousId, IndexJob &&job) {
+    auto jobId = previousId.nextSubtask();
     this->allJobList.insert({jobId, std::move(job)});
     this->wipJobs.insert(jobId);
     ENFORCE(!this->idleWorkers.empty());
@@ -374,7 +421,7 @@ public:
     ENFORCE(absl::c_find(this->idleWorkers, workerId.getValueNonConsuming())
             == this->idleWorkers.end());
     // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
-    spdlog::debug("assigning jobId {} to worker {}", jobId.id(),
+    spdlog::debug("assigning jobId {} to worker {}", jobId.debugString(),
                   workerId.getValueNonConsuming());
     ENFORCE(this->wipJobs.contains(jobId),
             "should've marked job WIP before scheduling");
@@ -478,9 +525,9 @@ class Driver {
   std::string id;
   MessageQueues queues;
   Scheduler scheduler;
-  HeaderIndexingPlanner planner;
+  FileIndexingPlanner planner;
 
-  std::vector<Path> indexPartPaths;
+  std::vector<AbsolutePath> indexPartPaths;
 
   /// Total number of commands in the compilation database.
   size_t compdbCommandCount = 0;
@@ -491,15 +538,9 @@ public:
   Driver &operator=(const Driver &) = delete;
 
   Driver(std::string driverId, DriverOptions &&options)
-      : options(std::move(options)), id(driverId), compdbParser() {
-    auto &compdbPath = this->options.compdbPath;
-    if (!compdbPath.is_absolute()) {
-      // See FIXME(ref: clarify-root)
-      auto absPath = std::filesystem::current_path();
-      absPath /= compdbPath;
-      compdbPath = absPath;
-    }
-
+      : options(std::move(options)), id(driverId), scheduler(),
+        planner(this->options.projectRootPath), indexPartPaths(),
+        compdbParser() {
     MessageQueues::deleteIfPresent(this->id, this->numWorkers());
     this->queues = MessageQueues(this->id, this->numWorkers(),
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
@@ -525,14 +566,14 @@ public:
 
 private:
   void emitScipIndex() {
-    // See FIXME(ref: clarify-root)
-    auto indexScipPath = std::filesystem::current_path() / "index.scip";
-    std::ofstream outputStream(indexScipPath, std::ios_base::out
+    auto indexScipPath = this->options.projectRootPath.makeAbsolute(
+      ProjectRootRelativePathRef{"index.scip"});
+    std::ofstream outputStream(indexScipPath.asStringRef(), std::ios_base::out
                                                   | std::ios_base::binary
                                                   | std::ios_base::trunc);
     if (outputStream.fail()) {
       spdlog::error("failed to open '{}' for writing index ({})",
-                    indexScipPath.c_str(), std::strerror(errno));
+                    indexScipPath.asStringRef(), std::strerror(errno));
       std::exit(EXIT_FAILURE);
     }
 
@@ -540,11 +581,11 @@ private:
     if (this->options.deterministic) {
       // Sorting before merging so that mergeIndexParts can be const
       absl::c_sort(
-          this->indexPartPaths, [](const Path &p1, const Path &p2) -> bool {
-            auto cmp = cmp::compareStrings(p1.filename(), p2.filename());
-            ENFORCE(cmp != cmp::Equal, "2+ index parts have same path '{}'",
-                    p1.asStringView());
-            return cmp == cmp::Less;
+          this->indexPartPaths, [](const AbsolutePath &p1, const AbsolutePath &p2) -> bool {
+            auto cmp = p1 <=> p2;
+            ENFORCE(cmp != 0, "2+ index parts have same path '{}'",
+                    p1.asStringRef());
+            return cmp == std::strong_ordering::less;
           });
     }
     this->mergeIndexParts(fullIndex);
@@ -562,9 +603,9 @@ private:
     }
 
     scip::Metadata metadata;
-    metadata.set_project_root("file:/"
-                              + std::filesystem::current_path().string());
-    // ^ See FIXME(ref: clarify-root)
+    auto projectRootUnixStyle = llvm::sys::path::convert_to_slash(
+      this->options.projectRootPath.asRef().asStringView());
+    metadata.set_project_root("file:/" + projectRootUnixStyle);
     metadata.set_version(scip::UnspecifiedProtocolVersion);
     *metadata.mutable_tool_info() = std::move(toolInfo);
 
@@ -585,23 +626,23 @@ private:
 
     scip::IndexBuilder builder{fullIndex};
     // TODO: Measure how much time this is taking and parallelize if too slow.
-    for (auto &ownedPath : this->indexPartPaths) {
-      auto path = ownedPath.asStringView();
-      std::ifstream inputStream(std::string(path),
+    for (auto &indexPartAbsPath : this->indexPartPaths) {
+      auto &indexPartPath = indexPartAbsPath.asStringRef();
+      std::ifstream inputStream(indexPartPath,
                                 std::ios_base::in | std::ios_base::binary);
       if (inputStream.fail()) {
-        spdlog::warn("failed to open partial index at '{}' ({})", path,
+        spdlog::warn("failed to open partial index at '{}' ({})", indexPartPath,
                      std::strerror(errno));
         continue;
       }
       scip::Index partialIndex;
       if (!partialIndex.ParseFromIstream(&inputStream)) {
-        spdlog::warn("failed to parse partial index at '{}'", path);
+        spdlog::warn("failed to parse partial index at '{}'", indexPartPath);
         continue;
       }
       for (auto &doc : *partialIndex.mutable_documents()) {
         bool isMultiplyIndexed =
-            this->planner.isMultiplyIndexed(doc.relative_path());
+            this->planner.isMultiplyIndexed(ProjectRootRelativePathRef{doc.relative_path()});
         builder.addDocument(std::move(doc), isMultiplyIndexed);
       }
       // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
@@ -618,7 +659,7 @@ private:
   size_t numWorkers() const {
     return this->options.numWorkers;
   }
-  const StdPath &compdbPath() const {
+  const AbsolutePath &compdbPath() const {
     return this->options.compdbPath;
   }
   std::chrono::seconds receiveTimeout() const {
@@ -643,7 +684,7 @@ private:
     std::vector<clang::tooling::CompileCommand> commands{};
     this->compdbParser.parseMore(commands);
     for (auto &command : commands) {
-      this->scheduler.queueJob(
+      this->scheduler.queueNewTask(
           IndexJob{IndexJob::Kind::SemanticAnalysis,
                    SemanticAnalysisJobDetails{std::move(command)},
                    EmitIndexJobDetails{}});
@@ -664,24 +705,10 @@ private:
 
   FileGuard openCompilationDatabase() {
     std::error_code error;
+    StdPath compdbStdPath{this->compdbPath().asStringRef()};
     auto compdbFile =
-        compdb::CompilationDatabaseFile::open(this->compdbPath(), error);
-    if (!compdbFile.file) {
-      spdlog::error("failed to open {}: {}", this->compdbPath().string(),
-                    std::strerror(errno));
-      std::exit(EXIT_FAILURE);
-    }
-    if (error) {
-      spdlog::error("failed to read file size for compile_commands.json: {}",
-                    error.message());
-      std::exit(EXIT_FAILURE);
-    }
-    if (compdbFile.commandCount == 0) {
-      spdlog::error("compile_commands.json has 0 objects in outermost array; "
-                    "nothing to index");
-      std::exit(EXIT_FAILURE);
-    }
-    this->compdbCommandCount = compdbFile.commandCount;
+        compdb::CompilationDatabaseFile::openAndExitOnErrors(compdbStdPath);
+    this->compdbCommandCount = compdbFile.commandCount();
     this->options.numWorkers =
         std::min(this->compdbCommandCount, this->numWorkers());
     spdlog::debug("total {} compilation jobs", this->compdbCommandCount);
@@ -693,10 +720,13 @@ private:
   boost::process::child spawnWorker(WorkerId workerId) {
     std::vector<std::string> args;
     args.push_back(this->options.workerExecutablePath);
-    args.push_back("--worker");
+    args.push_back("--worker-mode=ipc");
     args.push_back(fmt::format("--driver-id={}", this->id));
     args.push_back(fmt::format("--worker-id={}", workerId));
     this->options.addWorkerOptions(args, workerId);
+
+    spdlog::debug("spawning worker with arguments: '{}'",
+      absl::StrJoin(args, " "));
 
     boost::process::child worker(args, boost::process::std_out > stdout);
     spdlog::debug("worker info running {}, pid = {}", worker.running(),
@@ -723,14 +753,15 @@ private:
     switch (response.result.kind) {
     case IndexJob::Kind::SemanticAnalysis: {
       auto &semaResult = response.result.semanticAnalysis;
-      std::vector<std::string> headersToBeEmitted{};
-      this->planner.saveSemaResult(std::move(semaResult), headersToBeEmitted);
+      std::vector<AbsolutePath> filesToBeIndexed{};
+      this->planner.saveSemaResult(std::move(semaResult), filesToBeIndexed);
       auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
-      queue.send(this->scheduler.createJobAndScheduleOnWorker(
+      queue.send(this->scheduler.createSubtaskAndScheduleOnWorker(
           latestIdleWorkerId,
+          response.jobId,
           IndexJob{
               .kind = IndexJob::Kind::EmitIndex,
-              .emitIndex = EmitIndexJobDetails{std::move(headersToBeEmitted)},
+              .emitIndex = EmitIndexJobDetails{std::move(filesToBeIndexed)},
           }));
       break;
     }

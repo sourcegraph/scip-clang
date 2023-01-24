@@ -16,7 +16,7 @@ const char *toString(clang::PPCallbacks::FileChangeReason reason);
 llvm::StringRef tryGetPath(const clang::SourceManager &sourceManager,
                            clang::FileID fileId);
 
-std::string formatPtr(void *ptr);
+std::string formatPtr(const void *ptr);
 
 } // namespace debug
 } // namespace scip_clang

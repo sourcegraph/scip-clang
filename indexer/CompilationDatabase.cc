@@ -342,25 +342,45 @@ bool CommandObjectHandler::reachedLimit() const {
 }
 
 CompilationDatabaseFile CompilationDatabaseFile::open(const StdPath &path,
-                                                      std::error_code &ec) {
+                                                      std::error_code &fileSizeError) {
   CompilationDatabaseFile compdbFile{};
   compdbFile.file = std::fopen(path.c_str(), "rb");
   if (!compdbFile.file) {
     return compdbFile;
   }
-  auto size = std::filesystem::file_size(path, ec);
-  if (ec) {
+  auto size = std::filesystem::file_size(path, fileSizeError);
+  if (fileSizeError) {
     return compdbFile;
   }
-  compdbFile.sizeInBytes = size;
-  compdbFile.commandCount =
-      validateAndCountJobs(compdbFile.sizeInBytes, compdbFile.file);
+  compdbFile._sizeInBytes = size;
+  compdbFile._commandCount =
+      validateAndCountJobs(compdbFile._sizeInBytes, compdbFile.file);
+  return compdbFile;
+}
+
+CompilationDatabaseFile CompilationDatabaseFile::openAndExitOnErrors(const StdPath &path) {
+  std::error_code fileSizeError;
+  auto compdbFile = CompilationDatabaseFile::open(path, fileSizeError);
+  if (!compdbFile.file) {
+    spdlog::error("failed to open '{}': {}", path.string(), std::strerror(errno));
+    std::exit(EXIT_FAILURE);
+  }
+  if (fileSizeError) {
+    spdlog::error("failed to read file size for '{}': {}", path.string(),
+                  fileSizeError.message());
+    std::exit(EXIT_FAILURE);
+  }
+  if (compdbFile.commandCount() == 0) {
+    spdlog::error("compile_commands.json has 0 objects in outermost array; "
+                  "nothing to index");
+    std::exit(EXIT_FAILURE);
+  }
   return compdbFile;
 }
 
 void ResumableParser::initialize(CompilationDatabaseFile compdb,
                                  size_t refillCount) {
-  auto averageJobSize = compdb.sizeInBytes / compdb.commandCount;
+  auto averageJobSize = compdb.sizeInBytes() / compdb.commandCount();
   // Some customers have averageJobSize = 150KiB.
   // If numWorkers == 300 (very high core count machine),
   // then the computed hint will be ~88MiB. The 128MiB is rounded up from 88MiB.

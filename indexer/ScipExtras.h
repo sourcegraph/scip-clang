@@ -9,9 +9,11 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "spdlog/fmt/fmt.h"
 
 #include "scip/scip.pb.h"
 
+#include "indexer/Comparison.h"
 #include "indexer/Derive.h"
 #include "indexer/Enforce.h"
 #include "indexer/RAII.h"
@@ -68,8 +70,9 @@ class SymbolInformationBuilder final {
 
 public:
   template <typename C1, typename C2>
-  SymbolInformationBuilder(C1 &&docs, C2 &&rels)
-      : documentation(), relationships() {
+  SymbolInformationBuilder(std::string_view name, C1 &&docs, C2 &&rels)
+      : documentation(), relationships(),
+        _bomb(BOMB_INIT(fmt::format("SymbolInformationBuilder for '{}'", name))) {
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
   }
@@ -102,11 +105,40 @@ public:
   void finish(bool deterministic, scip::Document &out);
 };
 
+// This type is currently in ScipExtras.h instead of Path.h because this
+// type currently only needs to be used in IndexBuilder.
+class ProjectRootRelativePath {
+  std::string value; // non-empty, but allow default constructor for avoiding
+                     // PITA as a hashmap key
+public:
+  ProjectRootRelativePath(std::string &&value);
+
+  DERIVE_HASH_CMP_NEWTYPE(ProjectRootRelativePath, value, CMP_STR)
+};
+
+class SymbolName {
+  std::string value;
+
+public:
+  SymbolName(std::string &&value) : value(std::move(value)) {
+    ENFORCE(!this->value.empty());
+  }
+  const std::string &asStringRef() const {
+    return this->value;
+  }
+  std::string &asStringRefMut() {
+    return this->value;
+  }
+  DERIVE_HASH_CMP_NEWTYPE(SymbolName, value, CMP_STR)
+};
+
 class IndexBuilder final {
   scip::Index &fullIndex;
-  absl::flat_hash_map<std::string, std::unique_ptr<DocumentBuilder>>
+  // The key is deliberately the path only, not the path+hash, so that we can
+  // aggregate information across different hashes into a single Document.
+  absl::flat_hash_map<ProjectRootRelativePath, std::unique_ptr<DocumentBuilder>>
       multiplyIndexed;
-  absl::flat_hash_map<std::string, std::unique_ptr<SymbolInformationBuilder>>
+  absl::flat_hash_map<SymbolName, std::unique_ptr<SymbolInformationBuilder>>
       externalSymbols;
   scip_clang::Bomb _bomb;
 
