@@ -33,13 +33,11 @@ but it will not be used for building the code in this project.)
 
 ```
 # macOS
-bazel build //... --spawn_strategy=local --config=dev-macos
+bazel build //... --spawn_strategy=local --config=dev
 
 # Linux
-bazel build //... --config=dev-linux
+bazel build //... --config=dev
 ```
-
-(Later commands use `dev-macos` consistently for simplicity.)
 
 The indexer binary will be placed at `bazel-bin/indexer/scip-clang`.
 
@@ -65,13 +63,13 @@ Consult `--help` for user-facing flags, and `--help-all` for both user-facing an
 Run all tests:
 
 ```bash
-bazel test //test --spawn_strategy=local --config=dev-macos
+bazel test //test --spawn_strategy=local --config=dev
 ```
 
 Update snapshot tests:
 
 ```bash
-bazel test //update --spawn_strategy=local --config=dev-macos
+bazel test //update --spawn_strategy=local --config=dev
 ```
 
 ## Formatting

@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-
-SUFFIX="linux"
-if [ "$(uname)" == "Darwin" ]; then
-  SUFFIX="macos"
-fi
-
-bazel build //tools:compdb --spawn_strategy=local "--config=dev-$SUFFIX"
+bazel build //tools:compdb --spawn_strategy=local --config=dev
 
 PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/.."
 

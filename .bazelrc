@@ -43,9 +43,3 @@ build:dev --copt="-Wno-macro-redefined"
 # -D_FORTIFY_SOURCE=1 by default. This is fixed by
 # https://github.com/bazelbuild/bazel/pull/12772
 # but I can't figure out how to use that, so hack it in for now.
-
-build:dev-macos --config=dev
-build:dev-macos --linkopt="external/llvm_toolchain_llvm/lib/clang/15.0.6/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
-
-build:dev-linux --config=dev
-build:dev-linux --linkopt="external/llvm_toolchain_llvm/lib/clang/15.0.6/lib/linux/libclang_rt.asan_osx_dynamic.dylib"
