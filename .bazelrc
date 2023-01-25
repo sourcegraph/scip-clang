@@ -20,26 +20,34 @@ build --per_file_copt="external/llvm-project/.*@-Wno-ambiguous-reversed-operator
 build --per_file_copt="external/com_google_protobuf/.*@-Wno-deprecated-declarations" # sprintf on macOS
 build --per_file_copt="external/com_google_protobuf/.*@-Wno-unused-function"
 
-build:dev --strip=never
-build:dev --copt="-DFORCE_DEBUG=1"
-build:dev --copt="-DLLVM_ENABLE_ASSERTIONS=1"
-build:dev --copt="-Og"
-build:dev --copt="-gline-tables-only" --copt="-fno-omit-frame-pointer"
+build:asserts --copt="-DFORCE_DEBUG=1"
+build:asserts --copt="-DLLVM_ENABLE_ASSERTIONS=1"
 
+build:stacktraces --strip=never
+build:stacktraces --copt="-gline-tables-only" --copt="-fno-omit-frame-pointer"
+
+build:asan --define="asan=true"
+build:asan --copt="-fsanitize=address" --linkopt="-fsanitize=address"
 # Forcibly set -fno-sanitize-ignorelist because trying to
 # build Abseil with ASan and Clang/LLVM 15.0.6 leads to a
 # build failure.
 #
 # this rule is missing dependency declarations for the following files included by 'absl/types/bad_variant_access.cc':
 #  'external/llvm_toolchain_llvm/lib/clang/15.0.6/share/asan_ignorelist.txt'
-build:dev --copt="-fsanitize=address" --linkopt="-fsanitize=address" --copt="-fno-sanitize-ignorelist"
-build:dev --copt="-DADDRESS_SANITIZER" # for Abseil
-# The --no-sanitizer=vptr,function is in line with LLVM"s default UBSan flags.
-# https://sourcegraph.com/github.com/llvm/llvm-project@abf399737ea8bf6a6af4d66fc21a250a5dc76b6d/-/blob/llvm/CMakeLists.txt?L640&subtree=true
-build:dev --copt="-fsanitize=undefined" --copt="-fno-sanitize=vptr,function" --copt="-fno-sanitize-recover=all"
-
-build:dev --copt="-Wno-macro-redefined"
+build:asan --copt="-fno-sanitize-ignorelist"
+build:asan --copt="-DADDRESS_SANITIZER" # for Abseil, per Sorbet
 # ASan uses #define _FORTIFY_SOURCE 0 but Bazel passes
 # -D_FORTIFY_SOURCE=1 by default. This is fixed by
 # https://github.com/bazelbuild/bazel/pull/12772
 # but I can't figure out how to use that, so hack it in for now.
+build:asan --copt="-Wno-macro-redefined"
+build:asan --//:link_asan_runtime=1
+
+# The --no-sanitizer=vptr,function is in line with LLVM"s default UBSan flags.
+# https://sourcegraph.com/github.com/llvm/llvm-project@abf399737ea8bf6a6af4d66fc21a250a5dc76b6d/-/blob/llvm/CMakeLists.txt?L640&subtree=true
+build:ubsan --copt="-fsanitize=undefined" --copt="-fno-sanitize=vptr,function" --copt="-fno-sanitize-recover=all"
+
+build:dev --config=asserts
+build:dev --config=stacktraces
+build:dev --config=asan
+build:dev --config=ubsan

@@ -1,3 +1,5 @@
+load("//:settings.bzl", "ASAN_LINKOPTS")
+
 cc_library(
     name = "scip-clang-lib",
     srcs = glob(
@@ -40,6 +42,10 @@ cc_binary(
     srcs = [
         "main.cc",
     ],
+    linkopts = select({
+        "//:asan_linkopts": ASAN_LINKOPTS,
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [":scip-clang-lib"],
 )
