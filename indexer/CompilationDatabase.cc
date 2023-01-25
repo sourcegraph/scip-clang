@@ -341,8 +341,9 @@ bool CommandObjectHandler::reachedLimit() const {
   return this->commands.size() == this->parseLimit;
 }
 
-CompilationDatabaseFile CompilationDatabaseFile::open(const StdPath &path,
-                                                      std::error_code &fileSizeError) {
+CompilationDatabaseFile
+CompilationDatabaseFile::open(const StdPath &path,
+                              std::error_code &fileSizeError) {
   CompilationDatabaseFile compdbFile{};
   compdbFile.file = std::fopen(path.c_str(), "rb");
   if (!compdbFile.file) {
@@ -358,11 +359,13 @@ CompilationDatabaseFile CompilationDatabaseFile::open(const StdPath &path,
   return compdbFile;
 }
 
-CompilationDatabaseFile CompilationDatabaseFile::openAndExitOnErrors(const StdPath &path) {
+CompilationDatabaseFile
+CompilationDatabaseFile::openAndExitOnErrors(const StdPath &path) {
   std::error_code fileSizeError;
   auto compdbFile = CompilationDatabaseFile::open(path, fileSizeError);
   if (!compdbFile.file) {
-    spdlog::error("failed to open '{}': {}", path.string(), std::strerror(errno));
+    spdlog::error("failed to open '{}': {}", path.string(),
+                  std::strerror(errno));
     std::exit(EXIT_FAILURE);
   }
   if (fileSizeError) {

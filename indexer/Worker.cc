@@ -30,9 +30,9 @@
 
 #include "scip/scip.pb.h"
 
-#include "indexer/CompilationDatabase.h"
 #include "indexer/CliOptions.h"
 #include "indexer/Comparison.h"
+#include "indexer/CompilationDatabase.h"
 #include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
 #include "indexer/Hash.h"
@@ -105,7 +105,7 @@ public:
   }
 };
 
-#define MIX_INTO_HASH(_hash, _value, _path_expr, _context_expr)          \
+#define MIX_INTO_HASH(_hash, _value, _path_expr, _context_expr)         \
   {                                                                     \
     if (_hash.isRecordingHistory()) {                                   \
       _hash.mixWithContext(                                             \
@@ -297,8 +297,8 @@ public:
           if (this->options.deterministic) {
             absl::c_sort(hashes);
           }
-          result.illBehavedFiles.emplace_back(
-              PreprocessedFileInfoMulti{AbsolutePath{absPathRef}, std::move(hashes)});
+          result.illBehavedFiles.emplace_back(PreprocessedFileInfoMulti{
+              AbsolutePath{absPathRef}, std::move(hashes)});
           pathToIdMap.insert({absPathRef, fileId});
         }
       }
@@ -343,8 +343,7 @@ private:
       return;
     }
     MIX_INTO_HASH(this->stack.topHash(), optHash->rawValue,
-                 this->pathKeyForHistory(previousFileId),
-                 "hash for #include");
+                  this->pathKeyForHistory(previousFileId), "hash for #include");
   }
 
   std::optional<HashValue> exitFileImpl(clang::FileID fileId) {
@@ -483,7 +482,8 @@ public:
   bool insert(clang::FileID fileId, AbsolutePathRef absPath) {
     ENFORCE(fileId.isValid(),
             "invalid FileIDs should be filtered out after preprocessing");
-    ENFORCE(!absPath.asStringView().empty(), "inserting file with empty absolute path");
+    ENFORCE(!absPath.asStringView().empty(),
+            "inserting file with empty absolute path");
 
     if (auto relPath = this->projectRootPath.tryMakeRelative(absPath)) {
       ENFORCE(!relPath->asStringView().empty(),
@@ -591,8 +591,8 @@ public:
     this->preprocessorWrapper->flushState(semaResult, pathToIdMap);
 
     EmitIndexJobDetails emitIndexDetails{};
-    bool shouldEmitIndex =
-        this->options.getEmitIndexDetails(std::move(semaResult), emitIndexDetails);
+    bool shouldEmitIndex = this->options.getEmitIndexDetails(
+        std::move(semaResult), emitIndexDetails);
     if (!shouldEmitIndex) {
       return;
     }
@@ -601,7 +601,8 @@ public:
     this->computePathsToBeIndexed(astContext, emitIndexDetails, pathToIdMap,
                                   toBeIndexed);
 
-    IndexerAstVisitor visitor{std::move(toBeIndexed), this->options.deterministic};
+    IndexerAstVisitor visitor{std::move(toBeIndexed),
+                              this->options.deterministic};
     visitor.VisitTranslationUnitDecl(astContext.getTranslationUnitDecl());
     visitor.writeIndex(scipIndex);
   }
@@ -661,8 +662,7 @@ public:
                         const IndexerAstConsumerOptions &astConsumerOptions,
                         scip::Index &scipIndex)
       : preprocessorOptions(preprocessorOptions),
-        astConsumerOptions(astConsumerOptions), scipIndex(scipIndex) {
-  }
+        astConsumerOptions(astConsumerOptions), scipIndex(scipIndex) {}
 
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &compilerInstance,
@@ -688,12 +688,12 @@ class IndexerFrontendActionFactory
   scip::Index &scipIndex;
 
 public:
-  IndexerFrontendActionFactory(const IndexerPreprocessorOptions &preprocessorOptions,
-                               const IndexerAstConsumerOptions &astConsumerOptions,
-                               scip::Index &scipIndex)
+  IndexerFrontendActionFactory(
+      const IndexerPreprocessorOptions &preprocessorOptions,
+      const IndexerAstConsumerOptions &astConsumerOptions,
+      scip::Index &scipIndex)
       : preprocessorOptions(preprocessorOptions),
-        astConsumerOptions(astConsumerOptions), scipIndex(scipIndex) {
-  }
+        astConsumerOptions(astConsumerOptions), scipIndex(scipIndex) {}
 
   virtual std::unique_ptr<clang::FrontendAction> create() override {
     return std::make_unique<IndexerFrontendAction>(
@@ -713,7 +713,8 @@ public:
 } // namespace
 
 WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
-  ProjectRootPath projectRootPath{AbsolutePath{std::filesystem::current_path().string()}};
+  ProjectRootPath projectRootPath{
+      AbsolutePath{std::filesystem::current_path().string()}};
   WorkerMode mode;
   IpcOptions ipcOptions;
   StdPath compdbPath;
@@ -728,7 +729,9 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
     mode = WorkerMode::Testing;
   }
   return WorkerOptions{projectRootPath,
-                       mode, ipcOptions, compdbPath,
+                       mode,
+                       ipcOptions,
+                       compdbPath,
                        cliOptions.logLevel,
                        cliOptions.deterministic,
                        PreprocessorHistoryRecordingOptions{
@@ -739,16 +742,16 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
 }
 
 Worker::Worker(WorkerOptions &&options)
-    : options(std::move(options)), messageQueues(),
-      compileCommands(), commandIndex(0), recorder() {
+    : options(std::move(options)), messageQueues(), compileCommands(),
+      commandIndex(0), recorder() {
   switch (this->options.mode) {
   case WorkerMode::Ipc:
     this->messageQueues = std::make_unique<MessageQueuePair>(
-                  MessageQueuePair::forWorker(this->options.ipcOptions));
+        MessageQueuePair::forWorker(this->options.ipcOptions));
     break;
   case WorkerMode::Compdb: {
-    auto compdbFile =
-        compdb::CompilationDatabaseFile::openAndExitOnErrors(this->options.compdbPath);
+    auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(
+        this->options.compdbPath);
     compdb::ResumableParser parser{};
     parser.initialize(compdbFile, std::numeric_limits<size_t>::max());
     parser.parseMore(this->compileCommands);
@@ -817,8 +820,8 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
   IndexerAstConsumerOptions astConsumerOptions{this->options.projectRootPath,
                                                std::move(workerCallback),
                                                this->options.deterministic};
-  auto frontendActionFactory =
-      IndexerFrontendActionFactory(preprocessorOptions, astConsumerOptions, scipIndex);
+  auto frontendActionFactory = IndexerFrontendActionFactory(
+      preprocessorOptions, astConsumerOptions, scipIndex);
 
   clang::tooling::ToolInvocation invocation(
       std::move(args), &frontendActionFactory, fileManager.get(),
@@ -868,10 +871,10 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
                          EmitIndexJobDetails &emitIndexDetails) -> bool {
     callbackInvoked++;
     if (this->options.mode == WorkerMode::Compdb) {
-      for (auto &p: semaResult.wellBehavedFiles) {
+      for (auto &p : semaResult.wellBehavedFiles) {
         emitIndexDetails.filesToBeIndexed.emplace_back(std::move(p.path));
       }
-      for (auto &p: semaResult.illBehavedFiles) {
+      for (auto &p : semaResult.illBehavedFiles) {
         emitIndexDetails.filesToBeIndexed.emplace_back(std::move(p.path));
       }
       return true;
@@ -893,8 +896,8 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   auto &semaDetails = semanticAnalysisRequest.job.semanticAnalysis;
   this->processTranslationUnit(std::move(semaDetails), callback, scipIndex);
   ENFORCE(callbackInvoked == 1,
-          "callbackInvoked = {} for TU with main file '{}'",
-          callbackInvoked, tuMainFilePath);
+          "callbackInvoked = {} for TU with main file '{}'", callbackInvoked,
+          tuMainFilePath);
   if (innerStatus != ReceiveStatus::OK) {
     return innerStatus;
   }
@@ -918,9 +921,8 @@ void Worker::flushStreams() {
   }
 }
 
-[[clang::optnone]]
-__attribute__((no_sanitize("undefined")))
-void crashWorker() {
+[[clang::optnone]] __attribute__((no_sanitize("undefined"))) void
+crashWorker() {
   const char *p = nullptr;
   asm volatile("" ::: "memory");
   spdlog::warn("about to crash");
@@ -966,9 +968,9 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
     request.id = JobId::newTask(this->commandIndex);
     auto &command = this->compileCommands[this->commandIndex];
     ++this->commandIndex;
-    request.job = IndexJob{
-        .kind = IndexJob::Kind::SemanticAnalysis,
-        .semanticAnalysis = SemanticAnalysisJobDetails{command}};
+    request.job =
+        IndexJob{.kind = IndexJob::Kind::SemanticAnalysis,
+                 .semanticAnalysis = SemanticAnalysisJobDetails{command}};
     return Status::OK;
   }
 
@@ -994,7 +996,8 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
 }
 
 void Worker::run() {
-  ENFORCE(this->options.mode != WorkerMode::Testing, "tests typically call method individually");
+  ENFORCE(this->options.mode != WorkerMode::Testing,
+          "tests typically call method individually");
   [&]() {
     while (true) {
       IndexJobRequest request{};

@@ -138,7 +138,8 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   }
 
   if (!cliOptions.workerMode.empty() && cliOptions.workerMode != "ipc"
-      && cliOptions.workerMode != "compdb" && cliOptions.workerMode != "testing") {
+      && cliOptions.workerMode != "compdb"
+      && cliOptions.workerMode != "testing") {
     spdlog::error("--worker-mode must be 'ipc', 'compdb' or 'testing'");
     std::exit(EXIT_FAILURE);
   }
@@ -170,9 +171,8 @@ int main(int argc, char *argv[]) {
   scip_clang::initializeSymbolizer(argv[0]);
   auto cliOptions = parseArguments(argc, argv);
   bool isWorker = !cliOptions.workerMode.empty();
-  auto loggerName = isWorker
-                        ? fmt::format("worker {}", cliOptions.workerId)
-                        : "driver";
+  auto loggerName =
+      isWorker ? fmt::format("worker {}", cliOptions.workerId) : "driver";
   initializeGlobalLogger(loggerName, cliOptions.logLevel,
                          !cliOptions.workerFault.empty());
   if (isWorker) {

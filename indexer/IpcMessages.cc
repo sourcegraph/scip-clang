@@ -153,7 +153,8 @@ bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
          && mapper.map("args", d.command.CommandLine);
 }
 
-std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs, const PreprocessedFileInfo &rhs) {
+std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs,
+                                 const PreprocessedFileInfo &rhs) {
   CMP_EXPR(lhs.hashValue, rhs.hashValue);
   CMP_EXPR(lhs.path, rhs.path);
   return std::strong_ordering::equal;

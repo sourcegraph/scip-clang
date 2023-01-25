@@ -72,7 +72,8 @@ public:
   template <typename C1, typename C2>
   SymbolInformationBuilder(std::string_view name, C1 &&docs, C2 &&rels)
       : documentation(), relationships(),
-        _bomb(BOMB_INIT(fmt::format("SymbolInformationBuilder for '{}'", name))) {
+        _bomb(
+            BOMB_INIT(fmt::format("SymbolInformationBuilder for '{}'", name))) {
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
   }
