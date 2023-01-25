@@ -23,10 +23,7 @@ steps:
         exit 1
       fi
 
-      # TODO(def: test-with-sanitizers) Using --config=dev
-      # increases build time from 18min to 31min. Can we trim
-      # some options to keep a fast build while having sanitizers?
-      bazel build //...
+      bazel build //... --config=ci
 
       # Don't use //... as that will also try to update snapshots
-      bazel test //test --test_output=errors
+      bazel test //test --test_output=errors --config=ci

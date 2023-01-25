@@ -47,7 +47,10 @@ build:asan --//:link_asan_runtime=1
 # https://sourcegraph.com/github.com/llvm/llvm-project@abf399737ea8bf6a6af4d66fc21a250a5dc76b6d/-/blob/llvm/CMakeLists.txt?L640&subtree=true
 build:ubsan --copt="-fsanitize=undefined" --copt="-fno-sanitize=vptr,function" --copt="-fno-sanitize-recover=all"
 
-build:dev --config=asserts
-build:dev --config=stacktraces
-build:dev --config=asan
-build:dev --config=ubsan
+build:ci --config=asserts
+build:ci --config=stacktraces
+build:ci --config=asan
+build:ci --config=ubsan
+
+build:dev --config=ci
+build:dev --copt="-Og" # For testing against large projects locally
