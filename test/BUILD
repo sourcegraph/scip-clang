@@ -1,9 +1,14 @@
+load("//:settings.bzl", "ASAN_LINKOPTS")
 load(":test_suite.bzl", "scip_clang_test_suite")
 
 cc_binary(
     name = "test_main",
     testonly = 1,
     srcs = ["test_main.cc"],
+    linkopts = select({
+        "//:asan_linkopts": ASAN_LINKOPTS,
+        "//conditions:default": [],
+    }),
     visibility = ["//tools:__pkg__"],
     deps = [
         "//indexer:scip-clang-lib",
@@ -23,6 +28,10 @@ cc_binary(
     name = "ipc_test_main",
     testonly = 1,
     srcs = ["ipc_test_main.cc"],
+    linkopts = select({
+        "//:asan_linkopts": ASAN_LINKOPTS,
+        "//conditions:default": [],
+    }),
     visibility = ["//tools:__pkg__"],
     deps = [
         "//indexer:scip-clang-lib",
