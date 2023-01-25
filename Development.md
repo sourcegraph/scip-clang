@@ -20,6 +20,7 @@
    transparently.
 2. [Buildifier](https://github.com/bazelbuild/buildtools/releases/tag/6.0.0)
    for formatting Starlark files.
+   <!-- Keep this link in sync with .buildkite/pipeline.yaml -->
 
 Bazel manages the C++ toolchain, so it doesn't need to be downloaded separately.
 (For unclear reasons, Bazel still requires
