@@ -21,6 +21,8 @@ extern "C" {
 void __attribute__((weak))
 __sanitizer_symbolize_pc(void *pc, const char *fmt, char *outBuf,
                          size_t outBufSize) {
+  (void)pc;
+  (void)fmt;
   std::snprintf(outBuf, outBufSize, "<null>");
 }
 }
@@ -40,6 +42,7 @@ namespace scip_clang {
 
 std::string addr2line(std::string_view programName, void const *const *addr,
                       int count) {
+  (void)programName;
   fmt::memory_buffer os;
   for (int i = 3; i < count; ++i) {
     char buf[4096];
