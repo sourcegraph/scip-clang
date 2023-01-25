@@ -165,7 +165,8 @@ TEST_CASE("COMPDB_PARSING") {
     StdPath jsonFilepath = dataDir;
     jsonFilepath.append(testCase.jsonFilename);
 
-    auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(jsonFilepath);
+    auto compdbFile =
+        compdb::CompilationDatabaseFile::openAndExitOnErrors(jsonFilepath);
     if (!compdbFile.file) {
       spdlog::error("missing JSON file at path {}", jsonFilepath.c_str());
       REQUIRE(compdbFile.file);
@@ -380,8 +381,9 @@ TEST_CASE("ROBUSTNESS") {
   // Can't figure out how to turn off ASan for the crashWorker() function,
   // but it is useful for tests to pass with ASan too.
   std::vector<std::string_view> actualLogLines;
-  for (auto &line: splitLines) {
-    if (absl::StrContains(line, "] driver") || absl::StrContains(line, "] worker")) {
+  for (auto &line : splitLines) {
+    if (absl::StrContains(line, "] driver")
+        || absl::StrContains(line, "] worker")) {
       actualLogLines.push_back(line);
     }
   }

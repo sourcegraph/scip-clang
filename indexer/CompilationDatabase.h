@@ -38,7 +38,8 @@ public:
   }
 
 private:
-  static CompilationDatabaseFile open(const StdPath &path, std::error_code &fileSizeError);
+  static CompilationDatabaseFile open(const StdPath &path,
+                                      std::error_code &fileSizeError);
 };
 
 // Key to identify fields in a command object

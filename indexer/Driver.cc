@@ -15,10 +15,10 @@
 
 #include "indexer/Enforce.h" // Defines ENFORCE required by rapidjson headers
 
-#include "absl/strings/str_join.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/str_join.h"
 #include "boost/interprocess/ipc/message_queue.hpp"
 #include "boost/process/child.hpp"
 #include "boost/process/io.hpp"
@@ -239,7 +239,7 @@ class FileIndexingPlanner {
 
 public:
   FileIndexingPlanner(const ProjectRootPath &projectRootPath)
-    : hashesSoFar(), projectRootPath(projectRootPath) {}
+      : hashesSoFar(), projectRootPath(projectRootPath) {}
   FileIndexingPlanner(FileIndexingPlanner &&) = default;
   FileIndexingPlanner(const FileIndexingPlanner &) = delete;
 
@@ -247,7 +247,8 @@ public:
                       std::vector<AbsolutePath> &filesToBeIndexed) {
     absl::flat_hash_set<HashValue> emptyHashSet{};
     for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
-      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(fileInfoMulti.path)), emptyHashSet});
+      auto [it, _] = hashesSoFar.insert(
+          {AbsolutePath(std::move(fileInfoMulti.path)), emptyHashSet});
       auto &[path, hashes] = *it;
       bool addedFile = false;
       for (auto hashValue : fileInfoMulti.hashValues) {
@@ -259,7 +260,8 @@ public:
       }
     }
     for (auto &fileInfo : semaResult.wellBehavedFiles) {
-      auto [it, _] = hashesSoFar.insert({AbsolutePath(std::move(fileInfo.path)), emptyHashSet});
+      auto [it, _] = hashesSoFar.insert(
+          {AbsolutePath(std::move(fileInfo.path)), emptyHashSet});
       auto &[path, hashes] = *it;
       auto [__, inserted] = hashes.insert(fileInfo.hashValue);
       if (inserted) {
@@ -272,7 +274,8 @@ public:
     auto absPath = this->projectRootPath.makeAbsolute(relativePath);
     auto it = this->hashesSoFar.find(absPath);
     if (it == this->hashesSoFar.end()) {
-      ENFORCE(false, "found path '{}' with no recorded hashes", relativePath.asStringView());
+      ENFORCE(false, "found path '{}' with no recorded hashes",
+              relativePath.asStringView());
       return false;
     }
     return it->second.size() > 1;
@@ -340,17 +343,18 @@ public:
       ENFORCE(it != this->allJobList.end());
       switch (it->second.kind) {
       case IndexJob::Kind::SemanticAnalysis:
-        return fmt::format("running semantic analysis for '{}'", it->second.semanticAnalysis.command.Filename);
+        return fmt::format("running semantic analysis for '{}'",
+                           it->second.semanticAnalysis.command.Filename);
       case IndexJob::Kind::EmitIndex:
         auto &paths = it->second.emitIndex.filesToBeIndexed;
-        auto pathIt = absl::c_find_if(paths,
-          [](const AbsolutePath &p) -> bool {
-            auto &sv = p.asStringRef();
-            return sv.ends_with(".c") || sv.ends_with(".cc")
-              || sv.ends_with(".cxx") || sv.ends_with(".cpp");
-          });
+        auto pathIt = absl::c_find_if(paths, [](const AbsolutePath &p) -> bool {
+          auto &sv = p.asStringRef();
+          return sv.ends_with(".c") || sv.ends_with(".cc")
+                 || sv.ends_with(".cxx") || sv.ends_with(".cpp");
+        });
         if (pathIt != paths.end()) {
-          return fmt::format("emitting an index for '{}'", pathIt->asStringRef());
+          return fmt::format("emitting an index for '{}'",
+                             pathIt->asStringRef());
         }
         return "emitting a partial index";
       }
@@ -379,7 +383,8 @@ public:
           auto oldJobId = workerInfo.currentlyProcessing.value();
           bool erased = this->wipJobs.erase(oldJobId);
           ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
-          spdlog::warn("skipping job {} due to worker timeout", oldJobId.debugString());
+          spdlog::warn("skipping job {} due to worker timeout",
+                       oldJobId.debugString());
           this->logJobSkip(oldJobId);
           auto newHandle =
               killAndRespawn(std::move(workerInfo.processHandle), workerId);
@@ -405,7 +410,8 @@ public:
   }
 
   [[nodiscard]] IndexJobRequest
-  createSubtaskAndScheduleOnWorker(LatestIdleWorkerId workerId, JobId previousId, IndexJob &&job) {
+  createSubtaskAndScheduleOnWorker(LatestIdleWorkerId workerId,
+                                   JobId previousId, IndexJob &&job) {
     auto jobId = previousId.nextSubtask();
     this->allJobList.insert({jobId, std::move(job)});
     this->wipJobs.insert(jobId);
@@ -567,10 +573,10 @@ public:
 private:
   void emitScipIndex() {
     auto indexScipPath = this->options.projectRootPath.makeAbsolute(
-      ProjectRootRelativePathRef{"index.scip"});
-    std::ofstream outputStream(indexScipPath.asStringRef(), std::ios_base::out
-                                                  | std::ios_base::binary
-                                                  | std::ios_base::trunc);
+        ProjectRootRelativePathRef{"index.scip"});
+    std::ofstream outputStream(indexScipPath.asStringRef(),
+                               std::ios_base::out | std::ios_base::binary
+                                   | std::ios_base::trunc);
     if (outputStream.fail()) {
       spdlog::error("failed to open '{}' for writing index ({})",
                     indexScipPath.asStringRef(), std::strerror(errno));
@@ -580,13 +586,13 @@ private:
     scip::Index fullIndex{};
     if (this->options.deterministic) {
       // Sorting before merging so that mergeIndexParts can be const
-      absl::c_sort(
-          this->indexPartPaths, [](const AbsolutePath &p1, const AbsolutePath &p2) -> bool {
-            auto cmp = p1 <=> p2;
-            ENFORCE(cmp != 0, "2+ index parts have same path '{}'",
-                    p1.asStringRef());
-            return cmp == std::strong_ordering::less;
-          });
+      absl::c_sort(this->indexPartPaths,
+                   [](const AbsolutePath &p1, const AbsolutePath &p2) -> bool {
+                     auto cmp = p1 <=> p2;
+                     ENFORCE(cmp != 0, "2+ index parts have same path '{}'",
+                             p1.asStringRef());
+                     return cmp == std::strong_ordering::less;
+                   });
     }
     this->mergeIndexParts(fullIndex);
     fullIndex.SerializeToOstream(&outputStream);
@@ -604,7 +610,7 @@ private:
 
     scip::Metadata metadata;
     auto projectRootUnixStyle = llvm::sys::path::convert_to_slash(
-      this->options.projectRootPath.asRef().asStringView());
+        this->options.projectRootPath.asRef().asStringView());
     metadata.set_project_root("file:/" + projectRootUnixStyle);
     metadata.set_version(scip::UnspecifiedProtocolVersion);
     *metadata.mutable_tool_info() = std::move(toolInfo);
@@ -641,8 +647,8 @@ private:
         continue;
       }
       for (auto &doc : *partialIndex.mutable_documents()) {
-        bool isMultiplyIndexed =
-            this->planner.isMultiplyIndexed(ProjectRootRelativePathRef{doc.relative_path()});
+        bool isMultiplyIndexed = this->planner.isMultiplyIndexed(
+            ProjectRootRelativePathRef{doc.relative_path()});
         builder.addDocument(std::move(doc), isMultiplyIndexed);
       }
       // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
@@ -726,7 +732,7 @@ private:
     this->options.addWorkerOptions(args, workerId);
 
     spdlog::debug("spawning worker with arguments: '{}'",
-      absl::StrJoin(args, " "));
+                  absl::StrJoin(args, " "));
 
     boost::process::child worker(args, boost::process::std_out > stdout);
     spdlog::debug("worker info running {}, pid = {}", worker.running(),
@@ -757,8 +763,7 @@ private:
       this->planner.saveSemaResult(std::move(semaResult), filesToBeIndexed);
       auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
       queue.send(this->scheduler.createSubtaskAndScheduleOnWorker(
-          latestIdleWorkerId,
-          response.jobId,
+          latestIdleWorkerId, response.jobId,
           IndexJob{
               .kind = IndexJob::Kind::EmitIndex,
               .emitIndex = EmitIndexJobDetails{std::move(filesToBeIndexed)},

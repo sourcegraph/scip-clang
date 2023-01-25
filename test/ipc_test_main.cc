@@ -40,8 +40,7 @@ static Mode modeFromString(const char *s) {
   return Mode::Crash;
 }
 
-[[noreturn]]
-static void crash() {
+[[noreturn]] static void crash() {
   const char *p = nullptr;
   asm volatile("" ::: "memory");
   fmt::print("Gonna crash now!\n");
@@ -70,7 +69,7 @@ static void toyWorkerMain(IpcOptions ipcOptions, Mode mode) {
 }
 
 static void toyDriverMain(const char *testExecutablePath, IpcOptions ipcOptions,
-                   Mode mode) {
+                          Mode mode) {
   namespace boost_ip = boost::interprocess;
   auto d2w = scip_clang::driverToWorkerQueueName(ipcOptions.driverId,
                                                  ipcOptions.workerId);

@@ -10,15 +10,15 @@
 #include "absl/functional/function_ref.h"
 #include "spdlog/fwd.h"
 
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
-#include "clang/Tooling/CompilationDatabase.h"
 
-#include "indexer/Path.h"
 #include "indexer/CliOptions.h"
 #include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
+#include "indexer/Path.h"
 
 namespace scip {
 class Index;

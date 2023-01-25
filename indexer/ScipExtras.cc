@@ -71,8 +71,8 @@ void SymbolInformationBuilder::finish(bool deterministic,
 }
 
 DocumentBuilder::DocumentBuilder(scip::Document &&first)
-  : soFar(),
-    _bomb(BOMB_INIT(fmt::format("DocumentBuilder for '{}", first.relative_path()))) {
+    : soFar(), _bomb(BOMB_INIT(fmt::format("DocumentBuilder for '{}",
+                                           first.relative_path()))) {
   auto &language = *first.mutable_language();
   this->soFar.set_language(std::move(language));
   auto &relativePath = *first.mutable_relative_path();
@@ -150,14 +150,14 @@ void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
     if (it == this->multiplyIndexed.end()) {
       this->multiplyIndexed.insert(
           {std::move(docPath),
-          std::make_unique<DocumentBuilder>(std::move(doc))});
+           std::make_unique<DocumentBuilder>(std::move(doc))});
     } else {
       auto &docBuilder = it->second;
       docBuilder->merge(std::move(doc));
     }
   } else {
     ENFORCE(!this->multiplyIndexed.contains(
-              ProjectRootRelativePath{std::string(doc.relative_path())}),
+                ProjectRootRelativePath{std::string(doc.relative_path())}),
             "Document with path '{}' found in multiplyIndexed map despite "
             "!isMultiplyIndexed",
             doc.relative_path());

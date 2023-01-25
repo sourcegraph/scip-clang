@@ -8,8 +8,8 @@ cc_binary(
     deps = [
         "//indexer:scip-clang-lib",
         "@boost//:process",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/strings",
         "@cxxopts",
         "@doctest//doctest",
         "@doctest//doctest:custom_main",

@@ -28,7 +28,8 @@ class JobId {
   uint32_t subtaskId;
 
   constexpr static uint32_t SHUTDOWN_VALUE = UINT32_MAX;
-  JobId(uint32_t taskId, uint32_t subtaskId) : _taskId(taskId), subtaskId(subtaskId) {}
+  JobId(uint32_t taskId, uint32_t subtaskId)
+      : _taskId(taskId), subtaskId(subtaskId) {}
 
 public:
   JobId() : _taskId(SHUTDOWN_VALUE), subtaskId(SHUTDOWN_VALUE) {}
@@ -36,14 +37,24 @@ public:
   JobId &operator=(JobId &&) = default;
   JobId(const JobId &) = default;
   JobId &operator=(const JobId &) = default;
-  static JobId newTask(uint32_t taskId) { return JobId{taskId, 0}; }
-  JobId nextSubtask() const { return JobId(this->_taskId, this->subtaskId + 1); }
+  static JobId newTask(uint32_t taskId) {
+    return JobId{taskId, 0};
+  }
+  JobId nextSubtask() const {
+    return JobId(this->_taskId, this->subtaskId + 1);
+  }
 
-  uint32_t taskId() const { return this->_taskId; }
+  uint32_t taskId() const {
+    return this->_taskId;
+  }
 
 private:
-  uint64_t to64Bit() const { return (uint64_t(this->_taskId) << 32) + uint64_t(this->subtaskId); }
-  static JobId from64Bit(uint64_t v) { return JobId(v >> 32, static_cast<uint32_t>(v)); }
+  uint64_t to64Bit() const {
+    return (uint64_t(this->_taskId) << 32) + uint64_t(this->subtaskId);
+  }
+  static JobId from64Bit(uint64_t v) {
+    return JobId(v >> 32, static_cast<uint32_t>(v));
+  }
 
 public:
   DERIVE_HASH_1(JobId, self.to64Bit())
