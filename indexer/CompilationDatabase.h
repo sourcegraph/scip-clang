@@ -21,6 +21,10 @@
 namespace scip_clang {
 namespace compdb {
 
+struct ValidationOptions {
+  bool checkDirectoryPathsAreAbsolute;
+};
+
 class CompilationDatabaseFile {
   size_t _sizeInBytes;
   size_t _commandCount;
@@ -28,7 +32,8 @@ class CompilationDatabaseFile {
 public:
   FILE *file;
 
-  static CompilationDatabaseFile openAndExitOnErrors(const StdPath &path);
+  static CompilationDatabaseFile openAndExitOnErrors(const StdPath &,
+                                                     ValidationOptions);
 
   size_t sizeInBytes() const {
     return this->_sizeInBytes;
@@ -38,7 +43,7 @@ public:
   }
 
 private:
-  static CompilationDatabaseFile open(const StdPath &path,
+  static CompilationDatabaseFile open(const StdPath &, ValidationOptions,
                                       std::error_code &fileSizeError);
 };
 

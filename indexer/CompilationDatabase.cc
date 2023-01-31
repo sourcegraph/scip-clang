@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "indexer/Enforce.h" // Defines ENFORCE used by rapidjson headers
+#include "indexer/Path.h"
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
@@ -44,13 +45,16 @@ class ValidateHandler
   } context;
 
   uint32_t presentKeys;
+  Key lastKey;
+  ValidationOptions options;
 
 public:
   std::string errorMessage;
   absl::flat_hash_set<std::string> warnings;
 
-  ValidateHandler(H &inner)
-      : inner(inner), context(Context::Outermost), errorMessage(), warnings() {}
+  ValidateHandler(H &inner, ValidationOptions options)
+      : inner(inner), context(Context::Outermost), lastKey(Key::Unset),
+        options(options), errorMessage(), warnings() {}
 
 private:
   void markContextIllegal(std::string forItem) {
@@ -143,6 +147,24 @@ public:
       this->markContextIllegal("string");
       return false;
     case Context::InObject:
+      if (this->options.checkDirectoryPathsAreAbsolute
+          && this->lastKey == Key::Directory) {
+        auto dirPath = std::string_view(str, length);
+        // NOTE(ref: directory-field-is-absolute): While the JSON compilation
+        // database schema
+        // (https://clang.llvm.org/docs/JSONCompilationDatabase.html) does not
+        // specify if the "directory" key should be an absolute path or not, if
+        // it is relative, it is ambiguous as to which directory should be used
+        // as the root if it is relative (the directory containing the
+        // compile_commands.json is one option).
+        if (!AbsolutePathRef::tryFrom(dirPath).has_value()) {
+          this->errorMessage = fmt::format(
+              "expected absolute path for \"directory\" key but found '{}'",
+              dirPath);
+          return false;
+        }
+      }
+      return this->inner.String(str, length, copy);
     case Context::InArgumentsValueArray:
       return this->inner.String(str, length, copy);
     }
@@ -172,19 +194,24 @@ public:
     case Context::InObject:
       auto key = std::string_view(str, length);
       using UInt = decltype(this->presentKeys);
+      compdb::Key sawKey = Key::Unset;
       if (key == "directory") {
-        this->presentKeys |= UInt(Key::Directory);
+        sawKey = Key::Directory;
       } else if (key == "file") {
-        this->presentKeys |= UInt(Key::File);
+        sawKey = Key::File;
       } else if (key == "command") {
-        this->presentKeys |= UInt(Key::Command);
+        sawKey = Key::Command;
       } else if (key == "arguments") {
         this->context = Context::InArgumentsValue;
-        this->presentKeys |= UInt(Key::Arguments);
+        sawKey = Key::Arguments;
       } else if (key == "output") {
-        this->presentKeys |= UInt(Key::Output);
+        sawKey = Key::Output;
       } else {
         this->warnings.insert(fmt::format("unknown key {}", key));
+      }
+      if (sawKey != Key::Unset) {
+        this->lastKey = sawKey;
+        this->presentKeys |= UInt(this->lastKey);
       }
       return this->inner.Key(str, length, copy);
     }
@@ -248,7 +275,8 @@ public:
 // Uses the global logger and exits if the compilation database is invalid.
 //
 // Returns the number of jobs in the database.
-static size_t validateAndCountJobs(size_t fileSize, FILE *compDbFile) {
+static size_t validateAndCountJobs(size_t fileSize, FILE *compDbFile,
+                                   ValidationOptions validationOptions) {
   struct ArrayCountHandler
       : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>,
                                             ArrayCountHandler> {
@@ -263,7 +291,7 @@ static size_t validateAndCountJobs(size_t fileSize, FILE *compDbFile) {
   };
   rapidjson::Reader reader;
   ArrayCountHandler countHandler;
-  ValidateHandler<ArrayCountHandler> validator(countHandler);
+  ValidateHandler<ArrayCountHandler> validator(countHandler, validationOptions);
   std::string buffer(std::min(size_t(1024 * 1024), fileSize), 0);
   auto stream =
       rapidjson::FileReadStream(compDbFile, buffer.data(), buffer.size());
@@ -343,6 +371,7 @@ bool CommandObjectHandler::reachedLimit() const {
 
 CompilationDatabaseFile
 CompilationDatabaseFile::open(const StdPath &path,
+                              ValidationOptions validationOptions,
                               std::error_code &fileSizeError) {
   CompilationDatabaseFile compdbFile{};
   compdbFile.file = std::fopen(path.c_str(), "rb");
@@ -354,15 +383,16 @@ CompilationDatabaseFile::open(const StdPath &path,
     return compdbFile;
   }
   compdbFile._sizeInBytes = size;
-  compdbFile._commandCount =
-      validateAndCountJobs(compdbFile._sizeInBytes, compdbFile.file);
+  compdbFile._commandCount = validateAndCountJobs(
+      compdbFile._sizeInBytes, compdbFile.file, validationOptions);
   return compdbFile;
 }
 
-CompilationDatabaseFile
-CompilationDatabaseFile::openAndExitOnErrors(const StdPath &path) {
+CompilationDatabaseFile CompilationDatabaseFile::openAndExitOnErrors(
+    const StdPath &path, ValidationOptions validationOptions) {
   std::error_code fileSizeError;
-  auto compdbFile = CompilationDatabaseFile::open(path, fileSizeError);
+  auto compdbFile =
+      CompilationDatabaseFile::open(path, validationOptions, fileSizeError);
   if (!compdbFile.file) {
     spdlog::error("failed to open '{}': {}", path.string(),
                   std::strerror(errno));

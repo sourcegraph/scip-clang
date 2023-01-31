@@ -97,6 +97,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "One of 'crash', 'sleep' or 'spin'."
     " Forces faulty behavior in a worker process instead of normal processing.",
     cxxopts::value<std::string>(cliOptions.workerFault)->default_value(""));
+  parser.add_options("Testing")(
+    "testing",
+    "Running for scip-clang internal tests.",
+    cxxopts::value<bool>());
 
   // TODO(def: flag-passthrough, issue: https://github.com/sourcegraph/scip-clang/issues/23)
   // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
@@ -146,6 +150,8 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
 
   cliOptions.receiveTimeout =
       std::chrono::seconds(result["receive-timeout-seconds"].as<uint32_t>());
+
+  cliOptions.isTesting = result["testing"].count() > 0;
 
   for (int i = 0; i < argc; ++i) {
     cliOptions.originalArgv.push_back(argv[i]);

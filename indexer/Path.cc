@@ -1,3 +1,4 @@
+#include <compare>
 #include <filesystem>
 #include <optional>
 #include <string_view>
@@ -6,17 +7,11 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Path.h"
 
+#include "indexer/Comparison.h"
 #include "indexer/LLVMAdapter.h"
 #include "indexer/Path.h"
 
 namespace scip_clang {
-
-ProjectRootRelativePathRef::ProjectRootRelativePathRef(std::string_view value)
-    : value(value) {
-  ENFORCE(!this->value.empty(),
-          "use default ctor to make empty paths for explicitness");
-  ENFORCE(llvm::sys::path::is_relative(this->value));
-}
 
 AbsolutePathRef::AbsolutePathRef(std::string_view value) : value(value) {
   ENFORCE(!this->value.empty());
@@ -71,17 +66,36 @@ bool fromJSON(const llvm::json::Value &value, AbsolutePath &p,
   return AbsolutePath::fromJSON(value, p, path);
 }
 
-std::optional<ProjectRootRelativePathRef>
-ProjectRootPath::tryMakeRelative(AbsolutePathRef maybePathInsideProject) const {
+RootRelativePathRef::RootRelativePathRef(std::string_view value, RootKind kind)
+    : value(value), _kind(kind) {
+  ENFORCE(!this->value.empty(),
+          "use default ctor to make empty paths for explicitness");
+  ENFORCE(llvm::sys::path::is_relative(this->value));
+}
+
+std::strong_ordering operator<=>(const RootRelativePathRef &lhs,
+                                 const RootRelativePathRef &rhs) {
+  CMP_STR(lhs.asStringView(), rhs.asStringView());
+  CMP_EXPR(lhs._kind, rhs._kind);
+  return std::strong_ordering::equal;
+}
+
+std::optional<RootRelativePathRef>
+RootPath::tryMakeRelative(AbsolutePathRef maybePathInsideProject) const {
   if (auto optStrView =
           this->value.asRef().makeRelative(maybePathInsideProject)) {
-    return ProjectRootRelativePathRef(optStrView.value());
+    return RootRelativePathRef(optStrView.value(), this->kind());
   }
   return std::nullopt;
 }
 
-AbsolutePath ProjectRootPath::makeAbsolute(
-    ProjectRootRelativePathRef relativePathRef) const {
+AbsolutePath RootPath::makeAbsolute(RootRelativePathRef relativePathRef) const {
+  ENFORCE(this->kind() == relativePathRef.kind())
+  return this->makeAbsoluteAllowKindMismatch(relativePathRef);
+}
+
+AbsolutePath RootPath::makeAbsoluteAllowKindMismatch(
+    RootRelativePathRef relativePathRef) const {
   std::string buf{};
   auto &absPath = this->value.asStringRef();
   auto relPath = relativePathRef.asStringView();

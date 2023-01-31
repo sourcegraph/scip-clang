@@ -51,7 +51,7 @@ enum class WorkerMode {
 };
 
 struct WorkerOptions {
-  ProjectRootPath projectRootPath;
+  RootPath projectRootPath;
 
   WorkerMode mode;
   IpcOptions ipcOptions; // only valid if mode == Ipc

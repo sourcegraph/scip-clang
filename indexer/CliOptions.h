@@ -41,6 +41,7 @@ struct CliOptions {
   std::vector<std::string> originalArgv;
 
   // For testing only
+  bool isTesting;
   std::string workerFault;
 
   // Worker-specific options
