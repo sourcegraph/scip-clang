@@ -18,6 +18,13 @@ llvm::StringRef tryGetPath(const clang::SourceManager &sourceManager,
 
 std::string formatPtr(const void *ptr);
 
+std::string formatLoc(const clang::SourceManager &, clang::SourceLocation);
+
+std::string formatRange(const clang::SourceManager &, clang::SourceRange);
+
+std::string formatRange(const clang::SourceManager &,
+                        clang::SourceLocation start, clang::SourceLocation end);
+
 } // namespace debug
 } // namespace scip_clang
 

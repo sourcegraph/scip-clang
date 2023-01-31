@@ -66,14 +66,17 @@ struct OccurrenceExt {
 class SymbolInformationBuilder final {
   std::vector<std::string> documentation;
   absl::flat_hash_set<RelationshipExt> relationships;
-  scip_clang::Bomb _bomb;
+  // scip_clang::Bomb _bomb;
 
 public:
   template <typename C1, typename C2>
   SymbolInformationBuilder(std::string_view name, C1 &&docs, C2 &&rels)
-      : documentation(), relationships(),
-        _bomb(
-            BOMB_INIT(fmt::format("SymbolInformationBuilder for '{}'", name))) {
+      : documentation(),
+        relationships() //,
+                        // _bomb(
+                        //     BOMB_INIT(fmt::format("SymbolInformationBuilder
+                        //     for '{}'", name)))
+  {
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
   }
@@ -108,13 +111,13 @@ public:
 
 // This type is currently in ScipExtras.h instead of Path.h because this
 // type currently only needs to be used in IndexBuilder.
-class ProjectRootRelativePath {
+class RootRelativePath {
   std::string value; // non-empty, but allow default constructor for avoiding
                      // PITA as a hashmap key
 public:
-  ProjectRootRelativePath(std::string &&value);
+  RootRelativePath(std::string &&value);
 
-  DERIVE_HASH_CMP_NEWTYPE(ProjectRootRelativePath, value, CMP_STR)
+  DERIVE_HASH_CMP_NEWTYPE(RootRelativePath, value, CMP_STR)
 };
 
 class SymbolName {
@@ -137,7 +140,7 @@ class IndexBuilder final {
   scip::Index &fullIndex;
   // The key is deliberately the path only, not the path+hash, so that we can
   // aggregate information across different hashes into a single Document.
-  absl::flat_hash_map<ProjectRootRelativePath, std::unique_ptr<DocumentBuilder>>
+  absl::flat_hash_map<RootRelativePath, std::unique_ptr<DocumentBuilder>>
       multiplyIndexed;
   absl::flat_hash_map<SymbolName, std::unique_ptr<SymbolInformationBuilder>>
       externalSymbols;
