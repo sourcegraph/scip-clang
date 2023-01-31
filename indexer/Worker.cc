@@ -147,7 +147,7 @@ public:
 };
 
 struct IndexerPreprocessorOptions {
-  ProjectRootPath projectRootPath;
+  RootPath projectRootPath;
 
   // Debugging-related
   PreprocessorHistoryRecorder *recorder;
@@ -464,15 +464,17 @@ class IndexerAstVisitor;
 /// For files that do not belong to this project; their symbols should be
 /// tracked in external symbols instead of creating a \c scip::Document.
 class FilesToBeIndexedMap final {
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
-                      ProjectRootRelativePathRef>
+  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, RootRelativePathRef>
       map;
-  const ProjectRootPath &projectRootPath;
+  const RootPath &projectRootPath;
+
+  const RootPath &buildRootPath;
 
 public:
   FilesToBeIndexedMap() = delete;
-  FilesToBeIndexedMap(const ProjectRootPath &projectRootPath)
-      : map(), projectRootPath(projectRootPath) {}
+  FilesToBeIndexedMap(const RootPath &projectRootPath,
+                      const RootPath &buildRootPath)
+      : map(), projectRootPath(projectRootPath), buildRootPath(buildRootPath) {}
   FilesToBeIndexedMap(FilesToBeIndexedMap &&other) = default;
   FilesToBeIndexedMap &operator=(FilesToBeIndexedMap &&) = delete;
   FilesToBeIndexedMap(const FilesToBeIndexedMap &) = delete;
@@ -485,15 +487,34 @@ public:
     ENFORCE(!absPath.asStringView().empty(),
             "inserting file with empty absolute path");
 
-    if (auto relPath = this->projectRootPath.tryMakeRelative(absPath)) {
-      ENFORCE(!relPath->asStringView().empty(),
+    auto insertRelPath = [&](RootRelativePathRef projectRootRelPath) -> bool {
+      ENFORCE(!projectRootRelPath.asStringView().empty(),
               "file path is unexpectedly equal to project root");
-      auto [_, inserted] = this->map.insert({{fileId}, relPath.value()});
+      auto [_, inserted] = this->map.insert({{fileId}, projectRootRelPath});
       return inserted;
-    } else {
-      auto [_, inserted] = this->map.insert({{fileId}, {}});
-      return inserted;
+    };
+
+    // In practice, CMake ends up passing paths to project files as well
+    // as files inside the build root. Normally, files inside the build root
+    // are generated ones, but to be safe, check if the corresponding file
+    // exists in the project. Since the build root itself is typically inside
+    // the project root, check the build root first.
+    if (auto buildRootRelPath = this->buildRootPath.tryMakeRelative(absPath)) {
+      auto originalFileSourcePath =
+          this->projectRootPath.makeAbsoluteAllowKindMismatch(
+              buildRootRelPath.value());
+      std::error_code error{};
+      if (std::filesystem::exists(originalFileSourcePath.asStringRef(), error)
+          && !error) {
+        return insertRelPath(RootRelativePathRef(
+            buildRootRelPath->asStringView(), RootKind::Project));
+      }
+    } else if (auto optProjectRootRelPath =
+                   this->projectRootPath.tryMakeRelative(absPath)) {
+      return insertRelPath(optProjectRootRelPath.value());
     }
+    auto [_, inserted] = this->map.insert({{fileId}, {}});
+    return inserted;
   }
 
   void reserve(size_t totalCapacity) {
@@ -501,7 +522,7 @@ public:
   }
 
   void forEachProjectLocalFile(
-      absl::FunctionRef<void(ProjectRootRelativePathRef)> doStuff) {
+      absl::FunctionRef<void(RootRelativePathRef)> doStuff) {
     for (auto &[_, relPathRef] : this->map) {
       if (relPathRef.asStringView().empty()) { // external file
         continue;
@@ -522,9 +543,10 @@ public:
       : toBeIndexed(std::move(map)), deterministic(deterministic) {}
 
   void writeIndex(scip::Index &scipIndex) {
-    std::vector<ProjectRootRelativePathRef> relativePaths;
+    std::vector<RootRelativePathRef> relativePaths;
     toBeIndexed.forEachProjectLocalFile(
-        [&](ProjectRootRelativePathRef relPathRef) -> void {
+        [&](RootRelativePathRef relPathRef) -> void {
+          ENFORCE(relPathRef.kind() == RootKind::Project);
           relativePaths.push_back(relPathRef);
         });
     if (this->deterministic) {
@@ -557,7 +579,8 @@ public:
 };
 
 struct IndexerAstConsumerOptions {
-  ProjectRootPath projectRootPath;
+  RootPath projectRootPath;
+  RootPath buildRootPath;
   WorkerCallback getEmitIndexDetails;
   bool deterministic;
 };
@@ -597,7 +620,8 @@ public:
       return;
     }
 
-    FilesToBeIndexedMap toBeIndexed(this->options.projectRootPath);
+    FilesToBeIndexedMap toBeIndexed(this->options.projectRootPath,
+                                    this->options.buildRootPath);
     this->computePathsToBeIndexed(astContext, emitIndexDetails, pathToIdMap,
                                   toBeIndexed);
 
@@ -713,8 +737,9 @@ public:
 } // namespace
 
 WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
-  ProjectRootPath projectRootPath{
-      AbsolutePath{std::filesystem::current_path().string()}};
+  RootPath projectRootPath{
+      AbsolutePath{std::filesystem::current_path().string()},
+      RootKind::Project};
   WorkerMode mode;
   IpcOptions ipcOptions;
   StdPath compdbPath;
@@ -751,7 +776,8 @@ Worker::Worker(WorkerOptions &&options)
     break;
   case WorkerMode::Compdb: {
     auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(
-        this->options.compdbPath);
+        this->options.compdbPath,
+        compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = true});
     compdb::ResumableParser parser{};
     parser.initialize(compdbFile, std::numeric_limits<size_t>::max());
     parser.parseMore(this->compileCommands);
@@ -799,6 +825,11 @@ const IpcOptions &Worker::ipcOptions() const {
 void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
                                     WorkerCallback workerCallback,
                                     scip::Index &scipIndex) {
+  auto optPathRef =
+      AbsolutePathRef::tryFrom(std::string_view(job.command.Directory));
+  ENFORCE(optPathRef.has_value()); // See NOTE(ref: directory-field-is-absolute)
+  RootPath buildRootPath{AbsolutePath{optPathRef.value()}, RootKind::Build};
+
   clang::FileSystemOptions fileSystemOptions;
   fileSystemOptions.WorkingDir = std::move(job.command.Directory);
 
@@ -817,9 +848,9 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
       this->options.projectRootPath,
       this->recorder.has_value() ? &this->recorder->second : nullptr,
       this->options.deterministic};
-  IndexerAstConsumerOptions astConsumerOptions{this->options.projectRootPath,
-                                               std::move(workerCallback),
-                                               this->options.deterministic};
+  IndexerAstConsumerOptions astConsumerOptions{
+      this->options.projectRootPath, buildRootPath, std::move(workerCallback),
+      this->options.deterministic};
   auto frontendActionFactory = IndexerFrontendActionFactory(
       preprocessorOptions, astConsumerOptions, scipIndex);
 

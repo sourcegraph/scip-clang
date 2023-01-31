@@ -165,8 +165,9 @@ TEST_CASE("COMPDB_PARSING") {
     StdPath jsonFilepath = dataDir;
     jsonFilepath.append(testCase.jsonFilename);
 
-    auto compdbFile =
-        compdb::CompilationDatabaseFile::openAndExitOnErrors(jsonFilepath);
+    auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(
+        jsonFilepath,
+        compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = false});
     if (!compdbFile.file) {
       spdlog::error("missing JSON file at path {}", jsonFilepath.c_str());
       REQUIRE(compdbFile.file);
@@ -369,6 +370,7 @@ TEST_CASE("ROBUSTNESS") {
   args.push_back("--compdb-path=test/robustness/compile_commands.json");
   args.push_back("--log-level=warning");
   args.push_back("--force-worker-fault=" + fault);
+  args.push_back("--testing");
   args.push_back("--receive-timeout-seconds=3");
   TempFile tmpLogFile(fmt::format("{}.tmp.log", fault));
   boost::process::child driver(args,

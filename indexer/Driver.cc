@@ -111,7 +111,7 @@ struct WorkerInfo {
 
 struct DriverOptions {
   std::string workerExecutablePath;
-  ProjectRootPath projectRootPath;
+  RootPath projectRootPath;
   AbsolutePath compdbPath;
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
@@ -119,6 +119,7 @@ struct DriverOptions {
   std::string preprocessorRecordHistoryFilterRegex;
   StdPath supplementaryOutputDir;
   std::string workerFault;
+  bool isTesting;
 
   StdPath temporaryOutputDir;
   bool deleteTemporaryOutputDir;
@@ -127,13 +128,13 @@ struct DriverOptions {
 
   explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
-        projectRootPath(AbsolutePath("/")), compdbPath(),
+        projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
         numWorkers(cliOpts.numWorkers), receiveTimeout(cliOpts.receiveTimeout),
         deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
         supplementaryOutputDir(cliOpts.supplementaryOutputDir),
-        workerFault(cliOpts.workerFault),
+        workerFault(cliOpts.workerFault), isTesting(cliOpts.isTesting),
         temporaryOutputDir(cliOpts.temporaryOutputDir),
         deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()),
         originalArgv(cliOpts.originalArgv) {
@@ -142,12 +143,13 @@ struct DriverOptions {
     ENFORCE(llvm::sys::path::is_absolute(cwd),
             "std::filesystem::current_path() returned non-absolute path '{}'",
             cwd);
-    this->projectRootPath = ProjectRootPath{AbsolutePath{std::move(cwd)}};
+    this->projectRootPath =
+        RootPath{AbsolutePath{std::move(cwd)}, RootKind::Project};
 
     if (llvm::sys::path::is_absolute(cliOpts.compdbPath)) {
       this->compdbPath = AbsolutePath(std::string(cliOpts.compdbPath));
     } else {
-      auto relPath = ProjectRootRelativePathRef(cliOpts.compdbPath);
+      auto relPath = RootRelativePathRef(cliOpts.compdbPath, RootKind::Project);
       this->compdbPath = this->projectRootPath.makeAbsolute(relPath);
     }
 
@@ -235,10 +237,10 @@ struct LatestIdleWorkerId {
 /// complex, so let's skip that for now.
 class FileIndexingPlanner {
   absl::flat_hash_map<AbsolutePath, absl::flat_hash_set<HashValue>> hashesSoFar;
-  const ProjectRootPath &projectRootPath;
+  const RootPath &projectRootPath;
 
 public:
-  FileIndexingPlanner(const ProjectRootPath &projectRootPath)
+  FileIndexingPlanner(const RootPath &projectRootPath)
       : hashesSoFar(), projectRootPath(projectRootPath) {}
   FileIndexingPlanner(FileIndexingPlanner &&) = default;
   FileIndexingPlanner(const FileIndexingPlanner &) = delete;
@@ -270,7 +272,7 @@ public:
     }
   }
 
-  bool isMultiplyIndexed(ProjectRootRelativePathRef relativePath) const {
+  bool isMultiplyIndexed(RootRelativePathRef relativePath) const {
     auto absPath = this->projectRootPath.makeAbsolute(relativePath);
     auto it = this->hashesSoFar.find(absPath);
     if (it == this->hashesSoFar.end()) {
@@ -573,7 +575,7 @@ public:
 private:
   void emitScipIndex() {
     auto indexScipPath = this->options.projectRootPath.makeAbsolute(
-        ProjectRootRelativePathRef{"index.scip"});
+        RootRelativePathRef{"index.scip", RootKind::Project});
     std::ofstream outputStream(indexScipPath.asStringRef(),
                                std::ios_base::out | std::ios_base::binary
                                    | std::ios_base::trunc);
@@ -648,7 +650,7 @@ private:
       }
       for (auto &doc : *partialIndex.mutable_documents()) {
         bool isMultiplyIndexed = this->planner.isMultiplyIndexed(
-            ProjectRootRelativePathRef{doc.relative_path()});
+            RootRelativePathRef{doc.relative_path(), RootKind::Project});
         builder.addDocument(std::move(doc), isMultiplyIndexed);
       }
       // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
@@ -712,8 +714,10 @@ private:
   FileGuard openCompilationDatabase() {
     std::error_code error;
     StdPath compdbStdPath{this->compdbPath().asStringRef()};
-    auto compdbFile =
-        compdb::CompilationDatabaseFile::openAndExitOnErrors(compdbStdPath);
+    auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(
+        compdbStdPath,
+        compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute =
+                                      !this->options.isTesting});
     this->compdbCommandCount = compdbFile.commandCount();
     this->options.numWorkers =
         std::min(this->compdbCommandCount, this->numWorkers());

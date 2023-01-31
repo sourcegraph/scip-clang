@@ -1,6 +1,7 @@
 #ifndef SCIP_CLANG_PATH_H
 #define SCIP_CLANG_PATH_H
 
+#include <compare>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -14,20 +15,6 @@
 #include "indexer/Enforce.h"
 
 namespace scip_clang {
-
-class ProjectRootRelativePathRef {
-  std::string_view value; // may be empty
-
-public:
-  ProjectRootRelativePathRef() = default;
-  explicit ProjectRootRelativePathRef(std::string_view);
-
-  std::string_view asStringView() const {
-    return this->value;
-  }
-
-  DERIVE_HASH_CMP_NEWTYPE(ProjectRootRelativePathRef, value, CMP_STR)
-};
 
 class AbsolutePathRef {
   std::string_view value; // is non-empty
@@ -56,7 +43,7 @@ public:
 };
 
 /// Typically used when referring to paths for files which may or may not
-/// be inside the project root. Otherwise, \c ProjectRootRelativePathRef
+/// be inside the project root. Otherwise, \c RootRelativePathRef
 /// should be used instead.
 class AbsolutePath {
   std::string value; // non-empty, but allow default constructor for avoiding
@@ -91,22 +78,59 @@ public:
 };
 SERIALIZABLE(AbsolutePath)
 
-class ProjectRootPath final {
-  AbsolutePath value;
+enum class RootKind : bool {
+  Project = true,
+  Build = false,
+};
+
+class RootRelativePathRef {
+  std::string_view value; // may be empty
+  RootKind _kind;
 
 public:
-  explicit ProjectRootPath(AbsolutePath &&value) : value(std::move(value)) {}
+  RootRelativePathRef() = default;
+  explicit RootRelativePathRef(std::string_view, RootKind kind);
+
+  std::string_view asStringView() const {
+    return this->value;
+  }
+
+  RootKind kind() const {
+    return this->_kind;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const RootRelativePathRef &self) {
+    return H::combine(std::move(h), self.value, bool(self._kind));
+  }
+
+  friend std::strong_ordering operator<=>(const RootRelativePathRef &,
+                                          const RootRelativePathRef &);
+};
+
+class RootPath final {
+  AbsolutePath value;
+  RootKind _kind;
+
+public:
+  explicit RootPath(AbsolutePath &&value, RootKind kind)
+      : value(std::move(value)), _kind(kind) {}
 
   AbsolutePathRef asRef() const {
     return this->value.asRef();
   }
 
+  RootKind kind() const {
+    return this->_kind;
+  }
+
   /// If the result is non-null, it points to the storage of
   /// \p maybePathInsideProject
-  std::optional<ProjectRootRelativePathRef>
+  std::optional<RootRelativePathRef>
   tryMakeRelative(AbsolutePathRef maybePathInsideProject) const;
 
-  AbsolutePath makeAbsolute(ProjectRootRelativePathRef) const;
+  AbsolutePath makeAbsolute(RootRelativePathRef) const;
+  AbsolutePath makeAbsoluteAllowKindMismatch(RootRelativePathRef) const;
 };
 
 } // namespace scip_clang
