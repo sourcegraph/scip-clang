@@ -21,27 +21,24 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   scip_clang::CliOptions cliOptions{};
   cliOptions.scipClangExecutablePath = argv[0];
   using namespace std::chrono_literals;
-  auto defaultReceiveTimeoutSeconds = "120";
   // cxxopts will print '(default: 10)' without context that it is based
   // on ncpus, so set the default here instead and print it separately.
   cliOptions.numWorkers = std::thread::hardware_concurrency();
-  auto defaultLogLevel = "info";
-  auto defaultCompdbPath = "compile_commands.json";
 
   cxxopts::Options parser("scip-clang", "SCIP indexer for C-based languages");
   // clang-format off
   parser.add_options("")(
     "compdb-path",
-    fmt::format("Path to JSON compilation database", defaultCompdbPath),
-    cxxopts::value<std::string>(cliOptions.compdbPath)->default_value(defaultCompdbPath));
+    "Path to JSON compilation database",
+    cxxopts::value<std::string>(cliOptions.compdbPath)->default_value("compile_commands.json"));
   parser.add_options("")(
     "j,jobs",
     fmt::format("How many indexing processes to run in parallel? (default: NCPUs = {})", cliOptions.numWorkers),
     cxxopts::value<uint32_t>(cliOptions.numWorkers));
   parser.add_options("")(
     "log-level",
-    fmt::format("One of 'debug', 'info', 'warning' or 'error'", defaultLogLevel),
-    cxxopts::value<std::string>()->default_value(defaultLogLevel));
+    "One of 'debug', 'info', 'warning' or 'error'",
+    cxxopts::value<std::string>()->default_value("info"));
   parser.add_options("")(
     "temporary-output-dir",
     "Store temporary files under a specific directory instead of using system APIs."
@@ -51,9 +48,8 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   // TODO(def: add-version): Add a --version flag
   parser.add_options("Advanced")(
     "receive-timeout-seconds",
-    fmt::format("How long the driver should wait for a worker before marking "
-                "it as timed out?", defaultReceiveTimeoutSeconds),
-    cxxopts::value<uint32_t>()->default_value(defaultReceiveTimeoutSeconds));
+    "How long should the driver wait for a worker before marking it as timed out?",
+    cxxopts::value<uint32_t>()->default_value("300"));
   parser.add_options("Advanced")(
     "deterministic",
     "Try to run everything in a deterministic fashion as much as possible."
