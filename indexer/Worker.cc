@@ -743,12 +743,14 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
   WorkerMode mode;
   IpcOptions ipcOptions;
   StdPath compdbPath;
+  StdPath indexOutputPath{};
   if (cliOptions.workerMode == "ipc") {
     mode = WorkerMode::Ipc;
     ipcOptions = cliOptions.ipcOptions();
   } else if (cliOptions.workerMode == "compdb") {
     mode = WorkerMode::Compdb;
     compdbPath = StdPath(cliOptions.compdbPath);
+    indexOutputPath = StdPath(cliOptions.indexOutputPath);
   } else {
     ENFORCE(cliOptions.workerMode == "testing");
     mode = WorkerMode::Testing;
@@ -757,6 +759,7 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
                        mode,
                        ipcOptions,
                        compdbPath,
+                       indexOutputPath,
                        cliOptions.logLevel,
                        cliOptions.deterministic,
                        PreprocessorHistoryRecordingOptions{
@@ -933,11 +936,18 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     return innerStatus;
   }
 
-  StdPath outputPath =
-      (this->options.temporaryOutputDir
-       / fmt::format("job-{}-worker-{}.index.scip", emitIndexRequestId.taskId(),
-                     this->ipcOptions().workerId));
+  StdPath outputPath = this->options.mode == WorkerMode::Compdb
+                           ? this->options.indexOutputPath
+                           : (this->options.temporaryOutputDir
+                              / fmt::format("job-{}-worker-{}.index.scip",
+                                            emitIndexRequestId.taskId(),
+                                            this->ipcOptions().workerId));
   this->emitIndex(std::move(scipIndex), outputPath);
+
+  if (this->options.mode == WorkerMode::Compdb) {
+    return ReceiveStatus::OK;
+  }
+
   EmitIndexJobResult emitIndexResult{AbsolutePath{outputPath.string()}};
 
   this->sendResult(emitIndexRequestId,

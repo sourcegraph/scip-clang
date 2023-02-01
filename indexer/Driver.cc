@@ -113,6 +113,7 @@ struct DriverOptions {
   std::string workerExecutablePath;
   RootPath projectRootPath;
   AbsolutePath compdbPath;
+  AbsolutePath indexOutputPath;
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
   bool deterministic;
@@ -129,7 +130,8 @@ struct DriverOptions {
   explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
       : workerExecutablePath(cliOpts.scipClangExecutablePath),
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
-        numWorkers(cliOpts.numWorkers), receiveTimeout(cliOpts.receiveTimeout),
+        indexOutputPath(), numWorkers(cliOpts.numWorkers),
+        receiveTimeout(cliOpts.receiveTimeout),
         deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
@@ -145,6 +147,14 @@ struct DriverOptions {
             cwd);
     this->projectRootPath =
         RootPath{AbsolutePath{std::move(cwd)}, RootKind::Project};
+
+    if (llvm::sys::path::is_absolute(cliOpts.indexOutputPath)) {
+      this->indexOutputPath =
+          AbsolutePath(std::string(cliOpts.indexOutputPath));
+    } else {
+      this->indexOutputPath = this->projectRootPath.makeAbsolute(
+          RootRelativePathRef(cliOpts.indexOutputPath, RootKind::Project));
+    }
 
     if (llvm::sys::path::is_absolute(cliOpts.compdbPath)) {
       this->compdbPath = AbsolutePath(std::string(cliOpts.compdbPath));
@@ -574,8 +584,7 @@ public:
 
 private:
   void emitScipIndex() {
-    auto indexScipPath = this->options.projectRootPath.makeAbsolute(
-        RootRelativePathRef{"index.scip", RootKind::Project});
+    auto &indexScipPath = this->options.indexOutputPath;
     std::ofstream outputStream(indexScipPath.asStringRef(),
                                std::ios_base::out | std::ios_base::binary
                                    | std::ios_base::trunc);
