@@ -1,10 +1,11 @@
+#include <cstdlib>
 #include <filesystem>
-#include <fstream>
-#include <ios>
-#include <sstream>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
-#include "absl/functional/function_ref.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -12,14 +13,9 @@
 #include "boost/process/io.hpp"
 #include "cxxopts.hpp"
 #include "doctest/doctest.h"
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wsuggest-override"
-#include "dtl/dtl.hpp"
-#pragma clang diagnostic pop
 #include "spdlog/fmt/fmt.h"
 
 #include "clang/Tooling/CompilationDatabase.h"
-#include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/YAMLTraits.h"
 
 #include "scip/scip.pb.h"
@@ -30,71 +26,31 @@
 #include "indexer/FileSystem.h"
 #include "indexer/Worker.h"
 
-using namespace scip_clang;
+#include "test/Snapshot.h"
 
-// Perform a line-wise diff of expected vs actual.
-//
-// NOTE(ref: based-on-sorbet): This function implementation was originally
-// in Sorbet's expectations.cc named as CHECK_EQ_DIFF
-void compareDiff(std::string_view expected, std::string_view actual,
-                 std::string_view errorMessage) {
-  if (expected == actual) {
-    return;
-  }
+namespace scip_clang {
+namespace test {
 
-  std::vector<std::string> expectedLines = absl::StrSplit(expected, '\n');
-  std::vector<std::string> actualLines = absl::StrSplit(actual, '\n');
-  dtl::Diff<std::string, std::vector<std::string>> diff(expectedLines,
-                                                        actualLines);
-  diff.compose();
-  diff.composeUnifiedHunks();
-
-  std::stringstream ss;
-  diff.printUnifiedFormat(ss);
-  FAIL_CHECK(fmt::format("{}\n{}", errorMessage, ss.str()));
-}
-
-enum class SnapshotTestMode {
-  Compare,
-  Update,
-};
-
-enum class TestKind {
+enum class Kind {
   UnitTests,
   CompdbTests,
   PreprocessorTests,
   RobustnessTests,
 };
 
-struct TestCliOptions {
+struct CliOptions {
   std::string rootDirectory;
-  TestKind testKind;
+  test::Kind testKind;
   std::string testName;
-  SnapshotTestMode testMode;
+  test::SnapshotMode testMode;
 };
 
-static TestCliOptions testCliOptions{};
+static test::CliOptions globalCliOptions{};
 
-static std::string readFileToString(const StdPath &path) {
-  std::ifstream in(path.c_str(), std::ios_base::in | std::ios_base::binary);
-  return std::string((std::istreambuf_iterator<char>(in)),
-                     std::istreambuf_iterator<char>());
-}
+} // namespace test
+} // namespace scip_clang
 
-void compareOrUpdate(std::string_view actual, StdPath snapshotFilepath) {
-  switch (testCliOptions.testMode) {
-  case SnapshotTestMode::Compare: {
-    std::string expected(::readFileToString(snapshotFilepath));
-    compareDiff(expected, actual, "comparison failed");
-    return;
-  }
-  case SnapshotTestMode::Update: {
-    std::ofstream out(snapshotFilepath.c_str(),
-                      std::ios_base::out | std::ios_base::binary);
-    out.write(actual.data(), actual.size());
-  }
-  }
-}
+using namespace scip_clang;
 
 struct CompDbTestCase {
   std::string jsonFilename;
@@ -118,7 +74,7 @@ struct llvm::yaml::SequenceElementTraits<clang::tooling::CompileCommand> {
 };
 
 TEST_CASE("UNIT_TESTS") {
-  if (testCliOptions.testKind != TestKind::UnitTests) {
+  if (test::globalCliOptions.testKind != test::Kind::UnitTests) {
     return;
   }
   struct HeaderFilterTestCase {
@@ -149,7 +105,7 @@ TEST_CASE("UNIT_TESTS") {
 };
 
 TEST_CASE("COMPDB_PARSING") {
-  if (testCliOptions.testKind != TestKind::CompdbTests) {
+  if (test::globalCliOptions.testKind != test::Kind::CompdbTests) {
     return;
   }
 
@@ -162,21 +118,21 @@ TEST_CASE("COMPDB_PARSING") {
       std::filesystem::current_path().append("test").append("compdb");
 
   for (auto &testCase : testCases) {
-    StdPath jsonFilepath = dataDir;
-    jsonFilepath.append(testCase.jsonFilename);
+    StdPath jsonFilePath = dataDir;
+    jsonFilePath.append(testCase.jsonFilename);
 
     auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(
-        jsonFilepath,
+        jsonFilePath,
         compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = false});
     if (!compdbFile.file) {
-      spdlog::error("missing JSON file at path {}", jsonFilepath.c_str());
+      spdlog::error("missing JSON file at path {}", jsonFilePath.c_str());
       REQUIRE(compdbFile.file);
     }
     REQUIRE(compdbFile.sizeInBytes() > 0);
     CHECK_MESSAGE(compdbFile.commandCount() == testCase.checkCount,
                   fmt::format("counted {} jobs but expected {} in {}",
                               compdbFile.commandCount(), testCase.checkCount,
-                              jsonFilepath.string()));
+                              jsonFilePath.string()));
 
     for (auto refillCount : testCase.refillCountsToTry) {
       compdb::ResumableParser parser{};
@@ -200,82 +156,12 @@ TEST_CASE("COMPDB_PARSING") {
       StdPath yamlFilePath = dataDir;
       yamlFilePath.append(yamlFilename);
 
-      compareOrUpdate(buffer, yamlFilePath);
+      test::compareOrUpdateSingleFile(test::globalCliOptions.testMode, buffer,
+                                      yamlFilePath);
     }
   }
 
   return;
-}
-
-static std::vector<StdPath> listFilesRecursive(const StdPath &root) {
-  std::vector<StdPath> out;
-  std::filesystem::recursive_directory_iterator it(root);
-  for (auto &dirEntry : it) {
-    if (!dirEntry.is_directory()) {
-      out.push_back(dirEntry.path());
-    }
-  }
-  absl::c_sort(out);
-  return out;
-}
-
-class SnapshotTest final {
-  StdPath rootPath;
-  struct TranlationUnitInputOutput {
-    StdPath translationUnitMainFilePath;
-    StdPath snapshotPath;
-  };
-
-  std::vector<TranlationUnitInputOutput> inputOutputs;
-
-public:
-  SnapshotTest(StdPath &&root,
-               absl::FunctionRef<StdPath(const StdPath &)> tuPathToSnapshotPath)
-      : rootPath(root), inputOutputs() {
-    auto inputFiles = ::listFilesRecursive(this->rootPath);
-    for (auto &inputFile : inputFiles) {
-      if (SnapshotTest::isTuMainFilePath(inputFile)) {
-        auto snapshotPath = tuPathToSnapshotPath(inputFile);
-        this->inputOutputs.emplace_back(TranlationUnitInputOutput{
-            std::move(inputFile), std::move(snapshotPath)});
-      }
-    }
-  }
-
-  void testCompareOrUpdate(
-      absl::FunctionRef<std::string(clang::tooling::CompileCommand &&command)>
-          compute) {
-    for (auto &io : this->inputOutputs) {
-      clang::tooling::CompileCommand command{};
-      command.Directory = rootPath.string();
-      auto tuMainPath = io.translationUnitMainFilePath;
-      tuMainPath.lexically_relative(rootPath);
-      command.CommandLine = {
-          "clang",
-          "-I",
-          ".",
-          tuMainPath.string(),
-      };
-      command.Filename = tuMainPath.string();
-      auto output = compute(std::move(command));
-      ::compareOrUpdate(output, io.snapshotPath);
-    }
-  }
-
-private:
-  static bool isTuMainFilePath(const StdPath &p) {
-    auto ext = p.extension();
-    return ext == ".cc" || ext == ".c";
-  }
-};
-
-static std::function<StdPath(const StdPath &)>
-replaceExtension(std::string newExt) {
-  return [=](const StdPath &tuMainFilePath) -> StdPath {
-    StdPath snapshotPath = tuMainFilePath;
-    snapshotPath.replace_extension(newExt);
-    return snapshotPath;
-  };
 }
 
 std::string deriveRootFromTUPath(const std::string &tuPath,
@@ -301,40 +187,60 @@ struct TempFile {
 
   TempFile &operator=(const TempFile &) = delete;
   TempFile(const TempFile &) = delete;
-  TempFile(StdPath suffix)
-      : path(std::filesystem::temp_directory_path() / suffix) {}
+  TempFile(StdPath filename)
+      : path(std::filesystem::temp_directory_path() / filename) {}
   ~TempFile() {
     std::filesystem::remove(this->path);
   }
 };
 
 TEST_CASE("PREPROCESSING") {
-  if (testCliOptions.testKind != TestKind::PreprocessorTests) {
+  if (test::globalCliOptions.testKind != test::Kind::PreprocessorTests) {
     return;
   }
 
-  ENFORCE(testCliOptions.testName != "",
+  ENFORCE(test::globalCliOptions.testName != "",
           "--test-name should be passed for preprocessor tests");
   StdPath root = std::filesystem::current_path();
   root.append("test");
   root.append("preprocessor");
-  root.append(testCliOptions.testName);
+  root.append(test::globalCliOptions.testName);
   ENFORCE(std::filesystem::exists(root), "missing test directory at {}",
           root.c_str());
 
-  SnapshotTest(std::move(root),
-               ::replaceExtension(".preprocessor-history.yaml"))
-      .testCompareOrUpdate([](clang::tooling::CompileCommand &&command)
-                               -> std::string {
-        TempFile tmpYamlFile(fmt::format("{}.yaml", testCliOptions.testName));
+  test::MultiTuSnapshotTest myTest{
+      RootPath{AbsolutePath{root.string()}, RootKind::Project},
+      [](const RootRelativePath &sourceFilePath)
+          -> std::optional<RootRelativePath> {
+        if (test::isTuMainFilePath(sourceFilePath.asStringRef())) {
+          StdPath newPath = sourceFilePath.asStringRef();
+          newPath.replace_extension(".preprocessor-history.yaml");
+          return RootRelativePath{RootRelativePathRef{
+              newPath.c_str(), sourceFilePath.asRef().kind()}};
+        }
+        return {};
+      }};
+  myTest.run(
+      test::globalCliOptions.testMode,
+      [](clang::tooling::CompileCommand &&command)
+          -> absl::flat_hash_map<RootRelativePath, std::string> {
+        TempFile tmpYamlFile(
+            fmt::format("{}.yaml", test::globalCliOptions.testName));
 
         // HACK(def: derive-root-path)
         // Get the real path to the file and compute the root relative
         // to that, instead of using the synthetic sandbox root, because
         // we want the root to be a prefix of the real path (the real path
         // is used when tracking preprocessor history)
+        ENFORCE(llvm::sys::path::is_absolute(command.Filename));
         auto derivedRoot =
             ::deriveRootFromTUPath(command.Filename, command.Directory);
+
+        auto mainTuFilePathStr = StdPath(command.Filename)
+                                     .lexically_relative(command.Directory)
+                                     .string();
+        auto mainTuFile = RootRelativePath{
+            RootRelativePathRef{mainTuFilePathStr, RootKind::Project}};
 
         CliOptions cliOptions{};
         cliOptions.workerMode = "testing";
@@ -352,16 +258,19 @@ TEST_CASE("PREPROCESSING") {
         worker.processTranslationUnit(
             SemanticAnalysisJobDetails{std::move(command)}, callback, index);
         worker.flushStreams();
-        std::string actual(::readFileToString(tmpYamlFile.path));
-        return actual;
+        std::string actual(test::readFileToString(tmpYamlFile.path));
+
+        absl::flat_hash_map<RootRelativePath, std::string> out;
+        out.insert({std::move(mainTuFile), std::move(actual)});
+        return out;
       });
 }
 
 TEST_CASE("ROBUSTNESS") {
-  if (testCliOptions.testKind != TestKind::RobustnessTests) {
+  if (test::globalCliOptions.testKind != test::Kind::RobustnessTests) {
     return;
   }
-  auto fault = testCliOptions.testName;
+  auto fault = test::globalCliOptions.testName;
   if (!(fault == "crash" || fault == "sleep" || fault == "spin")) {
     return;
   }
@@ -378,7 +287,7 @@ TEST_CASE("ROBUSTNESS") {
                                boost::process::std_err > tmpLogFile.path);
   driver.wait();
 
-  auto log = ::readFileToString(tmpLogFile.path);
+  auto log = test::readFileToString(tmpLogFile.path);
   std::vector<std::string_view> splitLines = absl::StrSplit(log, "\n");
   // Can't figure out how to turn off ASan for the crashWorker() function,
   // but it is useful for tests to pass with ASan too.
@@ -393,7 +302,8 @@ TEST_CASE("ROBUSTNESS") {
 
   StdPath snapshotLogPath = "./test/robustness";
   snapshotLogPath.append(fault + ".snapshot.log");
-  compareOrUpdate(log, snapshotLogPath);
+  test::compareOrUpdateSingleFile(test::globalCliOptions.testMode, log,
+                                  snapshotLogPath);
 }
 
 int main(int argc, char *argv[]) {
@@ -406,7 +316,8 @@ int main(int argc, char *argv[]) {
                         cxxopts::value<std::string>(testKind));
   options.add_options()(
       "test-name", "(Optional) Separate identifier for a specific test",
-      cxxopts::value<std::string>(testCliOptions.testName)->default_value(""));
+      cxxopts::value<std::string>(test::globalCliOptions.testName)
+          ->default_value(""));
   options.add_options()("update",
                         "Should snapshots be updated instead of comparing?",
                         cxxopts::value<bool>());
@@ -418,21 +329,21 @@ int main(int argc, char *argv[]) {
     std::exit(EXIT_FAILURE);
   }
   if (testKind == "unit") {
-    testCliOptions.testKind = TestKind::UnitTests;
+    test::globalCliOptions.testKind = test::Kind::UnitTests;
   } else if (testKind == "compdb") {
-    testCliOptions.testKind = TestKind::CompdbTests;
+    test::globalCliOptions.testKind = test::Kind::CompdbTests;
   } else if (testKind == "preprocessor") {
-    testCliOptions.testKind = TestKind::PreprocessorTests;
+    test::globalCliOptions.testKind = test::Kind::PreprocessorTests;
   } else if (testKind == "robustness") {
-    testCliOptions.testKind = TestKind::RobustnessTests;
+    test::globalCliOptions.testKind = test::Kind::RobustnessTests;
   } else {
     fmt::print(stderr, "Unknown value for --test-kind");
     std::exit(EXIT_FAILURE);
   }
 
-  testCliOptions.testMode = SnapshotTestMode::Compare;
+  test::globalCliOptions.testMode = test::SnapshotMode::Compare;
   if (result.count("update") > 0) {
-    testCliOptions.testMode = SnapshotTestMode::Update;
+    test::globalCliOptions.testMode = test::SnapshotMode::Update;
   }
 
   doctest::Context context(argc, argv);

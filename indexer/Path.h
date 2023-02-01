@@ -106,6 +106,31 @@ public:
 
   friend std::strong_ordering operator<=>(const RootRelativePathRef &,
                                           const RootRelativePathRef &);
+  DERIVE_EQ_VIA_CMP(RootRelativePathRef)
+};
+
+class RootRelativePath {
+  std::string value;
+  RootKind _kind;
+
+public:
+  RootRelativePath() = default;
+  RootRelativePath(RootRelativePath &&) = default;
+  RootRelativePath &operator=(RootRelativePath &&) = default;
+  RootRelativePath(const RootRelativePath &) = default;
+  RootRelativePath &operator=(const RootRelativePath &) = default;
+
+  explicit RootRelativePath(RootRelativePathRef ref);
+
+  const std::string &asStringRef() const {
+    return this->value;
+  }
+
+  RootRelativePathRef asRef() const {
+    return RootRelativePathRef(this->value, this->_kind);
+  }
+
+  DERIVE_HASH_CMP_NEWTYPE(RootRelativePath, asRef(), CMP_EXPR)
 };
 
 class RootPath final {

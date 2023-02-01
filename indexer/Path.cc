@@ -80,6 +80,14 @@ std::strong_ordering operator<=>(const RootRelativePathRef &lhs,
   return std::strong_ordering::equal;
 }
 
+RootRelativePath::RootRelativePath(RootRelativePathRef ref)
+    : value(ref.asStringView()), _kind(ref.kind()) {
+  if (this->value.empty()) {
+    return;
+  }
+  ENFORCE(llvm::sys::path::is_relative(this->value));
+}
+
 std::optional<RootRelativePathRef>
 RootPath::tryMakeRelative(AbsolutePathRef maybePathInsideProject) const {
   if (auto optStrView =
