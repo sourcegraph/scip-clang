@@ -32,6 +32,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "Path to JSON compilation database",
     cxxopts::value<std::string>(cliOptions.compdbPath)->default_value("compile_commands.json"));
   parser.add_options("")(
+    "index-output-path",
+    "Path to write the SCIP index to",
+    cxxopts::value<std::string>(cliOptions.indexOutputPath)->default_value("index.scip"));
+  parser.add_options("")(
     "j,jobs",
     fmt::format("How many indexing processes to run in parallel? (default: NCPUs = {})", cliOptions.numWorkers),
     cxxopts::value<uint32_t>(cliOptions.numWorkers));

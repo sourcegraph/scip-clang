@@ -54,8 +54,9 @@ struct WorkerOptions {
   RootPath projectRootPath;
 
   WorkerMode mode;
-  IpcOptions ipcOptions; // only valid if mode == Ipc
-  StdPath compdbPath;    // only valid if mode == Compdb
+  IpcOptions ipcOptions;   // only valid if mode == Ipc
+  StdPath compdbPath;      // only valid if mode == Compdb
+  StdPath indexOutputPath; // only valid if mode == Compdb
 
   spdlog::level::level_enum logLevel;
   bool deterministic;

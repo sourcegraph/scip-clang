@@ -27,6 +27,7 @@ struct CliOptions {
   std::string compdbPath;
   std::string scipClangExecutablePath;
   std::string temporaryOutputDir;
+  std::string indexOutputPath;
 
   std::chrono::seconds receiveTimeout;
   uint32_t numWorkers;
