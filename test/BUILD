@@ -4,7 +4,13 @@ load(":test_suite.bzl", "scip_clang_test_suite")
 cc_binary(
     name = "test_main",
     testonly = 1,
-    srcs = ["test_main.cc"],
+    srcs = glob(
+        [
+            "*.cc",
+            "*.h",
+        ],
+        exclude = ["ipc_test_main.cc"],
+    ),
     linkopts = select({
         "//:asan_linkopts": ASAN_LINKOPTS,
         "//conditions:default": [],
