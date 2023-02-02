@@ -76,6 +76,14 @@ struct SemanticAnalysisJobDetails {
 };
 SERIALIZABLE(SemanticAnalysisJobDetails)
 
+} // namespace scip_clang
+
+namespace clang::tooling {
+SERIALIZABLE(clang::tooling::CompileCommand) // Not implemented upstream 😕
+}
+
+namespace scip_clang {
+
 struct EmitIndexJobDetails {
   std::vector<AbsolutePath> filesToBeIndexed;
 };
