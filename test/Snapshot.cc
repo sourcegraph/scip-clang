@@ -339,7 +339,7 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
     auto output =
         compute(rootPath, io.sourceFilePath.asRef(), std::move(commandLine));
 
-    extractTransform(
+    scip_clang::extractTransform(
         std::move(output), /*deterministic*/ true,
         absl::FunctionRef<void(RootRelativePath &&, std::string &&)>(
             [&](auto &&inputPath, auto &&snapshotContent) -> void {

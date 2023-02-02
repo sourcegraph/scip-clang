@@ -1,5 +1,11 @@
+#include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
 #include "spdlog/fmt/fmt.h"
 
 #include "clang/Basic/SourceLocation.h"
@@ -103,16 +109,27 @@ void MacroIndex::saveOccurrence(clang::FileID occFileId,
   ENFORCE(occFileId.isValid(),
           "trying to record occurrence outside an actual file");
   ENFORCE(macroInfo, "missing macroInfo for definition of occurrence");
-  // Deliberately using [..] for default initialization.
-  if (macroToken.getLength() == 0) {
-    llvm::errs() << "macroInfo for zero-length token = ";
-    macroInfo->dump();
-  }
   this->table[{occFileId}].emplace_back(FileLocalMacroOccurrence{
       *this->sourceManager, macroToken, macroInfo, role});
   // TODO: Do we need special handling for file-based macros
   // vs object-like macros?
 }
+
+// NOTE(def: macro-definition)
+// Macros can be defined in 4 different ways:
+// 1. Builtin macros: This corresponds to "magical" macros
+//    like __LINE__ etc. which cannot really be implemented in code itself.
+//    For this macro type, MacroInfo::isBuiltinMacro() returns true.
+//    isBuiltinMacro() returns false for all other macro types.
+// 2. Pre-defined macros: This corresponds to macros coming from the
+//    <built-in> magic header inside Clang.
+//    https://sourcegraph.com/github.com/llvm/llvm-project/-/blob/clang/lib/Basic/Builtins.cpp
+//    https://sourcegraph.com/github.com/llvm/llvm-project/-/blob/clang/include/clang/Basic/Builtins.def
+//    For this macro type,
+// 3. CLI-defined macros: E.g. -DQUEEN=IU.
+// 4. Source-defined macros: These are normally added using #define,
+//    but one can also use '#pragma (push|pop)_macro("macro_name")'
+//    See https://gcc.gnu.org/onlinedocs/gcc/Push_002fPop-Macro-Pragmas.html
 
 /// Pre-condition: \param macroInfo is non-null.
 void MacroIndex::saveNonFileBasedMacro(const clang::MacroInfo *macroInfo) {
@@ -233,21 +250,5 @@ void MacroIndex::emitExternalSymbols(bool deterministic,
             *index.add_external_symbols() = std::move(symbolInfo);
           }));
 }
-
-// NOTE(def: macro-definitions)
-// Macros can be defined in 4 different ways:
-// 1. Builtin macros: This corresponds to "magical" macros
-//    like __LINE__ etc. which cannot really be implemented in code itself.
-//    For this macro type, MacroInfo::isBuiltinMacro() returns true.
-//    isBuiltinMacro() returns false for all other macro types.
-// 2. Pre-defined macros: This corresponds to macros coming from the
-//    <built-in> magic header inside Clang.
-//    https://sourcegraph.com/github.com/llvm/llvm-project/-/blob/clang/lib/Basic/Builtins.cpp
-//    https://sourcegraph.com/github.com/llvm/llvm-project/-/blob/clang/include/clang/Basic/Builtins.def
-//    For this macro type,
-// 3. CLI-defined macros: E.g. -DQUEEN=IU.
-// 4. Source-defined macros: These are normally added using #define,
-//    but one can also use '#pragma (push|pop)_macro("macro_name")'
-//    See https://gcc.gnu.org/onlinedocs/gcc/Push_002fPop-Macro-Pragmas.html
 
 } // namespace scip_clang
