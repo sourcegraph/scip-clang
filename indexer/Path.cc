@@ -73,6 +73,10 @@ RootRelativePathRef::RootRelativePathRef(std::string_view value, RootKind kind)
   ENFORCE(llvm::sys::path::is_relative(this->value));
 }
 
+std::string_view RootRelativePathRef::extension() const {
+  return toStringView(llvm::sys::path::extension(this->asStringView()));
+}
+
 std::strong_ordering operator<=>(const RootRelativePathRef &lhs,
                                  const RootRelativePathRef &rhs) {
   CMP_STR(lhs.asStringView(), rhs.asStringView());
@@ -86,6 +90,15 @@ RootRelativePath::RootRelativePath(RootRelativePathRef ref)
     return;
   }
   ENFORCE(llvm::sys::path::is_relative(this->value));
+}
+
+void RootRelativePath::replaceExtension(std::string_view newExtension) {
+  auto it = this->value.rfind('.');
+  if (it == std::string::npos) {
+    return;
+  }
+  this->value.resize(it);
+  this->value.append(newExtension);
 }
 
 std::optional<RootRelativePathRef>
