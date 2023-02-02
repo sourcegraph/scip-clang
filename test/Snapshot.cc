@@ -156,7 +156,7 @@ void formatSnapshot(const scip::Document &document,
           sourceFilePath.asStringView());
   int32_t lineNumber = 1;
   std::vector<scip::Relationship> relationships;
-  for (std::string line; getline(input, line); lineNumber++) {
+  for (std::string line; std::getline(input, line); lineNumber++) {
     if (!line.empty() && line.back() == '\r') {
       line.pop_back();
     }
@@ -319,8 +319,25 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
     if (!test::isTuMainFilePath(sourceFilePath)) {
       continue;
     }
-    auto output = compute(rootPath, io.sourceFilePath.asRef(),
-                          {"clang", "-I", ".", sourceFilePath});
+    std::vector<std::string> commandLine{"clang", "-I", ".", sourceFilePath};
+    {
+      std::ifstream tuStream(sourceFilePath, std::ios::in | std::ios::binary);
+      std::string prefix = "// extra-args: ";
+      for (std::string line; std::getline(tuStream, line);) {
+        if (!line.starts_with(prefix)) {
+          break;
+        }
+        for (auto &arg : absl::StrSplit(line.substr(prefix.size()), ' ')) {
+          auto s = absl::StripAsciiWhitespace(arg);
+          if (!s.empty()) {
+            commandLine.emplace_back(s);
+          }
+        }
+      }
+    }
+
+    auto output =
+        compute(rootPath, io.sourceFilePath.asRef(), std::move(commandLine));
 
     extractTransform(
         std::move(output), /*deterministic*/ true,

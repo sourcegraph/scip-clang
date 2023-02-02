@@ -470,17 +470,9 @@ public:
   // MacroInfo
   // MacroDirective
 
-  /// Hook called whenever a macro \#undef is seen.
-  /// \param MacroNameTok The active Token
-  /// \param MD A MacroDefinition for the named macro.
-  /// \param Undef New MacroDirective if the macro was defined, null otherwise.
-  ///
-  /// MD is released immediately following this callback.
-  virtual void
-  MacroUndefined(const clang::Token &macroNameToken,
-                 const clang::MacroDefinition &macroDefinition,
-                 const clang::MacroDirective *undefDirective) override {
-    (void)undefDirective;
+  virtual void MacroUndefined(const clang::Token &macroNameToken,
+                              const clang::MacroDefinition &macroDefinition,
+                              const clang::MacroDirective *) override {
     // FIXME: Mix the undef into the running hash
     this->macroIndex.saveReference(macroNameToken, macroDefinition);
   }
@@ -490,20 +482,48 @@ public:
   ///    of A and \c range.end is the location of the ).
   virtual void MacroExpands(const clang::Token &macroNameToken,
                             const clang::MacroDefinition &macroDefinition,
-                            clang::SourceRange range,
-                            const clang::MacroArgs *args) override {
+                            clang::SourceRange,
+                            const clang::MacroArgs *) override {
+    // TODO: Handle macro arguments
+    // Q: How/when should we use the SourceRange argument
     this->macroIndex.saveReference(macroNameToken, macroDefinition);
     // FIXME: Mix the expands into the running hash
   }
+
+  virtual void Ifdef(clang::SourceLocation, const clang::Token &macroNameToken,
+                     const clang::MacroDefinition &macroDefinition) override {
+    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+    // FIXME: Mix the ifdef into the running hash.
+  }
+
+  virtual void Ifndef(clang::SourceLocation, const clang::Token &macroNameToken,
+                      const clang::MacroDefinition &macroDefinition) override {
+    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+  }
+
+  virtual void Defined(const clang::Token &macroNameToken,
+                       const clang::MacroDefinition &macroDefinition,
+                       clang::SourceRange) override {
+    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+  }
+
+  virtual void Elifdef(clang::SourceLocation,
+                       const clang::Token &macroNameToken,
+                       const clang::MacroDefinition &macroDefinition) override {
+    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+  }
+
+  virtual void
+  Elifndef(clang::SourceLocation, const clang::Token &macroNameToken,
+           const clang::MacroDefinition &macroDefinition) override {
+    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+  }
+
   // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/21):
   // Add overrides for
-  // - Defined
-  // - Elif
   // - If
-  // - Ifdef
-  // - Ifndef
+  // - Elif
   // - InclusionDirective
-  // Which adjust the transcript.
 
   // END overrides from PPCallbacks
 };

@@ -1,12 +1,20 @@
+// extra-args: -std=c++23
+
 #include "macros.h"
 
 int a = MY_MACRO;
 
 #undef MY_MACRO
 
+#if defined(MY_MACRO) // no reference
+#endif
+
 #define MY_MACRO 1
 
 int b = MY_MACRO;
+
+#if defined(MY_MACRO)
+#endif
 
 #ifdef MY_MACRO
 #endif
@@ -15,6 +23,8 @@ int b = MY_MACRO;
 #endif
 
 #ifdef NOT_YET_DEFINED_MACRO
+#elifndef MY_MACRO
+#elifdef MY_MACRO
 #endif
 
 #define NOT_YET_DEFINED_MACRO
