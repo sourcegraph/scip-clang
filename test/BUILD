@@ -51,6 +51,10 @@ scip_clang_test_suite(
         "compdb/*.json",
         "compdb/*.snapshot.yaml",
     ]),
+    index_data = glob([
+        "index/**/*.cc",
+        "index/**/*.h",
+    ]),
     preprocessor_data = glob([
         "preprocessor/**/*.yaml",
         "preprocessor/**/*.cc",

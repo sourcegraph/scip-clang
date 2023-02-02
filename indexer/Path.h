@@ -99,6 +99,8 @@ public:
     return this->_kind;
   }
 
+  std::string_view extension() const;
+
   template <typename H>
   friend H AbslHashValue(H h, const RootRelativePathRef &self) {
     return H::combine(std::move(h), self.value, bool(self._kind));
@@ -129,6 +131,8 @@ public:
   RootRelativePathRef asRef() const {
     return RootRelativePathRef(this->value, this->_kind);
   }
+
+  void replaceExtension(std::string_view newExtension);
 
   DERIVE_HASH_CMP_NEWTYPE(RootRelativePath, asRef(), CMP_EXPR)
 };

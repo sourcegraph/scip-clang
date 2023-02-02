@@ -38,11 +38,11 @@ def _snapshot_test(name, kind, data, tags = []):
     _test_main(name = update_name, args = test_args + ["--update"], data = data, tags = tags)
     return (test_name, update_name)
 
-def _group_by_top_level_dir(paths):
+def _group_by_top_level_dir(dirname, paths):
     groups = {}
     for p in paths:
-        i = p.find("preprocessor/")
-        start = i + len("preprocessor/")
+        i = p.find(dirname + "/")
+        start = i + len(dirname + "/")
         end = p[start:].find("/")
         testdir = p[start:start + end]
         if testdir in groups:
@@ -64,7 +64,7 @@ def _snapshot_test_suite(name, make_pair, args):
     return (tests, updates)
 
 def _preprocessor_tests(preprocessor_data):
-    preprocessor_test_groups = _group_by_top_level_dir(preprocessor_data)
+    preprocessor_test_groups = _group_by_top_level_dir("preprocessor", preprocessor_data)
     tests, updates = [], []
     for (testdir, paths) in preprocessor_test_groups.items():
         if "/" in testdir:
@@ -89,7 +89,16 @@ def _robustness_tests(data):
         updates.append(update_name)
     return (tests, updates)
 
-def scip_clang_test_suite(compdb_data, preprocessor_data, robustness_data):
+def _index_tests(data):
+    index_test_groups = _group_by_top_level_dir("index", data)
+    tests, updates = [], []
+    for (testdir, paths) in index_test_groups.items():
+        t, u = _snapshot_test(name = testdir, kind = "index", data = paths + ["//indexer:scip-clang"])
+        tests.append(t)
+        updates.append(u)
+    return (tests, updates)
+
+def scip_clang_test_suite(compdb_data, preprocessor_data, robustness_data, index_data):
     _test_main(name = "test_unit", args = ["--test-kind=unit"], data = [], tags = [])
     tests = ["test_unit"]
     updates = []
@@ -107,6 +116,10 @@ def scip_clang_test_suite(compdb_data, preprocessor_data, robustness_data):
     tests += ["test_ipc_hang", "test_ipc_crash"]
 
     ts, us = _snapshot_test_suite("robustness", _robustness_tests, robustness_data)
+    tests += ts
+    updates += us
+
+    ts, us = _snapshot_test_suite("index", _index_tests, index_data)
     tests += ts
     updates += us
 

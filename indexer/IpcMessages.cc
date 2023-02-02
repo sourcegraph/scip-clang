@@ -10,6 +10,26 @@
 #include "indexer/Derive.h"
 #include "indexer/IpcMessages.h"
 
+namespace clang::tooling {
+
+llvm::json::Value toJSON(const clang::tooling::CompileCommand &cc) {
+  return llvm::json::Object{{"directory", cc.Directory},
+                            {"file", cc.Filename},
+                            {"output", cc.Output},
+                            {"arguments", cc.CommandLine}};
+}
+
+bool fromJSON(const llvm::json::Value &jsonValue,
+              clang::tooling::CompileCommand &cc, llvm::json::Path path) {
+  llvm::json::ObjectMapper mapper(jsonValue, path);
+  return mapper && mapper.map("directory", cc.Directory)
+         && mapper.map("file", cc.Filename)
+         && mapper.mapOptional("output", cc.Output)
+         && mapper.map("arguments", cc.CommandLine);
+}
+
+} // namespace clang::tooling
+
 namespace scip_clang {
 
 std::string driverToWorkerQueueName(std::string_view driverId,
@@ -130,28 +150,13 @@ bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
 DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobResult, indexPartPath)
 DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobDetails, filesToBeIndexed)
 DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::IpcTestMessage, content)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::SemanticAnalysisJobDetails, command)
 
 DERIVE_SERIALIZE_2(scip_clang::PreprocessedFileInfo, path, hashValue)
 DERIVE_SERIALIZE_2(scip_clang::PreprocessedFileInfoMulti, path, hashValues)
 DERIVE_SERIALIZE_2(scip_clang::IndexJobRequest, id, job)
 DERIVE_SERIALIZE_2(scip_clang::SemanticAnalysisJobResult, wellBehavedFiles,
                    illBehavedFiles)
-
-llvm::json::Value toJSON(const SemanticAnalysisJobDetails &val) {
-  return llvm::json::Object{{"workdir", val.command.Directory},
-                            {"file", val.command.Filename},
-                            {"output", val.command.Output},
-                            {"args", val.command.CommandLine}};
-}
-
-bool fromJSON(const llvm::json::Value &jsonValue, SemanticAnalysisJobDetails &d,
-              llvm::json::Path path) {
-  llvm::json::ObjectMapper mapper(jsonValue, path);
-  return mapper && mapper.map("workdir", d.command.Directory)
-         && mapper.map("file", d.command.Filename)
-         && mapper.map("output", d.command.Output)
-         && mapper.map("args", d.command.CommandLine);
-}
 
 std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs,
                                  const PreprocessedFileInfo &rhs) {
