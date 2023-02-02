@@ -8,7 +8,6 @@
 #include <limits>
 #include <memory>
 #include <string_view>
-#include <sys/_types/_uintptr_t.h>
 #include <thread>
 #include <type_traits>
 #include <variant>
