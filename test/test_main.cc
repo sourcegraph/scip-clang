@@ -36,6 +36,7 @@ enum class Kind {
   CompdbTests,
   PreprocessorTests,
   RobustnessTests,
+  IndexTests,
 };
 
 struct CliOptions {
@@ -306,6 +307,13 @@ TEST_CASE("ROBUSTNESS") {
                                   snapshotLogPath);
 }
 
+TEST_CASE("INDEX") {
+  if (test::globalCliOptions.testKind != test::Kind::IndexTests) {
+    return;
+  }
+
+}
+
 int main(int argc, char *argv[]) {
   scip_clang::initializeSymbolizer(argv[0]);
 
@@ -336,6 +344,8 @@ int main(int argc, char *argv[]) {
     test::globalCliOptions.testKind = test::Kind::PreprocessorTests;
   } else if (testKind == "robustness") {
     test::globalCliOptions.testKind = test::Kind::RobustnessTests;
+  } else if (testKind == "index") {
+    test::globalCliOptions.testKind = test::Kind::IndexTests;
   } else {
     fmt::print(stderr, "Unknown value for --test-kind");
     std::exit(EXIT_FAILURE);
