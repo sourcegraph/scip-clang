@@ -403,7 +403,8 @@ TEST_CASE("INDEX") {
         args.push_back("--log-level=warning");
         args.push_back("--receive-timeout-seconds=60");
         boost::process::child driver(
-            args, boost::process::start_dir(rootInSourceDir.asStringRef()));
+            args, boost::process::start_dir(rootInSourceDir.asStringRef()),
+            boost::process::std_out > stdout, boost::process::std_err > stderr);
         driver.wait();
 
         scip::Index index{};

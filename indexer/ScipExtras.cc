@@ -55,7 +55,7 @@ std::strong_ordering operator<=>(const OccurrenceExt &lhs,
 
 void SymbolInformationBuilder::finish(bool deterministic,
                                       scip::SymbolInformation &out) {
-  this->_bomb.defuse();
+  // this->_bomb.defuse();
 
   out.mutable_documentation()->Reserve(this->documentation.size());
   for (auto &doc : this->documentation) {
@@ -95,7 +95,7 @@ void DocumentBuilder::merge(scip::Document &&doc) {
       SymbolInformationBuilder builder{
           name, std::move(*symbolInfo.mutable_documentation()),
           std::move(*symbolInfo.mutable_relationships())};
-      this->symbolInfos.insert({std::move(name), std::move(builder)});
+      this->symbolInfos.emplace(std::move(name), std::move(builder));
       continue;
     }
     auto &symbolInfoBuilder = it->second;
@@ -132,7 +132,7 @@ void DocumentBuilder::finish(bool deterministic, scip::Document &out) {
   out = std::move(this->soFar);
 }
 
-ProjectRootRelativePath::ProjectRootRelativePath(std::string &&value)
+RootRelativePath::RootRelativePath(std::string &&value)
     : value(std::move(value)) {
   ENFORCE(!this->value.empty());
   ENFORCE(llvm::sys::path::is_relative(this->value));
@@ -145,7 +145,7 @@ IndexBuilder::IndexBuilder(scip::Index &fullIndex)
 void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
   ENFORCE(!doc.relative_path().empty());
   if (isMultiplyIndexed) {
-    ProjectRootRelativePath docPath{std::string(doc.relative_path())};
+    RootRelativePath docPath{std::string(doc.relative_path())};
     auto it = this->multiplyIndexed.find(docPath);
     if (it == this->multiplyIndexed.end()) {
       this->multiplyIndexed.insert(
@@ -157,7 +157,7 @@ void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
     }
   } else {
     ENFORCE(!this->multiplyIndexed.contains(
-                ProjectRootRelativePath{std::string(doc.relative_path())}),
+                RootRelativePath{std::string(doc.relative_path())}),
             "Document with path '{}' found in multiplyIndexed map despite "
             "!isMultiplyIndexed",
             doc.relative_path());
@@ -199,7 +199,7 @@ void IndexBuilder::finish(bool deterministic) {
   this->fullIndex.mutable_documents()->Reserve(this->multiplyIndexed.size());
   scip_clang::extractTransform(
       std::move(this->multiplyIndexed), deterministic,
-      absl::FunctionRef<void(ProjectRootRelativePath &&,
+      absl::FunctionRef<void(RootRelativePath &&,
                              std::unique_ptr<DocumentBuilder> &&)>(
           [&](auto && /*path*/, auto &&builder) -> void {
             scip::Document doc{};

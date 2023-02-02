@@ -624,6 +624,7 @@ private:
         this->options.projectRootPath.asRef().asStringView());
     metadata.set_project_root("file:/" + projectRootUnixStyle);
     metadata.set_version(scip::UnspecifiedProtocolVersion);
+    metadata.set_text_document_encoding(scip::TextEncoding::UTF8);
     *metadata.mutable_tool_info() = std::move(toolInfo);
 
     // TODO(def: faster-index-merging): Right now, the index merging
