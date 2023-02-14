@@ -29,9 +29,10 @@ struct RelationshipExt {
 
   template <typename H>
   friend H AbslHashValue(H h, const RelationshipExt &self) {
-    return H::combine(std::move(h), self.rel.symbol(), self.rel.is_definition(),
-                      self.rel.is_reference(), self.rel.is_type_definition(),
-                      self.rel.is_implementation());
+    auto &r = self.rel;
+    return H::combine(std::move(h), r.symbol(), r.is_definition(),
+                      r.is_reference(), r.is_type_definition(),
+                      r.is_implementation());
   }
 };
 
@@ -98,6 +99,9 @@ class DocumentBuilder final {
   scip_clang::Bomb _bomb;
 
   absl::flat_hash_set<OccurrenceExt> occurrences;
+
+  // Keyed by the symbol name. The SymbolInformationBuilder value
+  // doesn't carry the name to avoid redundant allocations.
   absl::flat_hash_map<std::string, SymbolInformationBuilder> symbolInfos;
 
 public:

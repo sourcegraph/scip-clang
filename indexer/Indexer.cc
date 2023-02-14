@@ -4,22 +4,40 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "spdlog/fmt/fmt.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Lex/Lexer.h"
 
 #include "scip/scip.pb.h"
 
 #include "indexer/AbslExtras.h"
 #include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
-#include "indexer/MacroIndex.h"
+#include "indexer/Indexer.h"
 #include "indexer/Path.h"
+#include "indexer/ScipExtras.h"
 
 namespace scip_clang {
+
+std::pair<FileLocalSourceRange, clang::FileID>
+FileLocalSourceRange::fromNonEmpty(const clang::SourceManager &sourceManager,
+                                   clang::SourceRange inclusiveRange) {
+  ENFORCE(inclusiveRange.getBegin().isValid());
+  ENFORCE(inclusiveRange.getEnd().isValid());
+  ENFORCE(inclusiveRange.getEnd() >= inclusiveRange.getBegin(),
+          "called fromNonEmpty with empty range");
+  auto startLoc = sourceManager.getPresumedLoc(inclusiveRange.getBegin());
+  auto endLoc = sourceManager.getPresumedLoc(inclusiveRange.getEnd());
+  return {{startLoc.getLine(), startLoc.getColumn(), endLoc.getLine(),
+           endLoc.getColumn()},
+          startLoc.getFileID()};
+}
 
 void FileLocalSourceRange::addToOccurrence(scip::Occurrence &occ) const {
   occ.add_range(this->startLine - 1);
@@ -35,47 +53,16 @@ std::string FileLocalSourceRange::debugToString() const {
                      this->endLine, this->endColumn);
 }
 
-std::string_view SymbolInterner::getMacroSymbol(clang::SourceLocation defLoc) {
-  auto it = this->cache.find({defLoc});
-  if (it != this->cache.end()) {
-    return std::string_view(it->second);
-  }
-  auto defPLoc = this->sourceManager.getPresumedLoc(defLoc);
-  ENFORCE(defPLoc.isValid());
-  std::string_view filename;
-  if (auto optRelPath = this->getCanonicalPath(defPLoc.getFileID())) {
-    filename = optRelPath->asStringView();
-  } else {
-    filename = std::string_view(defPLoc.getFilename());
-  }
-  std::string out{fmt::format("c . todo-pkg todo-version {}:{}:{}#", filename,
-                              defPLoc.getLine(), defPLoc.getColumn())};
-  auto [newIt, inserted] = this->cache.insert({{defLoc}, std::move(out)});
-  ENFORCE(inserted, "key was missing earlier, so insert should've succeeded");
-  return std::string_view(newIt->second);
-}
-
 FileLocalMacroOccurrence::FileLocalMacroOccurrence(
     const clang::SourceManager &sourceManager, const clang::Token &macroToken,
     const clang::MacroInfo *defInfo, Role role)
     : defInfo(defInfo), role(role) {
-  auto startLoc = sourceManager.getPresumedLoc(macroToken.getLocation());
-  auto endLoc = sourceManager.getPresumedLoc(macroToken.getEndLoc());
-  ENFORCE(startLoc.isValid());
-  ENFORCE(endLoc.isValid());
-  this->range = {startLoc.getLine(), startLoc.getColumn(), endLoc.getLine(),
-                 endLoc.getColumn()};
-  ENFORCE(startLoc.getLine() != endLoc.getLine()
-              || startLoc.getColumn() != endLoc.getColumn(),
-          "Found zero-length range for macro token: {}; getLocation() == "
-          "getEndLoc() = {}; length = {}",
-          debug::formatLoc(sourceManager, macroToken.getLocation()),
-          macroToken.getLocation() == macroToken.getEndLoc(),
-          macroToken.getLength());
-  // Q: What source range does the defInfo store?
+  auto [range, _] = FileLocalSourceRange::fromNonEmpty(
+      sourceManager, {macroToken.getLocation(), macroToken.getEndLoc()});
+  this->range = range;
 }
 
-void FileLocalMacroOccurrence::saveOccurrence(SymbolInterner &symbolBuilder,
+void FileLocalMacroOccurrence::emitOccurrence(SymbolFormatter &symbolFormatter,
                                               scip::Occurrence &occ) const {
   switch (this->role) {
   case Role::Definition:
@@ -87,25 +74,27 @@ void FileLocalMacroOccurrence::saveOccurrence(SymbolInterner &symbolBuilder,
     break;
   }
   this->range.addToOccurrence(occ);
-  auto name = symbolBuilder.getMacroSymbol(this->defInfo->getDefinitionLoc());
+  auto name = symbolFormatter.getMacroSymbol(this->defInfo->getDefinitionLoc());
   occ.set_symbol(name.data(), name.size());
 }
 
-void FileLocalMacroOccurrence::saveScipSymbol(
+void FileLocalMacroOccurrence::emitSymbolInformation(
     const std::string &name, scip::SymbolInformation &symbolInfo) const {
   symbolInfo.set_symbol(name);
   // TODO: Set documentation
 }
 
-void NonFileBasedMacro::saveScipSymbol(
-    SymbolInterner &symbolBuilder, scip::SymbolInformation &symbolInfo) const {
-  auto name = symbolBuilder.getMacroSymbol(this->defInfo->getDefinitionLoc());
+void NonFileBasedMacro::emitSymbolInformation(
+    SymbolFormatter &symbolFormatter,
+    scip::SymbolInformation &symbolInfo) const {
+  auto name = symbolFormatter.getMacroSymbol(this->defInfo->getDefinitionLoc());
   symbolInfo.set_symbol(name.data(), name.size());
 }
 
-void MacroIndex::saveOccurrence(clang::FileID occFileId,
-                                const clang::Token &macroToken,
-                                const clang::MacroInfo *macroInfo, Role role) {
+void MacroIndexer::saveOccurrence(clang::FileID occFileId,
+                                  const clang::Token &macroToken,
+                                  const clang::MacroInfo *macroInfo,
+                                  Role role) {
   ENFORCE(occFileId.isValid(),
           "trying to record occurrence outside an actual file");
   ENFORCE(macroInfo, "missing macroInfo for definition of occurrence");
@@ -132,12 +121,12 @@ void MacroIndex::saveOccurrence(clang::FileID occFileId,
 //    See https://gcc.gnu.org/onlinedocs/gcc/Push_002fPop-Macro-Pragmas.html
 
 /// Pre-condition: \param macroInfo is non-null.
-void MacroIndex::saveNonFileBasedMacro(const clang::MacroInfo *macroInfo) {
+void MacroIndexer::saveNonFileBasedMacro(const clang::MacroInfo *macroInfo) {
   this->nonFileBasedMacros.insert({macroInfo});
 }
 
-void MacroIndex::saveDefinition(const clang::Token &macroNameToken,
-                                const clang::MacroInfo *macroInfo) {
+void MacroIndexer::saveDefinition(const clang::Token &macroNameToken,
+                                  const clang::MacroInfo *macroInfo) {
   ENFORCE(macroInfo);
   auto startPLoc =
       this->sourceManager->getPresumedLoc(macroInfo->getDefinitionLoc());
@@ -150,8 +139,9 @@ void MacroIndex::saveDefinition(const clang::Token &macroNameToken,
                        Role::Definition);
 }
 
-void MacroIndex::saveReference(const clang::Token &macroNameToken,
-                               const clang::MacroDefinition &macroDefinition) {
+void MacroIndexer::saveReference(
+    const clang::Token &macroNameToken,
+    const clang::MacroDefinition &macroDefinition) {
   if (macroDefinition.isAmbiguous()) { // buggy code? ignore for now
     return;
   }
@@ -192,8 +182,8 @@ void MacroIndex::saveReference(const clang::Token &macroNameToken,
                        Role::Reference);
 }
 
-void MacroIndex::emitDocumentOccurrencesAndSymbols(
-    bool deterministic, SymbolInterner &symbolBuilder, clang::FileID fileId,
+void MacroIndexer::emitDocumentOccurrencesAndSymbols(
+    bool deterministic, SymbolFormatter &symbolFormatter, clang::FileID fileId,
     scip::Document &document) {
   auto it = this->table.find({fileId});
   if (it == this->table.end()) {
@@ -222,12 +212,12 @@ void MacroIndex::emitDocumentOccurrencesAndSymbols(
   (void)deterministic;
   for (auto &macroOcc : it->second) {
     scip::Occurrence occ;
-    macroOcc.saveOccurrence(symbolBuilder, occ);
+    macroOcc.emitOccurrence(symbolFormatter, occ);
     switch (macroOcc.role) {
     case Role::Definition: {
       scip::SymbolInformation symbolInfo;
       ENFORCE(!occ.symbol().empty())
-      macroOcc.saveScipSymbol(occ.symbol(), symbolInfo);
+      macroOcc.emitSymbolInformation(occ.symbol(), symbolInfo);
       *document.add_symbols() = std::move(symbolInfo);
       break;
     }
@@ -238,17 +228,97 @@ void MacroIndex::emitDocumentOccurrencesAndSymbols(
   }
 }
 
-void MacroIndex::emitExternalSymbols(bool deterministic,
-                                     SymbolInterner &symbolBuilder,
-                                     scip::Index &index) {
+void MacroIndexer::emitExternalSymbols(bool deterministic,
+                                       SymbolFormatter &symbolFormatter,
+                                       scip::Index &index) {
   scip_clang::extractTransform(
       std::move(this->nonFileBasedMacros), deterministic,
       absl::FunctionRef<void(NonFileBasedMacro &&)>(
           [&](auto &&nonFileBasedMacro) -> void {
             scip::SymbolInformation symbolInfo;
-            nonFileBasedMacro.saveScipSymbol(symbolBuilder, symbolInfo);
+            nonFileBasedMacro.emitSymbolInformation(symbolFormatter,
+                                                    symbolInfo);
             *index.add_external_symbols() = std::move(symbolInfo);
           }));
 }
+
+void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
+  ENFORCE(namespaceDecl);
+  auto optSymbol = this->symbolFormatter.getNamespaceSymbol(namespaceDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  std::string_view symbol = optSymbol.value();
+
+  // getLocation():
+  // - for anonymous namespaces, returns the location of the opening brace {
+  // - for non-anonymous namespaces, returns the location of the name
+  // getBeginLoc():
+  // - returns the location of the first keyword
+  auto startLoc = [this](auto *n) -> clang::SourceLocation {
+    if (n->isAnonymousNamespace()) {
+      if (n->isInlineNamespace()) {
+        // getBeginLoc() points to 'inline', so find the location of 'namespace'
+        auto namespaceToken = clang::Lexer::findNextToken(
+            n->getBeginLoc(), this->sourceManager, this->langOptions);
+        ENFORCE(namespaceToken.has_value());
+        if (namespaceToken.has_value()) {
+          return namespaceToken->getLocation();
+        }
+      }
+      return n->getBeginLoc();
+    }
+    return n->getLocation();
+  }(namespaceDecl);
+
+  if (startLoc.isMacroID()) {
+    startLoc = this->sourceManager.getSpellingLoc(startLoc);
+    // I think this is OK since macro-defining macros are not supported
+    // https://stackoverflow.com/questions/2429240/c-preprocessor-macro-defining-macro
+    ENFORCE(startLoc.isFileID());
+  }
+
+  auto tokenLength = clang::Lexer::MeasureTokenLength(
+      startLoc, this->sourceManager, this->langOptions);
+  ENFORCE(tokenLength > 0);
+  auto endLoc = startLoc.getLocWithOffset(tokenLength);
+  auto [range, fileId] = FileLocalSourceRange::fromNonEmpty(this->sourceManager,
+                                                            {startLoc, endLoc});
+
+  scip::Occurrence occ;
+  range.addToOccurrence(occ);
+  occ.set_symbol(symbol.data(), symbol.size());
+  occ.set_symbol_roles(scip::SymbolRole::Definition);
+
+  auto &doc = this->documentMap[{fileId}];
+  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
+
+  doc.symbolInfos.insert({symbol, scip::SymbolInformation{}});
+}
+
+void TuIndexer::emitDocumentOccurrencesAndSymbols(
+    bool deterministic, clang::FileID fileId, scip::Document &scipDocument) {
+  auto it = this->documentMap.find({fileId});
+  if (it == this->documentMap.end()) {
+    return;
+  }
+  auto &doc = it->second;
+  for (auto &occExt : doc.occurrences) {
+    *scipDocument.add_occurrences() = std::move(occExt.occ);
+  }
+  extractTransform(
+      std::move(doc.symbolInfos), deterministic,
+      absl::FunctionRef<void(std::string_view &&, scip::SymbolInformation &&)>(
+          [&](auto &&symbolName, auto &&symInfo) {
+            symInfo.set_symbol(symbolName.data(), symbolName.size());
+            *scipDocument.add_symbols() = std::move(symInfo);
+          }));
+}
+
+TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
+                     const clang::LangOptions &langOptions,
+                     SymbolFormatter &symbolFormatter)
+    : sourceManager(sourceManager), langOptions(langOptions),
+      symbolFormatter(symbolFormatter), documentMap() {}
 
 } // namespace scip_clang
