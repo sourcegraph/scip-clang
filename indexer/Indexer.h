@@ -1,6 +1,7 @@
 #ifndef SCIP_CLANG_MACRO_INDEX_H
 #define SCIP_CLANG_MACRO_INDEX_H
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -8,6 +9,7 @@
 #include "absl/container/flat_hash_set.h"
 
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Token.h"
 
@@ -15,14 +17,24 @@
 
 #include "indexer/LLVMAdapter.h"
 #include "indexer/Path.h"
+#include "indexer/ScipExtras.h"
+#include "indexer/SymbolFormatter.h"
+
+namespace clang {
+class NamespaceDecl;
+} // namespace clang
 
 namespace scip_clang {
 
+// Denotes an inclusive source range within a file with 1-based offsets.
+//
+// This matches up with Clang APIs like getLoc(), getEndLoc() etc.
+// so extra +1/-1 calculations should generally not be needed.
 struct FileLocalSourceRange {
-  uint32_t startLine;   // 1-based
-  uint32_t startColumn; // 1-based
-  uint32_t endLine;     // 1-based
-  uint32_t endColumn;   // 1-based
+  uint32_t startLine;
+  uint32_t startColumn;
+  uint32_t endLine;
+  uint32_t endColumn;
 
   template <typename H>
   friend H AbslHashValue(H h, const FileLocalSourceRange &r) {
@@ -31,30 +43,12 @@ struct FileLocalSourceRange {
   }
   DERIVE_EQ_ALL(FileLocalSourceRange);
 
+  static std::pair<FileLocalSourceRange, clang::FileID>
+  fromNonEmpty(const clang::SourceManager &, clang::SourceRange inclusiveRange);
+
   void addToOccurrence(scip::Occurrence &occ) const;
 
   std::string debugToString() const;
-};
-
-using GetCanonicalPath =
-    absl::FunctionRef<std::optional<RootRelativePathRef>(clang::FileID)>;
-
-class SymbolInterner final {
-  const clang::SourceManager &sourceManager;
-  GetCanonicalPath getCanonicalPath;
-
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::SourceLocation>, std::string>
-      cache;
-
-public:
-  SymbolInterner(const clang::SourceManager &sourceManager,
-                 GetCanonicalPath getCanonicalPath)
-      : sourceManager(sourceManager), getCanonicalPath(getCanonicalPath),
-        cache() {}
-  SymbolInterner(const SymbolInterner &) = delete;
-  SymbolInterner &operator=(const SymbolInterner &) = delete;
-
-  std::string_view getMacroSymbol(clang::SourceLocation defLoc);
 };
 
 enum class Role {
@@ -78,8 +72,7 @@ struct FileLocalMacroOccurrence {
                            const clang::Token &macroToken,
                            const clang::MacroInfo *defInfo, Role);
 
-  void saveOccurrence(SymbolInterner &symbolBuilder,
-                      scip::Occurrence &out) const;
+  void saveOccurrence(SymbolFormatter &, scip::Occurrence &out) const;
 
   void saveScipSymbol(const std::string &name,
                       scip::SymbolInformation &symbolInfo) const;
@@ -103,11 +96,11 @@ struct NonFileBasedMacro {
            <=> m2.defInfo->getDefinitionLoc().getRawEncoding();
   }
 
-  void saveScipSymbol(SymbolInterner &symbolBuilder,
+  void saveScipSymbol(SymbolFormatter &symbolFormatter,
                       scip::SymbolInformation &symbolInfo) const;
 };
 
-class MacroIndex final {
+class MacroIndexer final {
   clang::SourceManager *sourceManager; // non-null
   absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
                       std::vector<FileLocalMacroOccurrence>>
@@ -116,12 +109,12 @@ class MacroIndex final {
   absl::flat_hash_set<NonFileBasedMacro> nonFileBasedMacros;
 
 public:
-  MacroIndex(clang::SourceManager &m)
+  MacroIndexer(clang::SourceManager &m)
       : sourceManager(&m), table(), nonFileBasedMacros() {}
-  MacroIndex(MacroIndex &&) = default;
-  MacroIndex &operator=(MacroIndex &&other) = default;
-  MacroIndex(const MacroIndex &) = delete;
-  MacroIndex &operator=(const MacroIndex &&) = delete;
+  MacroIndexer(MacroIndexer &&) = default;
+  MacroIndexer &operator=(MacroIndexer &&other) = default;
+  MacroIndexer(const MacroIndexer &) = delete;
+  MacroIndexer &operator=(const MacroIndexer &&) = delete;
 
   void saveReference(const clang::Token &macroNameToken,
                      const clang::MacroDefinition &);
@@ -129,9 +122,10 @@ public:
   void saveDefinition(const clang::Token &macroNameToken,
                       const clang::MacroInfo *);
 
-  void emitDocumentOccurrencesAndSymbols(bool deterministic, SymbolInterner &,
+  void emitDocumentOccurrencesAndSymbols(bool deterministic, SymbolFormatter &,
                                          clang::FileID, scip::Document &);
-  void emitExternalSymbols(bool deterministic, SymbolInterner &, scip::Index &);
+  void emitExternalSymbols(bool deterministic, SymbolFormatter &,
+                           scip::Index &);
 
 private:
   /// Pre-condition: all arguments are valid/non-null.
@@ -140,6 +134,35 @@ private:
 
   /// Pre-condition: \param macroInfo is non-null.
   void saveNonFileBasedMacro(const clang::MacroInfo *macroInfo);
+};
+
+/// Different from \c scip::DocumentBuilder because we can get away with
+/// a vector of occurrences, since each occurrence will only be traversed
+/// once. However, if this changes, say because we start emitting
+/// references inside macro bodies (at each point of expansion), then
+/// we may want to consider doing away with this type.
+struct PartialDocument {
+  std::vector<scip::OccurrenceExt> occurrences;
+  // Keyed by the symbol name. The symbol name is not set on the
+  // SymbolInformation value to avoid redundant allocations.
+  absl::flat_hash_map<std::string_view, scip::SymbolInformation> symbolInfos;
+};
+
+class TuIndexer final {
+  const clang::SourceManager &sourceManager;
+  const clang::LangOptions &langOptions;
+  SymbolFormatter &symbolFormatter;
+  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, PartialDocument>
+      documentMap;
+
+public:
+  TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
+            SymbolFormatter &);
+
+  void emitNamespaceDecl(const clang::NamespaceDecl *);
+
+  void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
+                                         scip::Document &);
 };
 
 } // namespace scip_clang

@@ -13,8 +13,6 @@
 #include <variant>
 #include <vector>
 
-#include "AbslExtras.h"
-#include "Timer.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_cat.h"
@@ -35,6 +33,7 @@
 
 #include "scip/scip.pb.h"
 
+#include "indexer/AbslExtras.h"
 #include "indexer/CliOptions.h"
 #include "indexer/Comparison.h"
 #include "indexer/CompilationDatabase.h"
@@ -42,13 +41,15 @@
 #include "indexer/Derive.h"
 #include "indexer/Enforce.h"
 #include "indexer/Hash.h"
+#include "indexer/Indexer.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/LLVMAdapter.h"
 #include "indexer/Logging.h"
-#include "indexer/MacroIndex.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/SymbolFormatter.h"
+#include "indexer/Timer.h"
 #include "indexer/Worker.h"
 
 namespace boost_ip = boost::interprocess;
@@ -227,7 +228,7 @@ class IndexerPreprocessorWrapper final : public clang::PPCallbacks {
                       absl::flat_hash_set<HashValue>>
       finishedProcessingMulti;
 
-  MacroIndex macroIndex;
+  MacroIndexer macroIndexer;
 
   const PreprocessorDebugContext debugContext;
 
@@ -237,10 +238,10 @@ public:
                              PreprocessorDebugContext &&debugContext)
       : options(options), sourceManager(sourceManager), stack(),
         finishedProcessing(), finishedProcessingMulti(),
-        macroIndex(sourceManager), debugContext(std::move(debugContext)) {}
+        macroIndexer(sourceManager), debugContext(std::move(debugContext)) {}
 
   void flushState(SemanticAnalysisJobResult &result, PathToIdMap &pathToIdMap,
-                  MacroIndex &macroIndexOutput) {
+                  MacroIndexer &macroIndexerOutput) {
     // HACK: It seems like EnterInclude and ExitInclude events are not
     // perfectly balanced in Clang. Work around that.
     auto optNullFileEntryId = this->stack.pop();
@@ -252,7 +253,7 @@ public:
             debug::tryGetPath(this->sourceManager, this->stack.pop()->fileId));
     // END HACK
 
-    macroIndexOutput = std::move(this->macroIndex);
+    macroIndexerOutput = std::move(this->macroIndexer);
 
     bool emittedEmptyPathWarning = false;
     auto getAbsPath =
@@ -460,7 +461,7 @@ public:
                const clang::MacroDirective *macroDirective) override {
     ENFORCE(macroDirective != nullptr);
     auto *macroInfo = macroDirective->getMacroInfo();
-    this->macroIndex.saveDefinition(macroNameToken, macroInfo);
+    this->macroIndexer.saveDefinition(macroNameToken, macroInfo);
     // FIXME: Mix the macro definition into the running hash
   }
 
@@ -473,7 +474,7 @@ public:
                               const clang::MacroDefinition &macroDefinition,
                               const clang::MacroDirective *) override {
     // FIXME: Mix the undef into the running hash
-    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+    this->macroIndexer.saveReference(macroNameToken, macroDefinition);
   }
 
   /// \param range is a closed interval covering the full argument list
@@ -485,37 +486,37 @@ public:
                             const clang::MacroArgs *) override {
     // TODO: Handle macro arguments
     // Q: How/when should we use the SourceRange argument
-    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+    this->macroIndexer.saveReference(macroNameToken, macroDefinition);
     // FIXME: Mix the expands into the running hash
   }
 
   virtual void Ifdef(clang::SourceLocation, const clang::Token &macroNameToken,
                      const clang::MacroDefinition &macroDefinition) override {
-    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+    this->macroIndexer.saveReference(macroNameToken, macroDefinition);
     // FIXME: Mix the ifdef into the running hash.
   }
 
   virtual void Ifndef(clang::SourceLocation, const clang::Token &macroNameToken,
                       const clang::MacroDefinition &macroDefinition) override {
-    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+    this->macroIndexer.saveReference(macroNameToken, macroDefinition);
   }
 
   virtual void Defined(const clang::Token &macroNameToken,
                        const clang::MacroDefinition &macroDefinition,
                        clang::SourceRange) override {
-    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+    this->macroIndexer.saveReference(macroNameToken, macroDefinition);
   }
 
   virtual void Elifdef(clang::SourceLocation,
                        const clang::Token &macroNameToken,
                        const clang::MacroDefinition &macroDefinition) override {
-    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+    this->macroIndexer.saveReference(macroNameToken, macroDefinition);
   }
 
   virtual void
   Elifndef(clang::SourceLocation, const clang::Token &macroNameToken,
            const clang::MacroDefinition &macroDefinition) override {
-    this->macroIndex.saveReference(macroNameToken, macroDefinition);
+    this->macroIndexer.saveReference(macroNameToken, macroDefinition);
   }
 
   // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/21):
@@ -545,7 +546,7 @@ using FilesToBeIndexedSet =
 /// Two types of files may not have canonical relative paths:
 /// 1. Paths inside the build root without a corresponding file inside
 ///    the project root.
-/// 2. Files from outside the projec
+/// 2. Files from outside the project.
 class CanonicalPathMap final {
   absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
                       std::variant<RootRelativePathRef, AbsolutePathRef>>
@@ -612,6 +613,7 @@ public:
     return this->map.contains({fileId});
   }
 
+  /// See the doc comment on \c CanonicalPathMap
   std::optional<RootRelativePathRef>
   tryGetCanonicalPath(clang::FileID fileId) const {
     auto it = this->map.find({fileId});
@@ -651,13 +653,21 @@ class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
   FilesToBeIndexedSet toBeIndexed;
   bool deterministic;
 
+  TuIndexer &tuIndexer;
+
 public:
   IndexerAstVisitor(const CanonicalPathMap &pathMap, FilesToBeIndexedSet &&map,
-                    bool deterministic)
+                    bool deterministic, TuIndexer &tuIndexer)
       : pathMap(pathMap), toBeIndexed(std::move(map)),
-        deterministic(deterministic) {}
+        deterministic(deterministic), tuIndexer(tuIndexer) {}
 
-  void writeIndex(SymbolInterner &&symbolBuilder, MacroIndex &&macroIndex,
+  // See clang/include/clang/Basic/DeclNodes.td for list of declarations.
+  bool VisitNamespaceDecl(clang::NamespaceDecl *namespaceDecl) {
+    this->tuIndexer.emitNamespaceDecl(namespaceDecl);
+    return true;
+  }
+
+  void writeIndex(SymbolFormatter &&symbolFormatter, MacroIndexer &&macroIndex,
                   scip::Index &scipIndex) {
     std::vector<std::pair<RootRelativePathRef, clang::FileID>> relativePaths;
     for (auto wrappedFileId : toBeIndexed) {
@@ -691,10 +701,12 @@ public:
       // Or should we add an other_languages in SCIP?
       document.set_language(scip::Language_Name(scip::Language::CPP));
       macroIndex.emitDocumentOccurrencesAndSymbols(
-          this->deterministic, symbolBuilder, fileId, document);
+          this->deterministic, symbolFormatter, fileId, document);
+      this->tuIndexer.emitDocumentOccurrencesAndSymbols(this->deterministic,
+                                                        fileId, document);
       *scipIndex.add_documents() = std::move(document);
     }
-    macroIndex.emitExternalSymbols(this->deterministic, symbolBuilder,
+    macroIndex.emitExternalSymbols(this->deterministic, symbolFormatter,
                                    scipIndex);
   }
 
@@ -737,8 +749,9 @@ public:
     SemanticAnalysisJobResult semaResult{};
     PathToIdMap pathToIdMap{};
     auto &sourceManager = astContext.getSourceManager();
-    MacroIndex macroIndex{sourceManager};
-    this->preprocessorWrapper->flushState(semaResult, pathToIdMap, macroIndex);
+    MacroIndexer macroIndexer{sourceManager};
+    this->preprocessorWrapper->flushState(semaResult, pathToIdMap,
+                                          macroIndexer);
 
     EmitIndexJobDetails emitIndexDetails{};
     bool shouldEmitIndex = this->options.getEmitIndexDetails(
@@ -753,17 +766,20 @@ public:
     this->computePathsToBeIndexed(astContext, emitIndexDetails, pathToIdMap,
                                   canonicalPathMap, toBeIndexed);
 
-    IndexerAstVisitor visitor{canonicalPathMap, std::move(toBeIndexed),
-                              this->options.deterministic};
-    visitor.VisitTranslationUnitDecl(astContext.getTranslationUnitDecl());
-
     auto getRelativePath =
         [&](clang::FileID fileId) -> std::optional<RootRelativePathRef> {
       return canonicalPathMap.tryGetCanonicalPath(fileId);
     };
+    SymbolFormatter symbolFormatter{sourceManager, getRelativePath};
+    TuIndexer tuIndexer{sourceManager, this->sema->getLangOpts(),
+                        symbolFormatter};
 
-    visitor.writeIndex(SymbolInterner{sourceManager, getRelativePath},
-                       std::move(macroIndex), scipIndex);
+    IndexerAstVisitor visitor{canonicalPathMap, std::move(toBeIndexed),
+                              this->options.deterministic, tuIndexer};
+    visitor.TraverseAST(astContext);
+
+    visitor.writeIndex(std::move(symbolFormatter), std::move(macroIndexer),
+                       scipIndex);
   }
 
   void InitializeSema(clang::Sema &S) override {

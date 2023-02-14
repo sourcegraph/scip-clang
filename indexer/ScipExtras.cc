@@ -20,14 +20,19 @@
 
 namespace scip {
 
+std::strong_ordering operator<=>(const scip::Relationship &lhs,
+                                 const scip::Relationship &rhs) {
+  CMP_EXPR(lhs.is_definition(), rhs.is_definition());
+  CMP_EXPR(lhs.is_reference(), rhs.is_reference());
+  CMP_EXPR(lhs.is_type_definition(), rhs.is_type_definition());
+  CMP_EXPR(lhs.is_implementation(), rhs.is_implementation());
+  CMP_STR(lhs.symbol(), rhs.symbol());
+  return std::strong_ordering::equal;
+}
+
 std::strong_ordering operator<=>(const RelationshipExt &lhs,
                                  const RelationshipExt &rhs) {
-  CMP_EXPR(lhs.rel.is_definition(), rhs.rel.is_definition());
-  CMP_EXPR(lhs.rel.is_reference(), rhs.rel.is_reference());
-  CMP_EXPR(lhs.rel.is_type_definition(), rhs.rel.is_type_definition());
-  CMP_EXPR(lhs.rel.is_implementation(), rhs.rel.is_implementation());
-  CMP_STR(lhs.rel.symbol(), rhs.rel.symbol());
-  return std::strong_ordering::equal;
+  return lhs.rel <=> rhs.rel;
 }
 
 std::strong_ordering operator<=>(const OccurrenceExt &lhs,
