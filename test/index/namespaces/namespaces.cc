@@ -30,3 +30,16 @@ class C {
 }
 
 using C = c::C;
+
+#define EXPAND_TO_NAMESPACE \
+  namespace from_macro {}
+
+EXPAND_TO_NAMESPACE
+
+#define EXPAND_TO_NAMESPACE_2 EXPAND_TO_NAMESPACE
+
+EXPAND_TO_NAMESPACE_2
+
+#define IDENTITY(x) x
+
+IDENTITY(namespace in_macro { })

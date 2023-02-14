@@ -272,8 +272,10 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
   }(namespaceDecl);
 
   if (startLoc.isMacroID()) {
-    // TODO: How to properly handle locations inside macros here?
-    return;
+    startLoc = this->sourceManager.getSpellingLoc(startLoc);
+    // I think this is OK since macro-defining macros are not supported
+    // https://stackoverflow.com/questions/2429240/c-preprocessor-macro-defining-macro
+    ENFORCE(startLoc.isFileID());
   }
 
   auto tokenLength = clang::Lexer::MeasureTokenLength(
