@@ -2,8 +2,9 @@
   
   #include "macros.h"
   
-  int a = MY_MACRO;
+  int a = MY_MACRO + MY_MACRO_ALIAS;
 //        ^^^^^^^^ reference [..] macros.h:1:9#
+//                   ^^^^^^^^^^^^^^ reference [..] macros.h:9:9#
   
   #undef MY_MACRO
 //       ^^^^^^^^ reference [..] macros.h:1:9#
@@ -48,6 +49,7 @@
   #define MACRO_USING_MACRO \
 //        ^^^^^^^^^^^^^^^^^ definition [..] macros.cc:36:9#
     IDENTITY_MACRO(0)
+//  ^^^^^^^^^^^^^^ reference [..] macros.cc:32:9#
   
   int d = MACRO_USING_MACRO;
 //        ^^^^^^^^^^^^^^^^^ reference [..] macros.cc:36:9#

@@ -57,8 +57,15 @@ FileLocalMacroOccurrence::FileLocalMacroOccurrence(
     const clang::SourceManager &sourceManager, const clang::Token &macroToken,
     const clang::MacroInfo *defInfo, Role role)
     : defInfo(defInfo), role(role) {
-  auto [range, _] = FileLocalSourceRange::fromNonEmpty(
-      sourceManager, {macroToken.getLocation(), macroToken.getEndLoc()});
+  auto startLoc = macroToken.getLocation();
+  auto endLoc = macroToken.getEndLoc();
+  if (startLoc.isMacroID()) {
+    startLoc = sourceManager.getSpellingLoc(startLoc);
+    ENFORCE(startLoc.isFileID());
+    endLoc = startLoc.getLocWithOffset(macroToken.getLength());
+  }
+  auto [range, _] =
+      FileLocalSourceRange::fromNonEmpty(sourceManager, {startLoc, endLoc});
   this->range = range;
 }
 
@@ -153,11 +160,6 @@ void MacroIndexer::saveReference(
     // isn't working.
     return;
   }
-  auto refLoc = macroNameToken.getLocation();
-  if (!refLoc.isFileID()) {
-    // TODO: When does this case arise/what should we do?
-    return;
-  }
   if (defMacroInfo->isBuiltinMacro()) {
     // E.g. __has_include(...)
     return;
@@ -167,8 +169,11 @@ void MacroIndexer::saveReference(
           debug::formatRange(*this->sourceManager, macroNameToken.getLocation(),
                              macroNameToken.getEndLoc()));
 
-  auto refPLoc =
-      this->sourceManager->getPresumedLoc(macroNameToken.getLocation());
+  auto refLoc = macroNameToken.getLocation();
+  if (refLoc.isMacroID()) {
+    refLoc = sourceManager->getSpellingLoc(refLoc);
+  }
+  auto refPLoc = this->sourceManager->getPresumedLoc(refLoc);
   ENFORCE(refPLoc.isValid());
   auto refFileId = refPLoc.getFileID();
   // Don't emit references from built-ins to other built-ins
