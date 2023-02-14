@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-bazel build //tools:compdb --spawn_strategy=local --config=dev
+# For some reason, using --config=dev causes clangd errors inside Abseil
+# on macOS. So use the default config instead.
+bazel build //tools:compdb --spawn_strategy=local
 
 PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/.."
 
