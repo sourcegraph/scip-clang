@@ -271,6 +271,11 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
     return n->getLocation();
   }(namespaceDecl);
 
+  if (startLoc.isMacroID()) {
+    // TODO: How to properly handle locations inside macros here?
+    return;
+  }
+
   auto tokenLength = clang::Lexer::MeasureTokenLength(
       startLoc, this->sourceManager, this->langOptions);
   ENFORCE(tokenLength > 0);
