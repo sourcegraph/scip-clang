@@ -86,7 +86,9 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     cxxopts::value<std::string>(cliOptions.workerMode)->default_value(""));
   parser.add_options("Internal")(
     "driver-id",
-    "[worker-only] An opaque ID for the driver.",
+    "An opaque ID for the driver. Normally, this is only used by the driver "
+    "to communicate with the worker, but it may be used to set the driver ID "
+    "in tests as the PID is deterministic in a Bazel sandbox.",
     cxxopts::value<std::string>(cliOptions.driverId));
   parser.add_options("Internal")(
     "worker-id",

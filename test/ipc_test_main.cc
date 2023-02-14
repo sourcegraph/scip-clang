@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
   if (argc == 3) {
     driverId = std::string(argv[2]);
   } else {
-    driverId = fmt::format("{}", ::getpid());
+    driverId = "ipc-test" + std::string(argv[1]);
   }
   scip_clang::IpcOptions ipcOptions{1s, driverId, 0};
   Mode mode = ::modeFromString(argv[1]);
