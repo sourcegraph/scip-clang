@@ -627,19 +627,6 @@ public:
     }
     return {};
   }
-
-  // // Pre-condition: The caller should ensure determinism if needed by sorting
-  // // based on the paths returned.
-  // void forEachProjectLocalFile(
-  //     absl::FunctionRef<void(clang::FileID, RootRelativePathRef)> doStuff,
-  //     CallerWillEnsureDeterminismIfNeeded) {
-  //   for (auto &[wrappedFileId, relPathRef] : this->idToPathMap) {
-  //     if (relPathRef.asStringView().empty()) { // external file
-  //       continue;
-  //     }
-  //     doStuff(wrappedFileId.data, relPathRef);
-  //   }
-  // }
 };
 
 struct PartialScipIndex {
