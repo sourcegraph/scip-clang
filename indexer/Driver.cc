@@ -835,8 +835,8 @@ private:
 } // namespace
 
 int driverMain(CliOptions &&cliOptions) {
-  pid_t driverPid = ::getpid();
-  auto driverId = fmt::format("{}", driverPid);
+  auto driverId = cliOptions.driverId.empty() ? fmt::format("{}", ::getpid())
+                                              : cliOptions.driverId;
   size_t numWorkers = cliOptions.numWorkers;
   BOOST_TRY {
     Driver driver(driverId, DriverOptions(driverId, std::move(cliOptions)));

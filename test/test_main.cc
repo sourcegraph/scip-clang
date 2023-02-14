@@ -317,6 +317,7 @@ TEST_CASE("ROBUSTNESS") {
   args.push_back("--force-worker-fault=" + fault);
   args.push_back("--testing");
   args.push_back("--receive-timeout-seconds=3");
+  args.push_back(fmt::format("--driver-id=robustness-{}", fault));
   TempFile tmpLogFile(fmt::format("{}.tmp.log", fault));
   boost::process::child driver(args,
                                boost::process::std_out > boost::process::null,
