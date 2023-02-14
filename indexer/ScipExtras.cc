@@ -55,7 +55,7 @@ std::strong_ordering operator<=>(const OccurrenceExt &lhs,
 
 void SymbolInformationBuilder::finish(bool deterministic,
                                       scip::SymbolInformation &out) {
-  // this->_bomb.defuse();
+  this->_bomb.defuse();
 
   out.mutable_documentation()->Reserve(this->documentation.size());
   for (auto &doc : this->documentation) {

@@ -51,8 +51,8 @@ public:
     return this->value;
   }
 
-  bool isConsumed() const {
-    return !this->movedOut && this->consumed;
+  bool isUnconsumed() const {
+    return !this->movedOut && !this->consumed;
   }
 };
 
@@ -69,7 +69,7 @@ public:
   Bomb &operator=(Bomb &&) = default;
 
   ~Bomb() {
-    if (!this->msg.isConsumed()) {
+    if (this->msg.isUnconsumed()) {
       spdlog::error("unconsumed message: {}", this->msg.getValueNonConsuming());
     }
     this->msg.~ConsumeOnce<std::string>();

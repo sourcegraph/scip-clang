@@ -66,17 +66,14 @@ struct OccurrenceExt {
 class SymbolInformationBuilder final {
   std::vector<std::string> documentation;
   absl::flat_hash_set<RelationshipExt> relationships;
-  // scip_clang::Bomb _bomb;
+  scip_clang::Bomb _bomb;
 
 public:
   template <typename C1, typename C2>
   SymbolInformationBuilder(std::string_view name, C1 &&docs, C2 &&rels)
-      : documentation(),
-        relationships() //,
-                        // _bomb(
-                        //     BOMB_INIT(fmt::format("SymbolInformationBuilder
-                        //     for '{}'", name)))
-  {
+      : documentation(), relationships(),
+        _bomb(
+            BOMB_INIT(fmt::format("SymbolInformationBuilder for '{}'", name))) {
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
   }
