@@ -62,7 +62,7 @@ FileLocalMacroOccurrence::FileLocalMacroOccurrence(
   this->range = range;
 }
 
-void FileLocalMacroOccurrence::saveOccurrence(SymbolFormatter &symbolFormatter,
+void FileLocalMacroOccurrence::emitOccurrence(SymbolFormatter &symbolFormatter,
                                               scip::Occurrence &occ) const {
   switch (this->role) {
   case Role::Definition:
@@ -78,13 +78,13 @@ void FileLocalMacroOccurrence::saveOccurrence(SymbolFormatter &symbolFormatter,
   occ.set_symbol(name.data(), name.size());
 }
 
-void FileLocalMacroOccurrence::saveScipSymbol(
+void FileLocalMacroOccurrence::emitSymbolInformation(
     const std::string &name, scip::SymbolInformation &symbolInfo) const {
   symbolInfo.set_symbol(name);
   // TODO: Set documentation
 }
 
-void NonFileBasedMacro::saveScipSymbol(
+void NonFileBasedMacro::emitSymbolInformation(
     SymbolFormatter &symbolFormatter,
     scip::SymbolInformation &symbolInfo) const {
   auto name = symbolFormatter.getMacroSymbol(this->defInfo->getDefinitionLoc());
@@ -212,12 +212,12 @@ void MacroIndexer::emitDocumentOccurrencesAndSymbols(
   (void)deterministic;
   for (auto &macroOcc : it->second) {
     scip::Occurrence occ;
-    macroOcc.saveOccurrence(symbolFormatter, occ);
+    macroOcc.emitOccurrence(symbolFormatter, occ);
     switch (macroOcc.role) {
     case Role::Definition: {
       scip::SymbolInformation symbolInfo;
       ENFORCE(!occ.symbol().empty())
-      macroOcc.saveScipSymbol(occ.symbol(), symbolInfo);
+      macroOcc.emitSymbolInformation(occ.symbol(), symbolInfo);
       *document.add_symbols() = std::move(symbolInfo);
       break;
     }
@@ -236,12 +236,13 @@ void MacroIndexer::emitExternalSymbols(bool deterministic,
       absl::FunctionRef<void(NonFileBasedMacro &&)>(
           [&](auto &&nonFileBasedMacro) -> void {
             scip::SymbolInformation symbolInfo;
-            nonFileBasedMacro.saveScipSymbol(symbolFormatter, symbolInfo);
+            nonFileBasedMacro.emitSymbolInformation(symbolFormatter,
+                                                    symbolInfo);
             *index.add_external_symbols() = std::move(symbolInfo);
           }));
 }
 
-void TuIndexer::emitNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
+void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
   ENFORCE(namespaceDecl);
   auto optSymbol = this->symbolFormatter.getNamespaceSymbol(namespaceDecl);
   if (!optSymbol.has_value()) {

@@ -663,7 +663,7 @@ public:
 
   // See clang/include/clang/Basic/DeclNodes.td for list of declarations.
   bool VisitNamespaceDecl(clang::NamespaceDecl *namespaceDecl) {
-    this->tuIndexer.emitNamespaceDecl(namespaceDecl);
+    this->tuIndexer.saveNamespaceDecl(namespaceDecl);
     return true;
   }
 

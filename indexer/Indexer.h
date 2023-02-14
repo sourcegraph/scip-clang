@@ -56,6 +56,12 @@ enum class Role {
   Reference,
 };
 
+// NOTE(def: emit-vs-save)
+// - Use 'emit' for methods recording information in a scip::XYZ type,
+//   generally passed in as an output parameter.
+// - Use 'save' for methods which transform and record parts of
+//   of the parameters `this` (to be emitted later).
+
 struct FileLocalMacroOccurrence {
   FileLocalSourceRange range;
   const clang::MacroInfo *defInfo; // always points to the definition
@@ -72,10 +78,12 @@ struct FileLocalMacroOccurrence {
                            const clang::Token &macroToken,
                            const clang::MacroInfo *defInfo, Role);
 
-  void saveOccurrence(SymbolFormatter &, scip::Occurrence &out) const;
+  // See NOTE(ref: emit-vs-save) on naming conventions.
 
-  void saveScipSymbol(const std::string &name,
-                      scip::SymbolInformation &symbolInfo) const;
+  void emitOccurrence(SymbolFormatter &, scip::Occurrence &out) const;
+
+  void emitSymbolInformation(const std::string &name,
+                             scip::SymbolInformation &symbolInfo) const;
 };
 
 // See NOTE(ref: macro-definitions). This covers all macros which are
@@ -96,8 +104,8 @@ struct NonFileBasedMacro {
            <=> m2.defInfo->getDefinitionLoc().getRawEncoding();
   }
 
-  void saveScipSymbol(SymbolFormatter &symbolFormatter,
-                      scip::SymbolInformation &symbolInfo) const;
+  void emitSymbolInformation(SymbolFormatter &symbolFormatter,
+                             scip::SymbolInformation &symbolInfo) const;
 };
 
 class MacroIndexer final {
@@ -115,6 +123,8 @@ public:
   MacroIndexer &operator=(MacroIndexer &&other) = default;
   MacroIndexer(const MacroIndexer &) = delete;
   MacroIndexer &operator=(const MacroIndexer &&) = delete;
+
+  // See NOTE(ref: emit-vs-save) for naming conventions.
 
   void saveReference(const clang::Token &macroNameToken,
                      const clang::MacroDefinition &);
@@ -159,7 +169,9 @@ public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
             SymbolFormatter &);
 
-  void emitNamespaceDecl(const clang::NamespaceDecl *);
+  // See NOTE(ref: emit-vs-save) for naming conventions.
+
+  void saveNamespaceDecl(const clang::NamespaceDecl *);
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
                                          scip::Document &);
