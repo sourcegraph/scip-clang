@@ -368,6 +368,45 @@ may forward-declare the same types,
 and we want all such forward declarations to
 show up when doing Find references.
 
+#### Symbol names for enum cases
+
+C only supports enums, whereas C++ also supports scoped enums. Whether
+a declaration uses `enum` or `enum class` (or `enum struct`)
+affects name lookup.
+
+```cpp
+enum E { E0 };
+enum class EC { EC0 }; // C++ only
+
+void f() {
+  E0;      // OK in C and C++
+  E::E0;   // ERROR in C, OK in C++
+  EC0;     // ERROR in C++
+  EC::EC0; // OK in C++
+}
+```
+
+Certain headers may be used in both C mode and C++ mode, in which
+case, they will use `enum` only. What canonical name should be used
+for the `E0` case then, `E::E0` or `E0`?
+
+We want cross-references to work correctly for mixed C/C++ codebases
+(or more generally, with cross-repo references). The options are:
+1. Make sure the header is indexed twice, once in C mode and once
+    in C++ mode.  When indexing as C, emit `E0`, when indexing as C++,
+    emit `E::E0` (for the same source range).
+2. Emit both `E0` and `E::E0` in both C and C++ modes.
+3. Emit only `E0` in both C and C++ modes.
+
+Option 1 doesn't meet the cross-repo requirement. For example, we may
+be indexing a pure C codebase/library which is accessed from a
+separate repo in C++.
+
+Option 2 is strictly redundant, as having different unscoped enums with
+the same case names in the same namespace is an error in C++.
+
+So we go with option 3.
+
 ### Method disambiguator
 
 Disambiguators are allowed in SCIP to distinguish
