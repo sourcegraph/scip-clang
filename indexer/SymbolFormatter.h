@@ -16,7 +16,11 @@
 
 namespace clang {
 class Decl;
+class DeclContext;
+class EnumConstantDecl;
+class EnumDecl;
 class NamespaceDecl;
+class TagDecl;
 } // namespace clang
 
 namespace scip_clang {
@@ -34,6 +38,8 @@ class SymbolFormatter final {
   absl::flat_hash_map<LlvmToAbslHashAdapter<clang::SourceLocation>, std::string>
       locationBasedCache;
   absl::flat_hash_map<const clang::Decl *, std::string> declBasedCache;
+  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, uint32_t>
+      anonymousTypeCounters;
   std::string scratchBuffer;
 
 public:
@@ -46,10 +52,22 @@ public:
 
   std::string_view getMacroSymbol(clang::SourceLocation defLoc);
 
+  std::optional<std::string_view>
+  getEnumConstantSymbol(const clang::EnumConstantDecl *);
+
+  std::optional<std::string_view> getEnumSymbol(const clang::EnumDecl *);
+
   /// Returns nullopt for anonymous namespaces in files for which
   /// getCanonicalPath returns nullopt.
   std::optional<std::string_view>
   getNamespaceSymbol(const clang::NamespaceDecl *);
+
+private:
+  std::optional<std::string_view> getContextSymbol(const clang::DeclContext *);
+  std::optional<std::string_view> getTagSymbol(const clang::TagDecl *);
+
+  std::string_view getSymbolCached(const clang::Decl *,
+                                   absl::FunctionRef<std::string()>);
 };
 
 } // namespace scip_clang

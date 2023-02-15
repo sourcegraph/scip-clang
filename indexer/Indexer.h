@@ -10,11 +10,7 @@
 #include "absl/container/flat_hash_set.h"
 
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Basic/SourceManager.h"
-#include "clang/Lex/MacroInfo.h"
-#include "clang/Lex/Token.h"
-
-#include "scip/scip.pb.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include "indexer/Comparison.h"
 #include "indexer/Derive.h"
@@ -24,8 +20,22 @@
 #include "indexer/SymbolFormatter.h"
 
 namespace clang {
+class Decl;
+class EnumConstantDecl;
+class EnumDecl;
 class NamespaceDecl;
+class SourceManager;
+class MacroInfo;
+class MacroDefinition;
+class Token;
 } // namespace clang
+
+namespace scip {
+class Document;
+class SymbolInformation;
+class Occurrence;
+class Index;
+} // namespace scip
 
 namespace scip_clang {
 
@@ -98,12 +108,7 @@ struct NonFileBasedMacro {
   DERIVE_EQ_ALL(NonFileBasedMacro)
 
   friend std::strong_ordering operator<=>(const NonFileBasedMacro &m1,
-                                          const NonFileBasedMacro &m2) {
-    // ASSUMPTION: built-in definitions must be in the same "header"
-    // so the relative position should be deterministic
-    return m1.defInfo->getDefinitionLoc().getRawEncoding()
-           <=> m2.defInfo->getDefinitionLoc().getRawEncoding();
-  }
+                                          const NonFileBasedMacro &m2);
 
   void emitSymbolInformation(SymbolFormatter &symbolFormatter,
                              scip::SymbolInformation &symbolInfo) const;
@@ -183,11 +188,19 @@ public:
             SymbolFormatter &);
 
   // See NOTE(ref: emit-vs-save) for naming conventions.
-
+  void saveEnumConstantDecl(const clang::EnumConstantDecl *);
+  void saveEnumDecl(const clang::EnumDecl *);
   void saveNamespaceDecl(const clang::NamespaceDecl *);
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
                                          scip::Document &);
+
+private:
+  std::pair<FileLocalSourceRange, clang::FileID>
+  getTokenSpellingRange(clang::SourceLocation startLoc) const;
+
+  void tryGetDocComment(const clang::Decl *,
+                        llvm::SmallVectorImpl<std::string> &) const;
 };
 
 } // namespace scip_clang

@@ -9,10 +9,12 @@
 #include "absl/functional/function_ref.h"
 #include "spdlog/fmt/fmt.h"
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
+#include "clang/Lex/MacroInfo.h"
 
 #include "scip/scip.pb.h"
 
@@ -89,6 +91,14 @@ void FileLocalMacroOccurrence::emitSymbolInformation(
     const std::string &name, scip::SymbolInformation &symbolInfo) const {
   symbolInfo.set_symbol(name);
   // TODO: Set documentation
+}
+
+std::strong_ordering operator<=>(const NonFileBasedMacro &m1,
+                                 const NonFileBasedMacro &m2) {
+  // ASSUMPTION: built-in definitions must be in the same "header"
+  // so the relative position should be deterministic
+  return m1.defInfo->getDefinitionLoc().getRawEncoding()
+         <=> m2.defInfo->getDefinitionLoc().getRawEncoding();
 }
 
 void NonFileBasedMacro::emitSymbolInformation(
@@ -222,6 +232,70 @@ void MacroIndexer::emitExternalSymbols(bool deterministic,
           }));
 }
 
+TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
+                     const clang::LangOptions &langOptions,
+                     SymbolFormatter &symbolFormatter)
+    : sourceManager(sourceManager), langOptions(langOptions),
+      symbolFormatter(symbolFormatter), documentMap() {}
+
+void TuIndexer::saveEnumConstantDecl(
+    const clang::EnumConstantDecl *enumConstantDecl) {
+  ENFORCE(enumConstantDecl);
+  auto optSymbol =
+      this->symbolFormatter.getEnumConstantSymbol(enumConstantDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  auto symbol = optSymbol.value();
+
+  ENFORCE(enumConstantDecl->getBeginLoc() == enumConstantDecl->getLocation());
+  auto [range, fileId] =
+      this->getTokenSpellingRange(enumConstantDecl->getLocation());
+  // TODO: Add test where enum case comes from macro
+
+  scip::Occurrence occ;
+  range.addToOccurrence(occ);
+  occ.set_symbol(symbol.data(), symbol.size());
+  occ.set_symbol_roles(scip::SymbolRole::Definition);
+
+  auto &doc = this->documentMap[{fileId}];
+  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
+
+  llvm::SmallVector<std::string, 4> docComments{};
+  this->tryGetDocComment(enumConstantDecl, docComments);
+  scip::SymbolInformation symbolInfo;
+  for (auto &docComment : docComments) {
+    *symbolInfo.add_documentation() = std::move(docComment);
+  }
+  doc.symbolInfos.emplace(symbol, std::move(symbolInfo));
+}
+
+void TuIndexer::saveEnumDecl(const clang::EnumDecl *enumDecl) {
+  ENFORCE(enumDecl);
+  auto optSymbol = this->symbolFormatter.getEnumSymbol(enumDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  auto symbol = optSymbol.value();
+
+  auto [range, fileId] = this->getTokenSpellingRange(enumDecl->getLocation());
+  scip::Occurrence occ;
+  range.addToOccurrence(occ);
+  occ.set_symbol(symbol.data(), symbol.size());
+  occ.set_symbol_roles(scip::SymbolRole::Definition);
+
+  auto &doc = this->documentMap[{fileId}];
+  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
+
+  llvm::SmallVector<std::string, 4> docComments{};
+  this->tryGetDocComment(enumDecl, docComments);
+  scip::SymbolInformation symbolInfo;
+  for (auto &docComment : docComments) {
+    *symbolInfo.add_documentation() = std::move(docComment);
+  }
+  doc.symbolInfos.emplace(symbol, std::move(symbolInfo));
+}
+
 void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
   ENFORCE(namespaceDecl);
   auto optSymbol = this->symbolFormatter.getNamespaceSymbol(namespaceDecl);
@@ -251,14 +325,7 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
     return n->getLocation();
   }(namespaceDecl);
 
-  startLoc = this->sourceManager.getSpellingLoc(startLoc);
-
-  auto tokenLength = clang::Lexer::MeasureTokenLength(
-      startLoc, this->sourceManager, this->langOptions);
-  ENFORCE(tokenLength > 0);
-  auto endLoc = startLoc.getLocWithOffset(tokenLength);
-  auto [range, fileId] = FileLocalSourceRange::fromNonEmpty(this->sourceManager,
-                                                            {startLoc, endLoc});
+  auto [range, fileId] = this->getTokenSpellingRange(startLoc);
 
   scip::Occurrence occ;
   range.addToOccurrence(occ);
@@ -290,10 +357,27 @@ void TuIndexer::emitDocumentOccurrencesAndSymbols(
           }));
 }
 
-TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
-                     const clang::LangOptions &langOptions,
-                     SymbolFormatter &symbolFormatter)
-    : sourceManager(sourceManager), langOptions(langOptions),
-      symbolFormatter(symbolFormatter), documentMap() {}
+std::pair<FileLocalSourceRange, clang::FileID>
+TuIndexer::getTokenSpellingRange(clang::SourceLocation startLoc) const {
+  startLoc = this->sourceManager.getSpellingLoc(startLoc);
+  auto tokenLength = clang::Lexer::MeasureTokenLength(
+      startLoc, this->sourceManager, this->langOptions);
+  ENFORCE(tokenLength > 0);
+  auto endLoc = startLoc.getLocWithOffset(tokenLength);
+  return FileLocalSourceRange::fromNonEmpty(this->sourceManager,
+                                            {startLoc, endLoc});
+}
+
+void TuIndexer::tryGetDocComment(
+    const clang::Decl *decl, llvm::SmallVectorImpl<std::string> &out) const {
+  auto &astContext = decl->getASTContext();
+  if (auto *rawComment = astContext.getRawCommentForAnyRedecl(decl)) {
+    auto lines = rawComment->getFormattedLines(this->sourceManager,
+                                               astContext.getDiagnostics());
+    for (auto &line : lines) {
+      out.emplace_back(std::move(line.Text));
+    }
+  }
+}
 
 } // namespace scip_clang
