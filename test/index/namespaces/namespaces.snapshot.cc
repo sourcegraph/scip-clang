@@ -52,6 +52,7 @@
   
   #define EXPAND_TO_NAMESPACE_2 EXPAND_TO_NAMESPACE
 //        ^^^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:39:9#
+//                              ^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:34:9#
   
   EXPAND_TO_NAMESPACE_2
 //^^^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:39:9#

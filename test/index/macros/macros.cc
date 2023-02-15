@@ -2,7 +2,7 @@
 
 #include "macros.h"
 
-int a = MY_MACRO;
+int a = MY_MACRO + MY_MACRO_ALIAS;
 
 #undef MY_MACRO
 

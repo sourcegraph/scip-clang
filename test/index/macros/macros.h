@@ -5,3 +5,5 @@
 
 #ifndef MY_MACRO
 #endif
+
+#define MY_MACRO_ALIAS MY_MACRO
