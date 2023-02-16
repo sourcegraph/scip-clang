@@ -13,6 +13,9 @@ steps:
       # Bazel handles the C++ toolchain
       bazel build @llvm_toolchain//:clang-format
 
+      curl -sSL https://install.python-poetry.org | python3 -
+      poetry install
+
       ./tools/reformat.sh
       if ! git diff --quiet; then
         git diff

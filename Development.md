@@ -10,6 +10,7 @@
   - [UBSan stacktraces](#ubsan-stacktraces)
   - [Attaching a debugger](#attaching-a-debugger)
   - [Debugging on Linux](#debugging-on-linux)
+  - [Automated test case reduction](#automated-test-case-reduction)
   - [Inspecting Clang ASTs](#inspecting-clang-asts)
 - [Implementation notes](#implementation-notes)
 - [Notes on Clang internals](#notes-on-clang-internals)
@@ -20,6 +21,8 @@
    transparently.
 2. [Buildifier](https://github.com/bazelbuild/buildtools/releases/tag/6.0.0)
    for formatting Starlark files.
+3. [Poetry](https://python-poetry.org/docs/#installation)
+   for installing [Black](https://pypi.org/project/black/) for formatting Python.
    <!-- Keep this link in sync with .buildkite/pipeline.yaml -->
 
 Bazel manages the C++ toolchain, so it doesn't need to be downloaded separately.
@@ -141,6 +144,31 @@ clang -Xclang -ast-dump=json file.c
 ```
 
 Another option is to use clang-query ([tutorial](https://devblogs.microsoft.com/cppblog/exploring-clang-tooling-part-2-examining-the-clang-ast-with-clang-query/)).
+
+### Automated test case reduction
+
+In case of a crash, it may be possible to automatically reduce
+it using [C-Reduce](https://github.com/csmith-project/creduce).
+
+**Important:**
+On macOS, use `brew install --HEAD creduce`,
+as the default version is very outdated.
+
+There is a helper script [tools/reduce.py](/tools/reduce.py)
+which can coordinate `scip-clang` and `creduce`, since getting
+the details right is a bit finicky in the general case.
+
+It can be invoked like so:
+
+```bash
+# Pre-conditions:
+# 1. CWD is project root
+# 2. bad.json points to a compilation database with a single entry
+#    known to cause the crash
+/path/to/tools/reduce.py bad.json
+```
+
+See the `--help` text for more information.
 
 ## Implementation notes
 
