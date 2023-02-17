@@ -13,21 +13,8 @@ steps:
       # Bazel handles the C++ toolchain
       bazel build @llvm_toolchain//:clang-format
 
-      curl -sSL https://install.python-poetry.org | python3 -
-      # For poetry
-      export PATH="/root/.local/bin:$PATH"
-      poetry env use 3.10
-      poetry install
-
-      ./tools/reformat.sh
-      if ! git diff --quiet; then
-        git diff
-        echo ""
-        echo "-----------------------------------"
-        echo "Re-run ./tools/reformat.sh and push"
-        echo "-----------------------------------"
-        exit 1
-      fi
+      # Lint the python code
+      bazel build //tools:check
 
       bazel build //... --config=ci
 
