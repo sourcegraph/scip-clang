@@ -3,6 +3,8 @@ steps:
   - label: ":bazel: Build and Test"
     agents:
       queue: bazel
+    env: 
+      CI_BAZEL_REMOTE_CACHE: "https://storage.googleapis.com/sourcegraph_bazel_cache"
     key: build
     command: |
       # Keep this link in sync with Development.md
@@ -11,12 +13,12 @@ steps:
       mv buildifier /usr/local/bin/
 
       # Bazel handles the C++ toolchain
-      bazel build @llvm_toolchain//:clang-format
+      bazel build @llvm_toolchain//:clang-format --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json
 
       # Lint the python code
-      bazel build //tools:check
+      bazel build //tools:check --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json
 
-      bazel build //... --config=ci
+      bazel build //... --config=ci --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json
 
       # Don't use //... as that will also try to update snapshots
-      bazel test //test --test_output=errors --config=ci
+      bazel test //test --test_output=errors --config=ci --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json
