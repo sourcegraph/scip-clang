@@ -42,6 +42,8 @@ python_register_toolchains(
     # Available versions are listed in @rules_python//python:versions.bzl.
     # We recommend using the same version your team is already standardized on.
     python_version = "3.9",
+    # For now we're running the agents as root, we should fix this down the line.
+    ignore_root_user_error = True,
 )
 
 
