@@ -16,6 +16,7 @@ steps:
       curl -sSL https://install.python-poetry.org | python3 -
       # For poetry
       export PATH="/root/.local/bin:$PATH"
+      poetry env use 3.10
       poetry install
 
       ./tools/reformat.sh
