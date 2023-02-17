@@ -14,6 +14,8 @@ steps:
       bazel build @llvm_toolchain//:clang-format
 
       curl -sSL https://install.python-poetry.org | python3 -
+      # For poetry
+      export PATH="/root/.local/bin:$PATH"
       poetry install
 
       ./tools/reformat.sh
