@@ -1,0 +1,22 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+load("@pypi//:requirements.bzl", "requirement")
+load("@rules_python//python:pip.bzl", "compile_pip_requirements")
+
+package(default_visibility = ["//visibility:public"])
+
+compile_pip_requirements(
+    name = "requirements",
+    extra_args = ["--allow-unsafe"],
+    requirements_in = "requirements.in",
+    requirements_txt = "requirements_lock.txt",
+)
+
+py_binary(
+    name = "python_check",
+    srcs = ["python_check.py"],
+    # python_version = "PY3",
+    # srcs_version = "PY3",
+    deps = [
+        requirement("black"),
+    ],
+)

@@ -15,3 +15,15 @@ compilation_database(
         "//test:ipc_test_main",
     ],
 )
+
+genrule(
+    name = "check",
+    srcs = glob(["**/*.py"]),
+    outs = ["check.log"],
+    cmd_bash = """(
+        $(PYTHON3)  $(location //tools/linter:python_check) --check --verbose $(SRCS)
+        ) | tee $@
+    """,
+    tools = ["//tools/linter:python_check"],
+    toolchains=["@rules_python//python:current_py_toolchain"]
+)
