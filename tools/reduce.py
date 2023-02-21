@@ -76,9 +76,7 @@ class CompDBEntry:
 
     def change_tu_filepath(self, new_path: str):
         old_path = str(self.filepath)
-        for i, arg in enumerate(self.arguments):
-            if old_path in arg:
-                self.arguments[i] = arg.replace(old_path, new_path)
+        self.arguments = [arg.replace(old_path, new_path) for arg in self.arguments]
         self.filepath = pathlib.Path(new_path)
 
     def to_dict(self):
