@@ -12,8 +12,10 @@ steps:
       chmod +x buildifier
       mv buildifier /usr/local/bin/
 
+
+      echo build --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json > ci.bazelrc
       # Bazel handles the C++ toolchain
-      bazel build @llvm_toolchain//:clang-format --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json
+      bazel build @llvm_toolchain//:clang-format
 
       ./tools/reformat.sh
       if ! git diff --quiet; then
@@ -25,7 +27,7 @@ steps:
         exit 1
       fi
 
-      bazel build //... --config=ci --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json
+      bazel build //... --config=ci
 
       # Don't use //... as that will also try to update snapshots
-      bazel test //test --test_output=errors --config=ci --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json
+      bazel test //test --test_output=errors --config=ci
