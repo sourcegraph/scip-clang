@@ -91,7 +91,7 @@ class CompDBEntry:
         return {
             "directory": str(self.directory),
             "file": str(self.filepath),
-            "arguments": self.arguments[:], # defensive copy
+            "arguments": self.arguments[:],  # defensive copy
         }
 
 
