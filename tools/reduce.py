@@ -76,6 +76,14 @@ class CompDBEntry:
 
     def change_tu_filepath(self, new_path: str):
         old_path = str(self.filepath)
+        # ASSUMPTION: In a normal compilation command, we only expect there to
+        # be a path to a single TU in the argument list, since the compilation
+        # command will involve generating object code for a single TU.
+        #
+        # Moreover, files typically aren't present at the project root.
+        #
+        # These two factors mean that it's very unlikely for the argument list
+        # to have two files like 'cake.c' and 'dessert/cake.c'.
         self.arguments = [arg.replace(old_path, new_path) for arg in self.arguments]
         self.filepath = pathlib.Path(new_path)
 
