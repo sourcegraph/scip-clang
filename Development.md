@@ -151,8 +151,9 @@ On macOS, use `brew install --HEAD creduce`,
 as the default version is very outdated.
 
 There is a helper script [tools/reduce.py](/tools/reduce.py)
-which can coordinate `scip-clang` and `creduce`, since getting
-the details right is a bit finicky in the general case.
+which can coordinate `scip-clang` and `creduce`,
+since correctly handling different kinds of paths in a compilation database
+is a bit finicky in the general case.
 
 It can be invoked like so:
 
