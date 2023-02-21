@@ -118,7 +118,6 @@ class CReduce:
     project_root: pathlib.Path
     scip_clang_output_pattern: re.Pattern
     extra_args: List[str]
-    # path_flag_pattern: re.Pattern
 
     def __post_init__(self):
         # Lenient behavior instead of hard-coding which flags allow =
