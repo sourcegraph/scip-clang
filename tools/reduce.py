@@ -121,7 +121,7 @@ class CReduce:
         # Lenient behavior instead of hard-coding which flags allow =
         flags = [re.escape(flag) + "=?" for flag in PATH_FLAGS]
         self.path_flag_pattern = re.compile(
-            "(?P<flag>{})(?P<path>.*)".format("|".join(flags))
+            "(?P<flag>{})(?P<maybe_path>.*)".format("|".join(flags))
         )
 
     def run(self, start_tu_path: pathlib.Path):
@@ -209,9 +209,9 @@ class CReduce:
                 match = re.match(self.path_flag_pattern, arg)
                 if match is None:
                     continue
-                if match.group("path"):
+                if match.group("maybe_path"):
                     self.entry.arguments[i] = match.group("flag") + fix_path(
-                        match.group("path")
+                        match.group("maybe_path")
                     )
                 elif i + 1 < len(self.entry.arguments):
                     self.entry.arguments[i + 1] = fix_path(self.entry.arguments[i + 1])
