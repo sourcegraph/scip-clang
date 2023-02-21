@@ -281,7 +281,7 @@ def default_main():
             )
             if not minimize_preprocessed:
                 logging.warning(
-                    "could not reproduce error with pre-processed output; will try to minimized original file"
+                    "could not reproduce error with pre-processed output; will try to minimize original file"
                 )
                 shutil.copyfile(entry.filepath, start_tu_path)
             else:
