@@ -4,12 +4,15 @@ set -euo pipefail
 PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/.."
 
 if [ ! -f "bazel-bin/external/llvm_toolchain/clang-format" ]; then
-  echo "Missing clang-format binary; run 'bazel build @llvm_toolchain//:clang-format <args>' first" 1>&2
-  exit 1
+  bazel build @llvm_toolchain//:clang-format
+fi
+
+if [ ! -f "bazel-bin/third_party/bazel_buildtools/buildifier" ]; then
+  bazel build //third_party/bazel_buildtools:buildifier
 fi
 
 (
   cd "$PROJECT_ROOT"
-  git ls-files BUILD WORKSPACE "**/BUILD" "**/.BUILD" "**.bzl" | xargs buildifier
+  git ls-files BUILD WORKSPACE "**/BUILD" "**/.BUILD" "**.bzl" | xargs bazel-bin/third_party/bazel_buildtools/buildifier
   git ls-files "**.cc" "**.h" | xargs bazel-bin/external/llvm_toolchain/clang-format -i
 )

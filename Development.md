@@ -18,11 +18,9 @@
 
 1. [Bazelisk](https://github.com/bazelbuild/bazelisk): This handles Bazel versions
    transparently.
-2. [Buildifier](https://github.com/bazelbuild/buildtools/releases/tag/6.0.0)
-   for formatting Starlark files.
-   <!-- Keep this link in sync with .buildkite/pipeline.yaml -->
 
-Bazel manages the C++ toolchain, so it doesn't need to be downloaded separately.
+Bazel manages the C++ toolchain and other tool dependencies like formatters,
+so they don't need to be downloaded separately.
 (For unclear reasons, Bazel still requires
 a host toolchain to be present for configuring _something_
 but it will not be used for building the code in this project.)
