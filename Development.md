@@ -48,9 +48,13 @@ on build times by 2x-3x, while maintaining sandboxing.
 
 ### Running the indexer
 
-Example invocation for a CMake project built with `cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <args>`.
+Example invocation for a CMake project:
 
 ```bash
+# This will generate a compilation database under build/
+# See https://clang.llvm.org/docs/JSONCompilationDatabase.html
+cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <args>
+
 # Invoked scip-clang from the project root (not the build root)
 path/to/scip-clang --compdb-path build/compile_commands.json
 ```
@@ -165,7 +169,10 @@ It can be invoked like so:
 /path/to/tools/reduce.py bad.json
 ```
 
-See the `--help` text for more information.
+After completion, a path to a reduced C++ file will be printed out
+which still reproduces the crash.
+
+See the script's `--help` text for information about additional flags.
 
 ## Implementation notes
 
