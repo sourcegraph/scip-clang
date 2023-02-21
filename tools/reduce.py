@@ -102,11 +102,7 @@ def check_scip_clang_output(
         capture_output=True,
         encoding="utf8",
     )
-    match = re.search(pattern, result.stdout)
-    if match is not None:
-        return True
-    match = re.search(pattern, result.stderr)
-    return match is not None
+    return bool(re.search(pattern, result.stdout) or re.search(pattern, result.stderr))
 
 
 @dataclass
