@@ -61,7 +61,7 @@ PATH_FLAGS = [
 # fmt: on
 
 
-class CompdbEntry:
+class CompDBEntry:
     filepath: pathlib.Path
     directory: pathlib.Path
     arguments: List[str]
@@ -89,7 +89,7 @@ class CompdbEntry:
         }
 
 
-def run_preprocessor_only(entry: CompdbEntry, preprocessed_tu_path: pathlib.Path):
+def run_preprocessor_only(entry: CompDBEntry, preprocessed_tu_path: pathlib.Path):
     args = copy.deepcopy(entry.arguments)
     args += ["-E", "-o", str(preprocessed_tu_path)]
     subprocess.run(args, cwd=entry.directory).check_returncode()
@@ -113,7 +113,7 @@ def check_scip_clang_output(
 
 @dataclass
 class CReduce:
-    entry: CompdbEntry
+    entry: CompDBEntry
     scip_clang: pathlib.Path
     project_root: pathlib.Path
     scip_clang_output_pattern: re.Pattern
@@ -253,7 +253,7 @@ def default_main():
     cwd = pathlib.Path.cwd()
     project_root = cwd
 
-    entry = CompdbEntry(compdb[0])
+    entry = CompDBEntry(compdb[0])
 
     scip_clang = pathlib.Path(
         __file__, "..", "..", "bazel-bin", "indexer", "scip-clang"
