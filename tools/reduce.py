@@ -212,7 +212,7 @@ class CReduce:
                 match = re.match(self.path_flag_pattern, arg)
                 if match is None:
                     continue
-                if match.group("path") != "":
+                if match.group("path"):
                     self.entry.arguments[i] = match.group("flag") + fix_path(
                         match.group("path")
                     )
