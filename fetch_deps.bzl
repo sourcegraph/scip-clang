@@ -1,4 +1,4 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 _BAZEL_SKYLIB_VERSION = "1.3.0"
 _PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
@@ -157,4 +157,25 @@ def fetch_direct_dependencies():
         build_file = "@scip_clang//third_party:dtl.BUILD",
         strip_prefix = "dtl-%s" % _DTL_VERSION,
         urls = ["https://github.com/cubicdaiya/dtl/archive/v%s.tar.gz" % _DTL_VERSION],
+    )
+
+    http_file(
+        name = "buildifier_darwin_arm64",
+        executable = True,
+        sha256 = "21fa0d48ef0b7251eb6e3521cbe25d1e52404763cd2a43aa29f69b5380559dd1",
+        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.0.0/buildifier-darwin-arm64"],
+    )
+
+    http_file(
+        name = "buildifier_linux_amd64",
+        executable = True,
+        sha256 = "7ff82176879c0c13bc682b6b0e482d670fbe13bbb20e07915edb0ad11be50502",
+        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.0.0/buildifier-linux-amd64"],
+    )
+
+    http_file(
+        name = "buildifier_linux_arm64",
+        executable = True,
+        sha256 = "9ffa62ea1f55f420c36eeef1427f71a34a5d24332cb861753b2b59c66d6343e2",
+        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.0.0/buildifier-linux-arm64"],
     )

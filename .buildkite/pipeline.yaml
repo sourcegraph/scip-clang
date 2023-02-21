@@ -7,15 +7,7 @@ steps:
       CI_BAZEL_REMOTE_CACHE: "https://storage.googleapis.com/sourcegraph_bazel_cache"
     key: build
     command: |
-      # Keep this link in sync with Development.md
-      wget -L https://github.com/bazelbuild/buildtools/releases/download/6.0.0/buildifier-linux-amd64 -O buildifier
-      chmod +x buildifier
-      mv buildifier /usr/local/bin/
-
-
       echo build --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json > ci.bazelrc
-      # Bazel handles the C++ toolchain
-      bazel build @llvm_toolchain//:clang-format
 
       ./tools/reformat.sh
       if ! git diff --quiet; then
