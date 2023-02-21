@@ -55,7 +55,7 @@ PATH_FLAGS = [
     "--nvptx-arch-tool",
     "--ptxas-path",
     "--rocm-path",
-    "-stdlib\+\+-isystem",
+    "-stdlib++-isystem",
     "--system-header-prefix", "--no-system-header-prefix"
 ]
 # fmt: on
@@ -119,7 +119,7 @@ class CReduce:
 
     def __post_init__(self):
         # Lenient behavior instead of hard-coding which flags allow =
-        flags = [flag + "=?" for flag in PATH_FLAGS]
+        flags = [re.escape(flag) + "=?" for flag in PATH_FLAGS]
         self.path_flag_pattern = re.compile(
             "(?P<flag>{})(?P<path>.*)".format("|".join(flags))
         )
