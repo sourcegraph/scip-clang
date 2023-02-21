@@ -181,7 +181,7 @@ class CReduce:
         entry can be relocated correctly to a temporary directory.
 
         Post-condition:
-        - Include paths, such as using -I and -isysroot use absolute paths
+        - Include paths, such as using -I and -isysroot, use absolute paths
         - The path for the main TU has a relative path
 
         Creduce creates temporary directories, so we want all the paths to
