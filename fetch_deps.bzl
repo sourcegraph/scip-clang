@@ -18,6 +18,7 @@ _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 
 _DOCTEST_VERSION = "2.4.9"
 _DTL_VERSION = "1.20"
+_RULES_PYTHON_VERSION = "0.18.1"
 
 def fetch_direct_dependencies():
     http_archive(
@@ -178,4 +179,11 @@ def fetch_direct_dependencies():
         executable = True,
         sha256 = "9ffa62ea1f55f420c36eeef1427f71a34a5d24332cb861753b2b59c66d6343e2",
         urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.0.0/buildifier-linux-arm64"],
+    )
+
+    http_archive(
+        name = "rules_python",
+        sha256 = "29a801171f7ca190c543406f9894abf2d483c206e14d6acbd695623662320097",
+        strip_prefix = "rules_python-%s" % _RULES_PYTHON_VERSION,
+        url = "https://github.com/bazelbuild/rules_python/releases/download/{0}/rules_python-{0}.tar.gz".format(_RULES_PYTHON_VERSION),
     )

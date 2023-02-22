@@ -5,6 +5,9 @@ load("@llvm_upstream//utils/bazel:configure.bzl", "llvm_configure")
 load("@llvm_upstream//utils/bazel:terminfo.bzl", "llvm_terminfo_disable")
 load("@llvm_upstream//utils/bazel:zlib.bzl", "llvm_zlib_external")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+load("@python_3_10//:defs.bzl", "interpreter")
+load("@rules_python//python:pip.bzl", "pip_parse")
+load("@python_deps//:requirements.bzl", install_python_deps = "install_deps")
 
 def setup_dependencies():
     bazel_skylib_workspace()
@@ -19,3 +22,5 @@ def setup_dependencies():
     llvm_configure(name = "llvm-project", targets = ["AArch64", "X86"])
 
     protobuf_deps()
+
+    install_python_deps()
