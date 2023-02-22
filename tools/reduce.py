@@ -203,6 +203,7 @@ class CReduce:
             if abs_path.exists():
                 return str(abs_path)
             # Maybe it wasn't a path argument after all...
+            logging.warning("expected path but found {} in argument list; ignoring".format(maybe_path))
             return maybe_path
 
         for i, arg in enumerate(self.entry.arguments):
