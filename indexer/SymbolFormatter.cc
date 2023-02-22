@@ -10,7 +10,7 @@
 #include "clang/Basic/SourceManager.h"
 
 #include "indexer/Enforce.h"
-#include "indexer/LLVMAdapter.h"
+#include "indexer/LlvmAdapter.h"
 #include "indexer/SymbolFormatter.h"
 
 namespace scip_clang {

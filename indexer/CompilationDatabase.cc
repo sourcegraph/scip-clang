@@ -16,7 +16,7 @@
 
 #include "indexer/CompilationDatabase.h"
 #include "indexer/FileSystem.h"
-#include "indexer/LLVMCommandLineParsing.h"
+#include "indexer/LlvmCommandLineParsing.h"
 
 namespace scip_clang {
 namespace compdb {

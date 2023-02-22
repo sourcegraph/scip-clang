@@ -10,7 +10,7 @@
 
 #include "indexer/CliOptions.h"
 #include "indexer/JsonIpcQueue.h"
-#include "indexer/LLVMAdapter.h"
+#include "indexer/LlvmAdapter.h"
 
 namespace scip_clang {
 

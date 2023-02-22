@@ -40,7 +40,7 @@
 #include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
-#include "indexer/LLVMAdapter.h"
+#include "indexer/LlvmAdapter.h"
 #include "indexer/Logging.h"
 #include "indexer/Path.h"
 #include "indexer/RAII.h"

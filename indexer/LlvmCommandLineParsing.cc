@@ -6,7 +6,7 @@
 #include "llvm/Support/StringSaver.h"
 
 #include "indexer/Enforce.h"
-#include "indexer/LLVMCommandLineParsing.h"
+#include "indexer/LlvmCommandLineParsing.h"
 
 // ----------------------------------- ATTENTION
 // --------------------------------- The code in this file is vendored from
