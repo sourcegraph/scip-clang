@@ -282,6 +282,7 @@ def default_main():
             mode="w", prefix="compile_commands-", suffix=".json", dir=project_root
         ) as temp_compdb:
             json.dump([new_entry.to_dict()], temp_compdb)
+            temp_compdb.flush()
             minimize_preprocessed = check_scip_clang_output(
                 scip_clang, temp_compdb.name, pattern
             )
