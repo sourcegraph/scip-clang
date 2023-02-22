@@ -15,7 +15,7 @@
 
 #include "scip/scip.pb.h"
 
-#include "indexer/LLVMAdapter.h"
+#include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
 #include "indexer/SymbolFormatter.h"

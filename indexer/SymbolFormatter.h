@@ -11,7 +11,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 
-#include "indexer/LLVMAdapter.h"
+#include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 
 namespace clang {

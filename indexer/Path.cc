@@ -8,7 +8,7 @@
 #include "llvm/Support/Path.h"
 
 #include "indexer/Comparison.h"
-#include "indexer/LLVMAdapter.h"
+#include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 
 namespace scip_clang {
