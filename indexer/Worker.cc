@@ -244,10 +244,17 @@ public:
                   MacroIndexer &macroIndexerOutput) {
     // HACK: It seems like EnterInclude and ExitInclude events are not
     // perfectly balanced in Clang. Work around that.
-    auto optNullFileEntryId = this->stack.pop();
-    ENFORCE(optNullFileEntryId.has_value());
-    ENFORCE(this->sourceManager.getFileEntryForID(optNullFileEntryId->fileId)
-            == nullptr);
+    auto lastEntry = this->stack.pop();
+    ENFORCE(lastEntry.has_value());
+    if (lastEntry->fileId == this->sourceManager.getMainFileID()) {
+      // Already pre-processed files have yet another unbalanced entry
+      auto newLastEntry = this->stack.pop();
+      ENFORCE(newLastEntry.has_value());
+      lastEntry.emplace(std::move(newLastEntry.value()));
+    }
+    ENFORCE(this->sourceManager.getFileEntryForID(lastEntry->fileId) == nullptr,
+            "carelessly popped entry for '{}' without exiting",
+            debug::tryGetPath(this->sourceManager, lastEntry->fileId));
     this->exitFile(this->sourceManager.getMainFileID());
     ENFORCE(this->stack.empty(), "entry for '{}' present at top of stack",
             debug::tryGetPath(this->sourceManager, this->stack.pop()->fileId));
