@@ -10,6 +10,7 @@
   - [UBSan stacktraces](#ubsan-stacktraces)
   - [Attaching a debugger](#attaching-a-debugger)
   - [Debugging on Linux](#debugging-on-linux)
+  - [Automated test case reduction](#automated-test-case-reduction)
   - [Inspecting Clang ASTs](#inspecting-clang-asts)
 - [Implementation notes](#implementation-notes)
 - [Notes on Clang internals](#notes-on-clang-internals)
@@ -47,9 +48,13 @@ on build times by 2x-3x, while maintaining sandboxing.
 
 ### Running the indexer
 
-Example invocation for a CMake project built with `cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <args>`.
+Example invocation for a CMake project:
 
 ```bash
+# This will generate a compilation database under build/
+# See https://clang.llvm.org/docs/JSONCompilationDatabase.html
+cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <args>
+
 # Invoked scip-clang from the project root (not the build root)
 path/to/scip-clang --compdb-path build/compile_commands.json
 ```
@@ -139,6 +144,35 @@ clang -Xclang -ast-dump=json file.c
 ```
 
 Another option is to use clang-query ([tutorial](https://devblogs.microsoft.com/cppblog/exploring-clang-tooling-part-2-examining-the-clang-ast-with-clang-query/)).
+
+### Automated test case reduction
+
+In case of a crash, it may be possible to automatically reduce
+it using [C-Reduce](https://github.com/csmith-project/creduce).
+
+**Important:**
+On macOS, use `brew install --HEAD creduce`,
+as the default version is very outdated.
+
+There is a helper script [tools/reduce.py](/tools/reduce.py)
+which can coordinate `scip-clang` and `creduce`,
+since correctly handling different kinds of paths in a compilation database
+is a bit finicky in the general case.
+
+It can be invoked like so:
+
+```bash
+# Pre-conditions:
+# 1. CWD is project root
+# 2. bad.json points to a compilation database with a single entry
+#    known to cause the crash
+/path/to/tools/reduce.py bad.json
+```
+
+After completion, a path to a reduced C++ file will be printed out
+which still reproduces the crash.
+
+See the script's `--help` text for information about additional flags.
 
 ## Implementation notes
 
