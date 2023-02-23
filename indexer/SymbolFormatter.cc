@@ -20,7 +20,11 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   if (it != this->locationBasedCache.end()) {
     return std::string_view(it->second);
   }
-  auto defPLoc = this->sourceManager.getPresumedLoc(defLoc);
+  // Ignore line directives here because we care about the identity
+  // of the macro (based on the containing file), not where it
+  // originated from.
+  auto defPLoc =
+      this->sourceManager.getPresumedLoc(defLoc, /*UseLineDirectives*/ false);
   ENFORCE(defPLoc.isValid());
   std::string_view filename;
   if (auto optRelPath = this->getCanonicalPath(defPLoc.getFileID())) {
