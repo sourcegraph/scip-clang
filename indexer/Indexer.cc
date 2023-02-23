@@ -135,14 +135,12 @@ void MacroIndexer::saveNonFileBasedMacro(const clang::MacroInfo *macroInfo) {
 void MacroIndexer::saveDefinition(const clang::Token &macroNameToken,
                                   const clang::MacroInfo *macroInfo) {
   ENFORCE(macroInfo);
-  auto startPLoc =
-      this->sourceManager->getPresumedLoc(macroInfo->getDefinitionLoc());
-  ENFORCE(startPLoc.isValid());
-  if (startPLoc.getFileID().isInvalid()) {
+  auto fileId = this->sourceManager->getFileID(macroInfo->getDefinitionLoc());
+  if (fileId.isInvalid()) {
     this->saveNonFileBasedMacro(macroInfo);
     return;
   }
-  this->saveOccurrence(startPLoc.getFileID(), macroNameToken, macroInfo,
+  this->saveOccurrence(fileId, macroNameToken, macroInfo,
                        Role::Definition);
 }
 
