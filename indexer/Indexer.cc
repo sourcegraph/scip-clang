@@ -171,9 +171,7 @@ void MacroIndexer::saveReference(
   if (refLoc.isMacroID()) {
     refLoc = sourceManager->getSpellingLoc(refLoc);
   }
-  auto refPLoc = this->sourceManager->getPresumedLoc(refLoc);
-  ENFORCE(refPLoc.isValid());
-  auto refFileId = refPLoc.getFileID();
+  auto refFileId = this->sourceManager->getFileID(refLoc);
   // Don't emit references from built-ins to other built-ins
   if (refFileId.isInvalid()) {
     // See NOTE(ref: macro-definition): This reference must be present in
