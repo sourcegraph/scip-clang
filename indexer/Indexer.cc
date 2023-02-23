@@ -140,8 +140,7 @@ void MacroIndexer::saveDefinition(const clang::Token &macroNameToken,
     this->saveNonFileBasedMacro(macroInfo);
     return;
   }
-  this->saveOccurrence(fileId, macroNameToken, macroInfo,
-                       Role::Definition);
+  this->saveOccurrence(fileId, macroNameToken, macroInfo, Role::Definition);
 }
 
 void MacroIndexer::saveReference(
