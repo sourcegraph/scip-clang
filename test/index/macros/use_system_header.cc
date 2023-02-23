@@ -1,3 +1,3 @@
 #include "system_header.h"
 
-const int system_int = SYSTEM_INT;
+const int total = SYSTEM_INT + OTHER_SYSTEM_INT;
