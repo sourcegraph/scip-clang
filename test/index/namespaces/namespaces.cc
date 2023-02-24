@@ -1,5 +1,7 @@
 // extra-args: -std=c++20
 
+#include "system_header.h"
+
 namespace a {
 }
 

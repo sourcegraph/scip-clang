@@ -1,5 +1,7 @@
   // extra-args: -std=c++20
   
+  #include "system_header.h"
+  
   namespace a {
 //          ^ definition [..] a/
   }
@@ -42,24 +44,24 @@
   using C = c::C;
   
   #define EXPAND_TO_NAMESPACE \
-//        ^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:34:9#
+//        ^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:36:9#
     namespace from_macro {}
 //            ^^^^^^^^^^ definition [..] from_macro/
 //            ^^^^^^^^^^ definition [..] from_macro/
   
   EXPAND_TO_NAMESPACE
-//^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:34:9#
+//^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:36:9#
   
   #define EXPAND_TO_NAMESPACE_2 EXPAND_TO_NAMESPACE
-//        ^^^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:39:9#
-//                              ^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:34:9#
+//        ^^^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:41:9#
+//                              ^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:36:9#
   
   EXPAND_TO_NAMESPACE_2
-//^^^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:39:9#
+//^^^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:41:9#
   
   #define IDENTITY(x) x
-//        ^^^^^^^^ definition [..] namespaces.cc:43:9#
+//        ^^^^^^^^ definition [..] namespaces.cc:45:9#
   
   IDENTITY(namespace in_macro { })
-//^^^^^^^^ reference [..] namespaces.cc:43:9#
+//^^^^^^^^ reference [..] namespaces.cc:45:9#
 //                   ^^^^^^^^ definition [..] in_macro/
