@@ -51,5 +51,7 @@
     IDENTITY_MACRO(0)
 //  ^^^^^^^^^^^^^^ reference [..] macros.cc:32:9#
   
-  int d = MACRO_USING_MACRO;
+  // two uses of a macro that expands to another macro
+  int d = MACRO_USING_MACRO + MACRO_USING_MACRO;
 //        ^^^^^^^^^^^^^^^^^ reference [..] macros.cc:36:9#
+//                            ^^^^^^^^^^^^^^^^^ reference [..] macros.cc:36:9#
