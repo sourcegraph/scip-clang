@@ -28,15 +28,19 @@ namespace scip_clang {
 std::pair<FileLocalSourceRange, clang::FileID>
 FileLocalSourceRange::fromNonEmpty(const clang::SourceManager &sourceManager,
                                    clang::SourceRange inclusiveRange) {
-  ENFORCE(inclusiveRange.getBegin().isValid());
-  ENFORCE(inclusiveRange.getEnd().isValid());
-  ENFORCE(inclusiveRange.getEnd() >= inclusiveRange.getBegin(),
-          "called fromNonEmpty with empty range");
-  auto startLoc = sourceManager.getPresumedLoc(inclusiveRange.getBegin());
-  auto endLoc = sourceManager.getPresumedLoc(inclusiveRange.getEnd());
-  return {{startLoc.getLine(), startLoc.getColumn(), endLoc.getLine(),
-           endLoc.getColumn()},
-          startLoc.getFileID()};
+  auto start = inclusiveRange.getBegin();
+  auto end = inclusiveRange.getEnd();
+  ENFORCE(start.isValid());
+  ENFORCE(end.isValid());
+  ENFORCE(start <= end, "called fromNonEmpty with empty range");
+  auto fileId = sourceManager.getFileID(start);
+  ENFORCE(sourceManager.getFileID(end) == fileId,
+          "range should not be split across files");
+  auto startPLoc = sourceManager.getPresumedLoc(start);
+  auto endPLoc = sourceManager.getPresumedLoc(end);
+  return {{startPLoc.getLine(), startPLoc.getColumn(), endPLoc.getLine(),
+           endPLoc.getColumn()},
+          fileId};
 }
 
 void FileLocalSourceRange::addToOccurrence(scip::Occurrence &occ) const {
@@ -135,15 +139,12 @@ void MacroIndexer::saveNonFileBasedMacro(const clang::MacroInfo *macroInfo) {
 void MacroIndexer::saveDefinition(const clang::Token &macroNameToken,
                                   const clang::MacroInfo *macroInfo) {
   ENFORCE(macroInfo);
-  auto startPLoc =
-      this->sourceManager->getPresumedLoc(macroInfo->getDefinitionLoc());
-  ENFORCE(startPLoc.isValid());
-  if (startPLoc.getFileID().isInvalid()) {
+  auto fileId = this->sourceManager->getFileID(macroInfo->getDefinitionLoc());
+  if (fileId.isInvalid()) {
     this->saveNonFileBasedMacro(macroInfo);
     return;
   }
-  this->saveOccurrence(startPLoc.getFileID(), macroNameToken, macroInfo,
-                       Role::Definition);
+  this->saveOccurrence(fileId, macroNameToken, macroInfo, Role::Definition);
 }
 
 void MacroIndexer::saveReference(
@@ -173,9 +174,7 @@ void MacroIndexer::saveReference(
   if (refLoc.isMacroID()) {
     refLoc = sourceManager->getSpellingLoc(refLoc);
   }
-  auto refPLoc = this->sourceManager->getPresumedLoc(refLoc);
-  ENFORCE(refPLoc.isValid());
-  auto refFileId = refPLoc.getFileID();
+  auto refFileId = this->sourceManager->getFileID(refLoc);
   // Don't emit references from built-ins to other built-ins
   if (refFileId.isInvalid()) {
     // See NOTE(ref: macro-definition): This reference must be present in

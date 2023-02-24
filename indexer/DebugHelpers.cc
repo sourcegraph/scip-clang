@@ -44,42 +44,26 @@ std::string formatPtr(const void *ptr) {
   return fmt::format("0x{:16x}", (uint64_t)ptr);
 }
 
-std::string formatLocSimple(const clang::SourceManager &sourceManager,
-                            clang::SourceLocation loc) {
-  if (loc.isInvalid()) {
-    return "<invalid>";
-  }
-  auto presumedLoc = sourceManager.getPresumedLoc(loc);
-  if (presumedLoc.isInvalid()) {
-    return "<invalid-ploc>";
-  }
-  return fmt::format("{}:{}:{} ({})", presumedLoc.getFilename(),
-                     presumedLoc.getLine(), presumedLoc.getColumn(),
-                     loc.isFileID() ? "FileID" : "MacroID");
-}
-
+/// Slightly tweaked version of SourceLocation::print
 std::string formatLoc(const clang::SourceManager &sourceManager,
                       clang::SourceLocation loc) {
-  if (loc.isInvalid() || loc.isFileID()) {
-    return formatLocSimple(sourceManager, loc);
+  if (loc.isInvalid()) {
+    return "<invalid loc>";
   }
-  auto presumedLoc = sourceManager.getPresumedLoc(loc);
-  ENFORCE(presumedLoc.isValid());
-  auto spellingLoc = sourceManager.getSpellingLoc(loc);
+  if (loc.isFileID()) {
+    auto presumedLoc = sourceManager.getPresumedLoc(loc);
+    if (presumedLoc.isInvalid()) {
+      return "<invalid presumedLoc>";
+    }
+    return fmt::format("{}:{}:{} (FileID)", presumedLoc.getFilename(),
+                       presumedLoc.getLine(), presumedLoc.getColumn());
+  }
   auto expansionLoc = sourceManager.getExpansionLoc(loc);
-  std::string spellingLocStr = "";
-  if (spellingLoc != loc) {
-    spellingLocStr = fmt::format(" (spellingLoc = {})",
-                                 formatLocSimple(sourceManager, spellingLoc));
-  }
-  std::string expansionLocStr = "";
-  if (expansionLoc != loc) {
-    expansionLocStr = fmt::format(" (expansionLoc = {})",
-                                  formatLocSimple(sourceManager, expansionLoc));
-  }
-  return fmt::format("{}:{}:{} {}{}", presumedLoc.getFilename(),
-                     presumedLoc.getLine(), presumedLoc.getColumn(),
-                     spellingLocStr, expansionLocStr);
+  return fmt::format(
+      "{} (MacroID; spellingLoc = {}){}",
+      expansionLoc.printToString(sourceManager),
+      sourceManager.getSpellingLoc(loc).printToString(sourceManager),
+      expansionLoc == loc ? "" : " (note: loc != expansionLoc)");
 }
 
 std::string formatRange(const clang::SourceManager &sourceManager,
@@ -90,25 +74,70 @@ std::string formatRange(const clang::SourceManager &sourceManager,
 std::string formatRange(const clang::SourceManager &sourceManager,
                         clang::SourceLocation loc1,
                         clang::SourceLocation loc2) {
-  auto pLoc1 = sourceManager.getPresumedLoc(loc1);
-  auto pLoc2 = sourceManager.getPresumedLoc(loc2);
-  auto typeStr = (loc1.isFileID() && loc2.isFileID())    ? ("FileID")
-                 : (loc1.isFileID() && loc2.isMacroID()) ? ("FileID / MacroID")
-                 : (loc1.isMacroID() && loc2.isFileID()) ? ("MacroID / FileID")
-                                                         : ("MacroID");
-  if (pLoc1.isValid() && pLoc2.isValid()
-      && pLoc1.getFileID() == pLoc2.getFileID()) {
-    if (pLoc1.getLine() == pLoc2.getLine()) {
-      return fmt::format("{}:{}:[{}-{}] (type {})", pLoc1.getFilename(),
-                         pLoc1.getLine(), pLoc1.getColumn(), pLoc2.getColumn(),
-                         typeStr);
-    }
-    return fmt::format("{}:[{}:{}-{}:{}] (type {})", pLoc1.getFilename(),
-                       pLoc1.getLine(), pLoc1.getColumn(), pLoc2.getLine(),
-                       pLoc2.getColumn(), typeStr);
+  if (loc1.isInvalid() && loc2.isInvalid()) {
+    return "<invalid-range>";
   }
-  return fmt::format("[{}]-[{}] (type {})", formatLoc(sourceManager, loc1),
-                     formatLoc(sourceManager, loc2), typeStr);
+
+  auto formatFileIdRange =
+      [&sourceManager](clang::SourceLocation loc1,
+                       clang::SourceLocation loc2) -> std::string {
+    if (loc1.isFileID() && loc2.isFileID()) {
+      if (loc1.isValid() && loc2.isValid()) {
+        auto pLoc1 = sourceManager.getPresumedLoc(loc1);
+        auto pLoc2 = sourceManager.getPresumedLoc(loc2);
+        if (pLoc1.isValid() && pLoc2.isValid()) {
+          if (pLoc1.getFilename() == pLoc2.getFilename()) {
+            if (pLoc1.getLine() == pLoc2.getLine()) {
+              return fmt::format("{}:{}:[{}-{}]", pLoc1.getFilename(),
+                                 pLoc1.getLine(), pLoc1.getColumn(),
+                                 pLoc2.getColumn());
+            }
+            return fmt::format("{}:[{}:{}-{}:{}]", pLoc1.getFilename(),
+                               pLoc1.getLine(), pLoc1.getColumn(),
+                               pLoc2.getLine(), pLoc2.getColumn());
+          }
+          return fmt::format("[{}:{}:{}]-[{}:{}:{}]", pLoc1.getFilename(),
+                             pLoc1.getLine(), pLoc1.getColumn(),
+                             pLoc2.getFilename(), pLoc2.getLine(),
+                             pLoc2.getColumn());
+        } else if (pLoc1.isInvalid() && pLoc2.isInvalid()) {
+          return "<invalid-plocs>";
+        }
+      } else if (loc1.isInvalid() && loc2.isInvalid()) {
+        return "<invalid-locs>";
+      }
+    }
+    return "";
+  };
+
+  auto rangeStr = formatFileIdRange(loc1, loc2);
+  if (!rangeStr.empty()) {
+    return fmt::format("{} (FileID)", rangeStr);
+  }
+
+  if (loc1.isMacroID() && loc2.isMacroID()) {
+    if (loc1.isValid() && loc2.isValid()) {
+      auto expLoc1 = sourceManager.getExpansionLoc(loc1);
+      auto spLoc1 = sourceManager.getSpellingLoc(loc1);
+      auto expLoc2 = sourceManager.getExpansionLoc(loc2);
+      auto spLoc2 = sourceManager.getSpellingLoc(loc2);
+      auto expansionRangeStr = formatFileIdRange(expLoc1, expLoc2);
+      if (!expansionRangeStr.empty()) {
+        auto spellingRangeStr = formatFileIdRange(spLoc1, spLoc2);
+        if (!spellingRangeStr.empty()) {
+          return fmt::format(
+              "{} (MacroID; spellingRange = {}){}{}", expansionRangeStr,
+              spellingRangeStr,
+              expLoc1 == loc1 ? "" : " (note: loc1 != expansionLoc1)",
+              expLoc2 == loc2 ? "" : " (note: loc2 != expansionLoc2)");
+        }
+      }
+    }
+  }
+
+  // Addressed most common cases, fallback to something that always works.
+  return fmt::format("[{}]-[{}]", formatLoc(sourceManager, loc1),
+                     formatLoc(sourceManager, loc2));
 }
 
 } // namespace debug
