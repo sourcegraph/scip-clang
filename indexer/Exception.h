@@ -40,16 +40,21 @@ public:
   }
 };
 
+extern std::string exceptionContext;
+
 template <typename... TArgs>
 [[noreturn]] bool Exception::raise(fmt::format_string<TArgs...> fmt,
                                    TArgs &&...args) {
   // Exception::failInFuzzer();
   std::string message = fmt::format(fmt, std::forward<TArgs>(args)...);
 
-  if (message.size() > 0) {
+  if (!message.empty()) {
     spdlog::error("Exception::raise(): {}\n", message);
   } else {
     spdlog::error("Exception::raise() (no message)\n");
+  }
+  if (!exceptionContext.empty()) {
+    spdlog::error("Context: {}", exceptionContext);
   }
   Exception::printBacktrace();
   scip_clang::stopInDebugger();
