@@ -28,15 +28,19 @@ namespace scip_clang {
 std::pair<FileLocalSourceRange, clang::FileID>
 FileLocalSourceRange::fromNonEmpty(const clang::SourceManager &sourceManager,
                                    clang::SourceRange inclusiveRange) {
-  ENFORCE(inclusiveRange.getBegin().isValid());
-  ENFORCE(inclusiveRange.getEnd().isValid());
-  ENFORCE(inclusiveRange.getEnd() >= inclusiveRange.getBegin(),
-          "called fromNonEmpty with empty range");
-  auto startLoc = sourceManager.getPresumedLoc(inclusiveRange.getBegin());
-  auto endLoc = sourceManager.getPresumedLoc(inclusiveRange.getEnd());
-  return {{startLoc.getLine(), startLoc.getColumn(), endLoc.getLine(),
-           endLoc.getColumn()},
-          startLoc.getFileID()};
+  auto start = inclusiveRange.getBegin();
+  auto end = inclusiveRange.getEnd();
+  ENFORCE(start.isValid());
+  ENFORCE(end.isValid());
+  ENFORCE(start <= end, "called fromNonEmpty with empty range");
+  auto fileId = sourceManager.getFileID(start);
+  ENFORCE(sourceManager.getFileID(end) == fileId,
+          "range should not be split across files");
+  auto startPLoc = sourceManager.getPresumedLoc(start);
+  auto endPLoc = sourceManager.getPresumedLoc(end);
+  return {{startPLoc.getLine(), startPLoc.getColumn(), endPLoc.getLine(),
+           endPLoc.getColumn()},
+          fileId};
 }
 
 void FileLocalSourceRange::addToOccurrence(scip::Occurrence &occ) const {
