@@ -61,13 +61,9 @@ FileLocalMacroOccurrence::FileLocalMacroOccurrence(
     const clang::SourceManager &sourceManager, const clang::Token &macroToken,
     const clang::MacroInfo *defInfo, Role role)
     : defInfo(defInfo), role(role) {
-  auto startLoc = macroToken.getLocation();
-  auto endLoc = macroToken.getEndLoc();
-  if (startLoc.isMacroID()) {
-    startLoc = sourceManager.getSpellingLoc(startLoc);
-    ENFORCE(startLoc.isFileID());
-    endLoc = startLoc.getLocWithOffset(macroToken.getLength());
-  }
+  auto startLoc = sourceManager.getSpellingLoc(macroToken.getLocation());
+  auto endLoc = startLoc.getLocWithOffset(macroToken.getLength());
+
   auto [range, _] =
       FileLocalSourceRange::fromNonEmpty(sourceManager, {startLoc, endLoc});
   this->range = range;
@@ -170,10 +166,7 @@ void MacroIndexer::saveReference(
           debug::formatRange(*this->sourceManager, macroNameToken.getLocation(),
                              macroNameToken.getEndLoc()));
 
-  auto refLoc = macroNameToken.getLocation();
-  if (refLoc.isMacroID()) {
-    refLoc = sourceManager->getSpellingLoc(refLoc);
-  }
+  auto refLoc = sourceManager->getSpellingLoc(macroNameToken.getLocation());
   auto refFileId = this->sourceManager->getFileID(refLoc);
   // Don't emit references from built-ins to other built-ins
   if (refFileId.isInvalid()) {
@@ -258,12 +251,7 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
     return n->getLocation();
   }(namespaceDecl);
 
-  if (startLoc.isMacroID()) {
-    startLoc = this->sourceManager.getSpellingLoc(startLoc);
-    // I think this is OK since macro-defining macros are not supported
-    // https://stackoverflow.com/questions/2429240/c-preprocessor-macro-defining-macro
-    ENFORCE(startLoc.isFileID());
-  }
+  startLoc = this->sourceManager.getSpellingLoc(startLoc);
 
   auto tokenLength = clang::Lexer::MeasureTokenLength(
       startLoc, this->sourceManager, this->langOptions);
