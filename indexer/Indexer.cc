@@ -105,7 +105,7 @@ void MacroIndexer::saveOccurrence(clang::FileID occFileId,
   ENFORCE(occFileId.isValid(),
           "trying to record occurrence outside an actual file");
   ENFORCE(macroInfo, "missing macroInfo for definition of occurrence");
-  this->table[{occFileId}].emplace_back(FileLocalMacroOccurrence{
+  this->table[{occFileId}].insert(FileLocalMacroOccurrence{
       *this->sourceManager, macroToken, macroInfo, role});
   // TODO: Do we need special handling for file-based macros
   // vs object-like macros?
@@ -195,42 +195,25 @@ void MacroIndexer::emitDocumentOccurrencesAndSymbols(
     return;
   }
   std::string message{};
-  ENFORCE(([&]() -> bool {
-            absl::flat_hash_set<FileLocalMacroOccurrence> occSet;
-            for (auto &macroOcc : it->second) {
-              auto [setIt, inserted] = occSet.insert(macroOcc);
-              if (!inserted) {
-                message = fmt::format("found duplicate occurrence for {} in {}",
-                                      macroOcc.range.debugToString(),
-                                      document.relative_path());
-                return false;
-              }
+  scip_clang::extractTransform(
+      std::move(it->second), deterministic,
+      absl::FunctionRef<void(FileLocalMacroOccurrence &&)>(
+          [&](auto &&macroOcc) {
+            scip::Occurrence occ;
+            macroOcc.emitOccurrence(symbolFormatter, occ);
+            switch (macroOcc.role) {
+            case Role::Definition: {
+              scip::SymbolInformation symbolInfo;
+              ENFORCE(!occ.symbol().empty())
+              macroOcc.emitSymbolInformation(occ.symbol(), symbolInfo);
+              *document.add_symbols() = std::move(symbolInfo);
+              break;
             }
-            return true;
-          })(),
-          "failed: {}", message);
-
-  // Always deterministic as occurrences are stored deterministically
-  // based on pre-processor traversal/actions.
-  static_assert(std::is_same<decltype(it->second),
-                             std::vector<FileLocalMacroOccurrence>>::value);
-  (void)deterministic;
-  for (auto &macroOcc : it->second) {
-    scip::Occurrence occ;
-    macroOcc.emitOccurrence(symbolFormatter, occ);
-    switch (macroOcc.role) {
-    case Role::Definition: {
-      scip::SymbolInformation symbolInfo;
-      ENFORCE(!occ.symbol().empty())
-      macroOcc.emitSymbolInformation(occ.symbol(), symbolInfo);
-      *document.add_symbols() = std::move(symbolInfo);
-      break;
-    }
-    case Role::Reference:
-      break;
-    }
-    *document.add_occurrences() = std::move(occ);
-  }
+            case Role::Reference:
+              break;
+            }
+            *document.add_occurrences() = std::move(occ);
+          }));
 }
 
 void MacroIndexer::emitExternalSymbols(bool deterministic,

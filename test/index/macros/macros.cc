@@ -36,4 +36,5 @@ int c = IDENTITY_MACRO(10);
 #define MACRO_USING_MACRO \
   IDENTITY_MACRO(0)
 
-int d = MACRO_USING_MACRO;
+// two uses of a macro that expands to another macro
+int d = MACRO_USING_MACRO + MACRO_USING_MACRO;

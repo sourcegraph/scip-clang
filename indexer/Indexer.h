@@ -1,6 +1,7 @@
 #ifndef SCIP_CLANG_MACRO_INDEX_H
 #define SCIP_CLANG_MACRO_INDEX_H
 
+#include <compare>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -15,6 +16,8 @@
 
 #include "scip/scip.pb.h"
 
+#include "indexer/Comparison.h"
+#include "indexer/Derive.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
@@ -41,7 +44,8 @@ struct FileLocalSourceRange {
     return H::combine(std::move(h), r.startLine, r.startColumn, r.endLine,
                       r.endLine);
   }
-  DERIVE_EQ_ALL(FileLocalSourceRange);
+  DERIVE_CMP_ALL(FileLocalSourceRange)
+  DERIVE_EQ_ALL(FileLocalSourceRange)
 
   static std::pair<FileLocalSourceRange, clang::FileID>
   fromNonEmpty(const clang::SourceManager &, clang::SourceRange inclusiveRange);
@@ -67,12 +71,9 @@ struct FileLocalMacroOccurrence {
   const clang::MacroInfo *defInfo; // always points to the definition
   Role role;
 
-  DERIVE_HASH_1(FileLocalMacroOccurrence, self.range)
-
-  friend bool operator==(const FileLocalMacroOccurrence &m1,
-                         const FileLocalMacroOccurrence &m2) {
-    return m1.range == m2.range;
-  }
+  // OK because we do not expect different code paths to emit occurrences
+  // with different roles or different macros for the same ranges.
+  DERIVE_HASH_CMP_NEWTYPE(FileLocalMacroOccurrence, range, CMP_EXPR)
 
   FileLocalMacroOccurrence(const clang::SourceManager &sourceManager,
                            const clang::Token &macroToken,
@@ -110,8 +111,20 @@ struct NonFileBasedMacro {
 
 class MacroIndexer final {
   clang::SourceManager *sourceManager; // non-null
+
+  // Information about all the macro occurrences grouped by file
+  //
+  // The value is a set of occurrences rather than a vector,
+  // to avoid memory usage growing for highly used macros. For example,
+  //
+  //   (1) #define A 0
+  //   (2) #define A2 (2 * A)
+  //   (3) int a4 = A2 * A2;
+  //
+  // When expanding each reference to A2 on line 3, we will also
+  // see an occurrence of 'A' on line 2. The set de-duplicates those.
   absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
-                      std::vector<FileLocalMacroOccurrence>>
+                      absl::flat_hash_set<FileLocalMacroOccurrence>>
       table;
 
   absl::flat_hash_set<NonFileBasedMacro> nonFileBasedMacros;
