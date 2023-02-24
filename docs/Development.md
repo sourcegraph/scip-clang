@@ -191,11 +191,5 @@ cost of assertions in Clang itself vs in our code.
 
 ## Notes on Clang internals
 
-- A `FileID`, unlike the name suggests, can refer to a File or
-  a macro expansion.
-- A valid `FileID` always has a corresponding `SLocEntry`.
-- A `FileEntry` is only present for a File-representing `FileID`
-  if it corresponds to an actual file. It will be missing
-  if the `FileID` corresponds to an imaginary file
-  (e.g. builtins). Thus, `sourceManager.getFileEntryForID` can
-  return null for certain valid FileIDs.
+See [docs/SourceLocation.md](/docs/SourceLocation.md) for information
+about how source locations are handled in Clang.
