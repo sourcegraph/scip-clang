@@ -40,6 +40,7 @@
 #include "indexer/DebugHelpers.h"
 #include "indexer/Derive.h"
 #include "indexer/Enforce.h"
+#include "indexer/Exception.h"
 #include "indexer/Hash.h"
 #include "indexer/Indexer.h"
 #include "indexer/IpcMessages.h"
@@ -1086,7 +1087,12 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   };
   scip::Index scipIndex{};
   auto &semaDetails = semanticAnalysisRequest.job.semanticAnalysis;
+
+  scip_clang::exceptionContext =
+      fmt::format("processing {}", semaDetails.command.Filename);
   this->processTranslationUnit(std::move(semaDetails), callback, scipIndex);
+  scip_clang::exceptionContext = "";
+
   ENFORCE(callbackInvoked == 1,
           "callbackInvoked = {} for TU with main file '{}'", callbackInvoked,
           tuMainFilePath);

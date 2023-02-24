@@ -41,6 +41,8 @@ static void filter_unnecessary(std::string &out) {
 
 namespace scip_clang {
 
+std::string exceptionContext = "";
+
 void Exception::printBacktrace() noexcept {
   int traceSize = 0;
   auto **messages = (char **)nullptr;
