@@ -90,3 +90,14 @@
       }
     };
   }
+  
+  #define VISIT(_name) Visit##_name
+//        ^^^^^ definition [..] types.cc:69:9#
+  
+  enum VISIT(Sightseeing) {
+//     ^^^^^ reference [..] types.cc:69:9#
+//     ^^^^^ definition [..] VisitSightseeing#
+    VISIT(Museum),
+//  ^^^^^ reference [..] types.cc:69:9#
+//  ^^^^^ definition [..] VisitMuseum.
+  };

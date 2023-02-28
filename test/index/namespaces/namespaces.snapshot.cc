@@ -46,11 +46,10 @@
   #define EXPAND_TO_NAMESPACE \
 //        ^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:36:9#
     namespace from_macro {}
-//            ^^^^^^^^^^ definition [..] from_macro/
-//            ^^^^^^^^^^ definition [..] from_macro/
   
   EXPAND_TO_NAMESPACE
 //^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:36:9#
+//^^^^^^^^^^^^^^^^^^^ definition [..] from_macro/
   
   #define EXPAND_TO_NAMESPACE_2 EXPAND_TO_NAMESPACE
 //        ^^^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:41:9#
@@ -58,10 +57,11 @@
   
   EXPAND_TO_NAMESPACE_2
 //^^^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:41:9#
+//^^^^^^^^^^^^^^^^^^^^^ definition [..] from_macro/
   
   #define IDENTITY(x) x
 //        ^^^^^^^^ definition [..] namespaces.cc:45:9#
   
   IDENTITY(namespace in_macro { })
 //^^^^^^^^ reference [..] namespaces.cc:45:9#
-//                   ^^^^^^^^ definition [..] in_macro/
+//^^^^^^^^ definition [..] in_macro/

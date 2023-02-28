@@ -250,8 +250,7 @@ void TuIndexer::saveEnumConstantDecl(
 
   ENFORCE(enumConstantDecl->getBeginLoc() == enumConstantDecl->getLocation());
   auto [range, fileId] =
-      this->getTokenSpellingRange(enumConstantDecl->getLocation());
-  // TODO: Add test where enum case comes from macro
+      this->getTokenExpansionRange(enumConstantDecl->getLocation());
 
   scip::Occurrence occ;
   range.addToOccurrence(occ);
@@ -278,7 +277,7 @@ void TuIndexer::saveEnumDecl(const clang::EnumDecl *enumDecl) {
   }
   auto symbol = optSymbol.value();
 
-  auto [range, fileId] = this->getTokenSpellingRange(enumDecl->getLocation());
+  auto [range, fileId] = this->getTokenExpansionRange(enumDecl->getLocation());
   scip::Occurrence occ;
   range.addToOccurrence(occ);
   occ.set_symbol(symbol.data(), symbol.size());
@@ -325,7 +324,7 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
     return n->getLocation();
   }(namespaceDecl);
 
-  auto [range, fileId] = this->getTokenSpellingRange(startLoc);
+  auto [range, fileId] = this->getTokenExpansionRange(startLoc);
 
   scip::Occurrence occ;
   range.addToOccurrence(occ);
@@ -358,8 +357,8 @@ void TuIndexer::emitDocumentOccurrencesAndSymbols(
 }
 
 std::pair<FileLocalSourceRange, clang::FileID>
-TuIndexer::getTokenSpellingRange(clang::SourceLocation startLoc) const {
-  startLoc = this->sourceManager.getSpellingLoc(startLoc);
+TuIndexer::getTokenExpansionRange(clang::SourceLocation startLoc) const {
+  startLoc = this->sourceManager.getExpansionLoc(startLoc);
   auto tokenLength = clang::Lexer::MeasureTokenLength(
       startLoc, this->sourceManager, this->langOptions);
   ENFORCE(tokenLength > 0);

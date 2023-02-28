@@ -65,3 +65,9 @@ void f() {
     }
   };
 }
+
+#define VISIT(_name) Visit##_name
+
+enum VISIT(Sightseeing) {
+  VISIT(Museum),
+};

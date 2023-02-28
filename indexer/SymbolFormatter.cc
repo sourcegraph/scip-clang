@@ -133,8 +133,8 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
     auto definitionTagDecl = tagDecl->getDefinition();
     ENFORCE(definitionTagDecl, "can't forward-declare an anonymous type");
     auto defLoc =
-        this->sourceManager.getSpellingLoc(definitionTagDecl->getLocation());
-    // TODO: Add test where definition is inside macro
+        this->sourceManager.getExpansionLoc(definitionTagDecl->getLocation());
+
     auto defFileId = this->sourceManager.getFileID(defLoc);
     ENFORCE(defFileId.isValid());
     auto counter = this->anonymousTypeCounters[{defFileId}]++;

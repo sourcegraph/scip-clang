@@ -197,7 +197,7 @@ public:
 
 private:
   std::pair<FileLocalSourceRange, clang::FileID>
-  getTokenSpellingRange(clang::SourceLocation startLoc) const;
+  getTokenExpansionRange(clang::SourceLocation startLoc) const;
 
   void tryGetDocComment(const clang::Decl *,
                         llvm::SmallVectorImpl<std::string> &) const;
