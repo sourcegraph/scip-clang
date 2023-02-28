@@ -61,6 +61,11 @@ public:
                           const RootRelativePath &)>
                           getSnapshotPath);
 
+  /// Callback that runs a compilation command against a TU and returns
+  /// a map containing the snapshot outputs for each file used
+  ///
+  /// Different TUs should not reuse the same headers, because this API
+  /// currently doesn't handle index merging.
   using RunCompileCommandCallback =
       absl::FunctionRef<absl::flat_hash_map<RootRelativePath, std::string>(
           const RootPath &rootInSandbox, RootRelativePathRef tuFileInSandbox,

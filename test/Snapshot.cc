@@ -314,6 +314,8 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
         {io.sourceFilePath.asRef(), io.snapshotPath.asRef()});
   }
 
+  absl::flat_hash_map<RootRelativePath, RootRelativePath> alreadyUsedFiles;
+
   for (auto &io : this->inputOutputs) {
     auto &sourceFilePath = io.sourceFilePath.asStringRef();
     if (!test::isTuMainFilePath(sourceFilePath)) {
@@ -338,6 +340,15 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
 
     auto output =
         compute(rootPath, io.sourceFilePath.asRef(), std::move(commandLine));
+
+    for (auto &[filePath, _] : output) {
+      ENFORCE(!alreadyUsedFiles.contains(filePath),
+              "{} is (potentially indirectly) included by {} and {}; so "
+              "snapshot output will be overwritten",
+              filePath.asStringRef(), alreadyUsedFiles[filePath].asStringRef(),
+              io.sourceFilePath.asStringRef());
+      alreadyUsedFiles.insert({filePath, io.sourceFilePath});
+    }
 
     scip_clang::extractTransform(
         std::move(output), /*deterministic*/ true,
