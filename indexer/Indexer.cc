@@ -371,6 +371,8 @@ TuIndexer::getTokenSpellingRange(clang::SourceLocation startLoc) const {
 void TuIndexer::tryGetDocComment(
     const clang::Decl *decl, llvm::SmallVectorImpl<std::string> &out) const {
   auto &astContext = decl->getASTContext();
+  // FIXME(def: hovers, issue:
+  // https://github.com/sourcegraph/scip-clang/issues/96)
   if (auto *rawComment = astContext.getRawCommentForAnyRedecl(decl)) {
     auto lines = rawComment->getFormattedLines(this->sourceManager,
                                                astContext.getDiagnostics());

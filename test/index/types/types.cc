@@ -1,3 +1,5 @@
+// format-options: showDocs
+
 #include "types.h"
 
 enum {
@@ -9,12 +11,18 @@ class C {
   };
 };
 
+// Old MacDonald had a farm
+// Ee i ee i o
 enum D {
+  // And on his farm he had some cows
   D1,
 };
 
+/// Ee i ee i oh
 enum class EC {
+  /// With a moo-moo here
   EC0,
+  /// And a moo-moo there
   EC1 = EC0,
 };
 
@@ -27,7 +35,12 @@ namespace a {
 }
 
 namespace has_anon_enum {
-  enum { F1, F2 = E2 } f = F1;
+  enum {
+    /* Here a moo, there a moo */
+    F1,
+    /** Everywhere a moo-moo */
+    F2 = E2
+  } f = F1;
 }
 
 class F0;
