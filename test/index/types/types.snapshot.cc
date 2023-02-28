@@ -37,6 +37,7 @@
 //  ^^^ definition [..] EC#EC1.
 //  documentation
 //  | And a moo-moo there
+//        ^^^ reference [..] EC#EC0.
   };
   
   namespace a {
@@ -61,7 +62,9 @@
 //    ^^ definition [..] has_anon_enum/F2.
 //    documentation
 //    | Everywhere a moo-moo 
+//         ^^ reference [..] has_anon_enum/E2.
     } f = F1;
+//        ^^ reference [..] has_anon_enum/F1.
   }
   
   class F0;
@@ -75,6 +78,7 @@
     enum { ANON2 = ANON1 } anon2;
 //  ^^^^ definition [..] F1#$anontype_3#
 //         ^^^^^ definition [..] F1#ANON2.
+//                 ^^^^^ reference [..] F1#ANON1.
   };
   
   class F0 {
@@ -113,3 +117,21 @@
     Undocumented,
 //  ^^^^^^^^^^^^ definition [..] PartiallyDocumented#Undocumented.
   };
+  
+  template <typename T, int N>
+  class GenericClass {};
+  
+  enum class E { E0 };
+//           ^ definition [..] E#
+//               ^^ definition [..] E#E0.
+  
+  void f(GenericClass<E, int(E::E0)>) {
+//                           ^ reference [..] E#
+//                              ^^ reference [..] E#E0.
+    (void)E::E0;
+//        ^ reference [..] E#
+//           ^^ reference [..] E#E0.
+    (void)::E::E0;
+//          ^ reference [..] E#
+//             ^^ reference [..] E#E0.
+  }

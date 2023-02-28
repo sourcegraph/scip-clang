@@ -78,3 +78,13 @@ enum class PartiallyDocumented {
   Documented,
   Undocumented,
 };
+
+template <typename T, int N>
+class GenericClass {};
+
+enum class E { E0 };
+
+void f(GenericClass<E, int(E::E0)>) {
+  (void)E::E0;
+  (void)::E::E0;
+}

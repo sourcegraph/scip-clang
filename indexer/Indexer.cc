@@ -11,6 +11,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -253,9 +254,10 @@ void MacroIndexer::emitExternalSymbols(bool deterministic,
 
 TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      const clang::LangOptions &langOptions,
+                     const clang::ASTContext &astContext,
                      SymbolFormatter &symbolFormatter)
     : sourceManager(sourceManager), langOptions(langOptions),
-      symbolFormatter(symbolFormatter), documentMap() {}
+      astContext(astContext), symbolFormatter(symbolFormatter), documentMap() {}
 
 void TuIndexer::saveEnumConstantDecl(
     const clang::EnumConstantDecl *enumConstantDecl) {
@@ -354,6 +356,112 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
   doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
 
   doc.symbolInfos.insert({symbol, scip::SymbolInformation{}});
+}
+
+void TuIndexer::saveNestedNameSpecifier(
+    const clang::NestedNameSpecifierLoc &argNameSpecLoc) {
+  clang::NestedNameSpecifierLoc nameSpecLoc = argNameSpecLoc;
+
+  auto tryEmit = [this](clang::NestedNameSpecifierLoc nameSpecLoc,
+                        const clang::NamedDecl *namedDecl) {
+    auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(namedDecl);
+    if (!optSymbol.has_value()) {
+      return;
+    }
+    scip::Occurrence occ;
+    auto [range, fileId] = FileLocalSourceRange::fromNonEmpty(
+        this->sourceManager, nameSpecLoc.getLocalSourceRange());
+    range.addToOccurrence(occ);
+    std::string_view symbol = optSymbol.value();
+    occ.set_symbol(symbol.data(), symbol.size());
+    auto &doc = this->documentMap[{fileId}];
+    doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
+  };
+
+  while (nameSpecLoc.hasQualifier()) {
+    auto nameSpec = nameSpecLoc.getNestedNameSpecifier();
+    using Kind = clang::NestedNameSpecifier;
+    switch (nameSpec->getKind()) {
+    case Kind::Namespace: {
+      auto namespaceDecl = nameSpec->getAsNamespace();
+      tryEmit(nameSpecLoc, namespaceDecl);
+      break;
+    }
+    case Kind::TypeSpec: {
+      auto *type = nameSpec->getAsType();
+      if (auto *tagDecl = type->getAsTagDecl()) {
+        tryEmit(nameSpecLoc, tagDecl);
+      }
+      break;
+    }
+    // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/109)
+    // Handle all these other cases too
+    case Kind::Identifier:
+    case Kind::NamespaceAlias:
+    case Kind::Global:
+    case Kind::Super:
+    case Kind::TypeSpecWithTemplate:
+      // NOTE: Adding support for TypeSpecWithTemplate needs extra care
+      // for (partial) template specializations. Example code:
+      //
+      //   template <typename T0>
+      //   struct X {
+      //     template <typename T1>
+      //     struct Y {};
+      //   };
+      //
+      //   template <>
+      //   struct X {
+      //     template <typename A>
+      //     struct Y { int[42] magic; };
+      //   };
+      //
+      //   template <typename U0> void f() {
+      //     typename X<U0>::template Y<U0> y{};
+      //                   //^^^^^^^^^^^^^^ TypeSpecWithTemplate
+      //     std::cout << sizeof(y) << '\n';
+      //   }
+      //
+      // In 'template Y<U0>', clangd will navigate to 'Y' in the body of 'X',
+      // even when there is partial template specialization of X
+      // (so calling f<int>() will print a different value).
+      // Ideally, we should handle surface such specializations too.
+      break;
+    }
+    nameSpecLoc = nameSpecLoc.getPrefix();
+  }
+}
+
+void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr *declRefExpr) {
+  // In the presence of 'using', prefer going to the 'using' instead
+  // of directly dereferencing.
+  auto foundDecl = declRefExpr->getFoundDecl();
+  auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(foundDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  auto symbol = optSymbol.value();
+
+  // A::B::C
+  //       ^ getLocation()
+  // ^^^^^^ getSourceRange()
+  // ^ getExprLoc()
+  auto [range, fileId] =
+      this->getTokenExpansionRange(declRefExpr->getLocation());
+
+  scip::Occurrence occ;
+  range.addToOccurrence(occ);
+  occ.set_symbol(symbol.data(), symbol.size());
+  // TODO: Appropriately add read-write access here
+
+  auto &doc = this->documentMap[{fileId}];
+  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
+
+  if (!declRefExpr->hasQualifier()) {
+    return;
+  }
+  auto qualifierLoc = declRefExpr->getQualifierLoc();
+  this->saveNestedNameSpecifier(qualifierLoc);
 }
 
 void TuIndexer::emitDocumentOccurrencesAndSymbols(

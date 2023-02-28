@@ -65,3 +65,26 @@
   IDENTITY(namespace in_macro { })
 //^^^^^^^^ definition [..] in_macro/
 //^^^^^^^^ reference [..] namespaces.cc:45:9#
+  
+  namespace a {
+//          ^ definition [..] a/
+    namespace c {
+//            ^ definition [..] a/c/
+      enum E { E0 };
+//         ^ definition [..] a/c/E#
+//             ^^ definition [..] a/c/E0.
+    }
+    namespace c_alias = c;
+  }
+  
+  void f(a::c_alias::E) {
+    (void)a::c::E::E0;
+//        ^ reference [..] a/
+//           ^ reference [..] a/c/
+//              ^ reference [..] a/c/E#
+//                 ^^ reference [..] a/c/E0.
+    (void)a::c_alias::E::E0;
+//        ^ reference [..] a/
+//                    ^ reference [..] a/c/E#
+//                       ^^ reference [..] a/c/E0.
+  }
