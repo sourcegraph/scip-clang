@@ -549,12 +549,16 @@ class IndexerAstVisitor;
 using FilesToBeIndexedSet =
     absl::flat_hash_set<LlvmToAbslHashAdapter<clang::FileID>>;
 
-/// Type to track canonical relative paths for _every_ FileID.
+/// Type to track canonical relative paths for FileIDs.
 ///
 /// Two types of files may not have canonical relative paths:
 /// 1. Paths inside the build root without a corresponding file inside
 ///    the project root.
 /// 2. Files from outside the project.
+///
+/// In the future, for cross-repo, a directory layout<->project mapping
+/// may be supplied or inferred, which would provide canonical relative
+/// paths for more files.
 class CanonicalPathMap final {
   absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
                       std::variant<RootRelativePathRef, AbsolutePathRef>>
@@ -672,6 +676,16 @@ public:
   // See clang/include/clang/Basic/DeclNodes.td for list of declarations.
   bool VisitNamespaceDecl(clang::NamespaceDecl *namespaceDecl) {
     this->tuIndexer.saveNamespaceDecl(namespaceDecl);
+    return true;
+  }
+
+  bool VisitEnumDecl(clang::EnumDecl *enumDecl) {
+    this->tuIndexer.saveEnumDecl(enumDecl);
+    return true;
+  }
+
+  bool VisitEnumConstantDecl(clang::EnumConstantDecl *enumConstantDecl) {
+    this->tuIndexer.saveEnumConstantDecl(enumConstantDecl);
     return true;
   }
 

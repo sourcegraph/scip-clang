@@ -343,6 +343,26 @@ TEST_CASE("ROBUSTNESS") {
                                   snapshotLogPath);
 }
 
+test::FormatOptions readFormatOptions(AbsolutePathRef path) {
+  std::ifstream tuStream(path.asStringView(), std::ios::in | std::ios::binary);
+  std::string prefix = "// format-options:";
+  test::FormatOptions formatOptions{};
+  for (std::string line; std::getline(tuStream, line);) {
+    if (!line.starts_with(prefix)) {
+      continue;
+    }
+    for (auto &arg : absl::StrSplit(line.substr(prefix.size()), ',')) {
+      auto s = absl::StripAsciiWhitespace(arg);
+      if (s == "showDocs") {
+        formatOptions.showDocs = true;
+      } else {
+        FAIL("unknown value in format-options");
+      }
+    }
+  }
+  return formatOptions;
+}
+
 TEST_CASE("INDEX") {
   if (test::globalCliOptions.testKind != test::Kind::IndexTests) {
     return;
@@ -432,7 +452,7 @@ TEST_CASE("INDEX") {
           auto docAbsPath = testRoot.makeAbsolute(
               RootRelativePathRef{doc.relative_path(), RootKind::Project});
           test::formatSnapshot(doc, docAbsPath.asRef(),
-                               test::FormatOptions{.showDocs = false}, os);
+                               ::readFormatOptions(docAbsPath.asRef()), os);
           os.flush();
           RootRelativePath path{
               RootRelativePathRef{doc.relative_path(), RootKind::Project}};

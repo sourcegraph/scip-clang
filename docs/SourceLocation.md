@@ -84,6 +84,18 @@ not present in the source code, such as: (non-exhaustive)
 See the various `SourceManager::isWrittenIn*` methods and
 `clangd::isSpelledInSource` for more details.
 
+### Caution: Spelling locations may not always be well-defined
+
+Since the preprocessor allows combining multiple tokens into one using `##`,
+it is possible that  atoken may not have a spelling location.
+
+```
+#define VISIT(_name) void Visit##_name##Decl(_name##Decl *) const {}
+VISIT(Enum)
+```
+
+Here, the `VisitEnumDecl` method will not have a spelling location.
+
 ## SLocEntry
 
 This type holds the main pieces of information needed about
