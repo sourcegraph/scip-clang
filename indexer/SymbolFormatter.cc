@@ -41,9 +41,9 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   return std::string_view(newIt->second);
 }
 
-std::optional<std::string_view>
-SymbolFormatter::getSymbolCached(const clang::Decl *decl,
-                                 absl::FunctionRef<std::optional<std::string>()> getSymbol) {
+std::optional<std::string_view> SymbolFormatter::getSymbolCached(
+    const clang::Decl *decl,
+    absl::FunctionRef<std::optional<std::string>()> getSymbol) {
   ENFORCE(decl);
   // NOTE(def: canonical-decl): Improve cache hit ratio by using
   // the canonical decl as the key.
@@ -76,7 +76,8 @@ SymbolFormatter::getSymbolCached(const clang::Decl *decl,
   if (!optSymbol.has_value()) {
     return {};
   }
-  ENFORCE(!optSymbol.value().empty(), "forgot to use nullopt to signal failure in computing symbol name");
+  ENFORCE(!optSymbol.value().empty(),
+          "forgot to use nullopt to signal failure in computing symbol name");
   auto [newIt, inserted] =
       this->declBasedCache.insert({decl, std::move(optSymbol.value())});
   ENFORCE(inserted);
@@ -94,8 +95,9 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext *declContext) {
   if (llvm::isa<clang::TranslationUnitDecl>(declContext)
       || llvm::isa<clang::ExternCContextDecl>(declContext)) {
     auto decl = llvm::dyn_cast<clang::Decl>(declContext);
-    return this->getSymbolCached(
-        decl, [&]() -> std::optional<std::string> { return "c . todo-pkg todo-version "; });
+    return this->getSymbolCached(decl, [&]() -> std::optional<std::string> {
+      return "c . todo-pkg todo-version ";
+    });
   }
   // TODO: Handle all cases of DeclContext here:
   // Done
@@ -198,38 +200,42 @@ SymbolFormatter::getEnumSymbol(const clang::EnumDecl *enumDecl) {
 
 std::optional<std::string_view>
 SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
-  return this->getSymbolCached(namespaceDecl, [&]() -> std::optional<std::string> {
-    if (namespaceDecl->isAnonymousNamespace()) {
-      auto mainFileId = this->sourceManager.getMainFileID();
-      ENFORCE(mainFileId.isValid());
-      auto path = this->getCanonicalPath(mainFileId);
-      if (!path.has_value()) {
-        // Strictly speaking, this will be suboptimal in the following case:
-        // - header 1: in source tree (has canonical path), uses namespace {..}
-        // - header 2: in source tree (has canonical path), uses namespace {..}
-        // - generated C++ file: in build tree only (no canonical path), and
-        //   includes header 1 and 2.
-        // We will not emit a symbol that connects the anonymous namespace
-        // in header 1 and header 2. However, that is OK, because it is unclear
-        // how to handle this case anyways, and anonymous namespaces are
-        // rarely (if ever) used in headers.
-        return {};
-      }
-      fmt::format_to(std::back_inserter(this->scratchBuffer), "$ANON/{}\0",
-                     path->asStringView());
-    } else {
-      llvm::raw_string_ostream os(this->scratchBuffer);
-      namespaceDecl->printQualifiedName(os);
-      // Directly using string replacement is justified because the DeclContext
-      // chain for a NamespaceDecl only contains namespaces or the main TU.
-      // Namespaces cannot be declared inside types, functions etc.
-      absl::StrReplaceAll({{"::", "/"}}, &this->scratchBuffer);
-    }
-    std::string out{
-        fmt::format("c . todo-pkg todo-version {}/", this->scratchBuffer)};
-    this->scratchBuffer.clear();
-    return out;
-  });
+  return this->getSymbolCached(
+      namespaceDecl, [&]() -> std::optional<std::string> {
+        if (namespaceDecl->isAnonymousNamespace()) {
+          auto mainFileId = this->sourceManager.getMainFileID();
+          ENFORCE(mainFileId.isValid());
+          auto path = this->getCanonicalPath(mainFileId);
+          if (!path.has_value()) {
+            // Strictly speaking, this will be suboptimal in the following case:
+            // - header 1: in source tree (has canonical path), uses namespace
+            // {..}
+            // - header 2: in source tree (has canonical path), uses namespace
+            // {..}
+            // - generated C++ file: in build tree only (no canonical path), and
+            //   includes header 1 and 2.
+            // We will not emit a symbol that connects the anonymous namespace
+            // in header 1 and header 2. However, that is OK, because it is
+            // unclear how to handle this case anyways, and anonymous namespaces
+            // are rarely (if ever) used in headers.
+            return {};
+          }
+          fmt::format_to(std::back_inserter(this->scratchBuffer), "$ANON/{}\0",
+                         path->asStringView());
+        } else {
+          llvm::raw_string_ostream os(this->scratchBuffer);
+          namespaceDecl->printQualifiedName(os);
+          // Directly using string replacement is justified because the
+          // DeclContext chain for a NamespaceDecl only contains namespaces or
+          // the main TU. Namespaces cannot be declared inside types, functions
+          // etc.
+          absl::StrReplaceAll({{"::", "/"}}, &this->scratchBuffer);
+        }
+        std::string out{
+            fmt::format("c . todo-pkg todo-version {}/", this->scratchBuffer)};
+        this->scratchBuffer.clear();
+        return out;
+      });
 }
 
 } // namespace scip_clang
