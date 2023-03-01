@@ -23,18 +23,18 @@ namespace clang {
 class Decl;
 class EnumConstantDecl;
 class EnumDecl;
-class NamespaceDecl;
-class SourceManager;
-class MacroInfo;
 class MacroDefinition;
+class NamespaceDecl;
+class MacroInfo;
+class SourceManager;
 class Token;
 } // namespace clang
 
 namespace scip {
 class Document;
-class SymbolInformation;
-class Occurrence;
 class Index;
+class Occurrence;
+class SymbolInformation;
 } // namespace scip
 
 namespace scip_clang {
