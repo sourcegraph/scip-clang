@@ -144,8 +144,9 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
         || llvm::isa<clang::TranslationUnitDecl>(declContext)) {
       // If the anonymous type is inside a namespace, then we know the
       // DeclContext chain only has namespaces (types cannot contain
-      // namespaces). So include the file hash too, to avoid collisions across
-      // files putting anonymous types into the same namespace. For example,
+      // namespaces). So include the file path hash too, to avoid collisions
+      // across files putting anonymous types into the same namespace.
+      // For example,
       //
       //   // A.h
       //   namespace z { struct { void f() {} } x; }
