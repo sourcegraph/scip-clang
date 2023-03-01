@@ -1,3 +1,4 @@
+#include <compare>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -23,32 +24,13 @@
 #include "indexer/AbslExtras.h"
 #include "indexer/Enforce.h"
 #include "indexer/FileSystem.h"
+#include "indexer/ScipExtras.h"
 
 #include "test/Snapshot.h"
 
 using namespace scip_clang;
 
 template <typename T> using Repeated = google::protobuf::RepeatedField<T>;
-
-static bool isSCIPRangeLess(const Repeated<int32_t> &a,
-                            const Repeated<int32_t> &b) {
-  if (a[0] != b[0]) { // start line
-    return a[0] < b[0];
-  }
-  if (a[1] != b[1]) { // start column
-    return a[1] < b[1];
-  }
-  if (a.size() != b.size()) { // is one of these multiline
-    return a.size() < b.size();
-  }
-  if (a[2] != b[2]) { // end line
-    return a[2] < b[2];
-  }
-  if (a.size() == 4) {
-    return a[3] < b[3];
-  }
-  return false;
-}
 
 namespace {
 
@@ -139,8 +121,8 @@ void formatSnapshot(const scip::Document &document,
   }
   absl::c_sort(
       occurrences,
-      [](const scip::Occurrence &occ1, const scip::Occurrence &occ2) -> bool {
-        return isSCIPRangeLess(occ1.range(), occ2.range());
+      [](const scip::Occurrence &lhs, const scip::Occurrence &rhs) -> bool {
+        return scip::compareOccurrences(lhs, rhs) == std::strong_ordering::less;
       });
   auto formatSymbol = [](const std::string &symbol) -> std::string {
     // Strip out repeating information for cleaner snapshots.

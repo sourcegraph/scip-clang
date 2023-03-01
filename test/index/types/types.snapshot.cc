@@ -98,6 +98,6 @@
 //     ^^^^^ reference [..] types.cc:69:9#
 //     ^^^^^ definition [..] VisitSightseeing#
     VISIT(Museum),
-//  ^^^^^ reference [..] types.cc:69:9#
 //  ^^^^^ definition [..] VisitMuseum.
+//  ^^^^^ reference [..] types.cc:69:9#
   };

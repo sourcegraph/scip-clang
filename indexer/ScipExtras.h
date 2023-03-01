@@ -20,6 +20,9 @@
 
 namespace scip {
 
+std::strong_ordering compareRelationships(const scip::Relationship &lhs,
+                                          const scip::Relationship &rhs);
+
 struct RelationshipExt {
   scip::Relationship rel;
 
@@ -35,6 +38,13 @@ struct RelationshipExt {
                       r.is_implementation());
   }
 };
+
+std::strong_ordering
+compareScipRange(const google::protobuf::RepeatedField<int32_t> &lhs,
+                 const google::protobuf::RepeatedField<int32_t> &rhs);
+
+std::strong_ordering compareOccurrences(const scip::Occurrence &lhs,
+                                        const scip::Occurrence &rhs);
 
 struct OccurrenceExt {
   scip::Occurrence occ;

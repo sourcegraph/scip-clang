@@ -20,8 +20,8 @@
 
 namespace scip {
 
-std::strong_ordering operator<=>(const scip::Relationship &lhs,
-                                 const scip::Relationship &rhs) {
+std::strong_ordering compareRelationships(const scip::Relationship &lhs,
+                                          const scip::Relationship &rhs) {
   CMP_EXPR(lhs.is_definition(), rhs.is_definition());
   CMP_EXPR(lhs.is_reference(), rhs.is_reference());
   CMP_EXPR(lhs.is_type_definition(), rhs.is_type_definition());
@@ -32,22 +32,37 @@ std::strong_ordering operator<=>(const scip::Relationship &lhs,
 
 std::strong_ordering operator<=>(const RelationshipExt &lhs,
                                  const RelationshipExt &rhs) {
-  return lhs.rel <=> rhs.rel;
+  return scip::compareRelationships(lhs.rel, rhs.rel);
 }
 
-std::strong_ordering operator<=>(const OccurrenceExt &lhs,
-                                 const OccurrenceExt &rhs) {
-  CMP_EXPR(lhs.occ.symbol_roles(), rhs.occ.symbol_roles());
-  CMP_STR(lhs.occ.symbol(), rhs.occ.symbol());
-  CMP_RANGE(lhs.occ.range(), rhs.occ.range());
-  CMP_EXPR(lhs.occ.syntax_kind(), rhs.occ.syntax_kind());
-  CMP_CHECK(cmp::compareRange(lhs.occ.override_documentation(),
-                              rhs.occ.override_documentation(),
+std::strong_ordering
+compareScipRange(const google::protobuf::RepeatedField<int32_t> &a,
+                 const google::protobuf::RepeatedField<int32_t> &b) {
+  CMP_EXPR(a[0], b[0]);         // start line
+  CMP_EXPR(a[1], b[1]);         // start column
+  CMP_EXPR(a.size(), b.size()); // is one of these multiline
+  CMP_EXPR(a[2], b[2]);         // end line or column
+  if (a.size() == 3) {
+    return std::strong_ordering::equal;
+  }
+  ENFORCE(a.size() == 4);
+  CMP_EXPR(a[3], b[3]);
+  return std::strong_ordering::equal;
+}
+
+std::strong_ordering compareOccurrences(const Occurrence &lhs,
+                                        const Occurrence &rhs) {
+  CMP_CHECK(compareScipRange(lhs.range(), rhs.range()));
+  CMP_STR(lhs.symbol(), rhs.symbol());
+  CMP_EXPR(lhs.symbol_roles(), rhs.symbol_roles());
+  CMP_EXPR(lhs.syntax_kind(), rhs.syntax_kind());
+  CMP_CHECK(cmp::compareRange(lhs.override_documentation(),
+                              rhs.override_documentation(),
                               [](const auto &d1s, const auto &d2s) {
                                 CMP_STR(d1s, d2s);
                                 return std::strong_ordering::equal;
                               }));
-  CMP_CHECK(cmp::compareRange(lhs.occ.diagnostics(), rhs.occ.diagnostics(),
+  CMP_CHECK(cmp::compareRange(lhs.diagnostics(), rhs.diagnostics(),
                               [](const auto &d1, const auto &d2) {
                                 CMP_EXPR(d1.severity(), d2.severity());
                                 CMP_STR(d1.code(), d2.code());
@@ -56,6 +71,11 @@ std::strong_ordering operator<=>(const OccurrenceExt &lhs,
                                 return cmp::compareRange(d1.tags(), d2.tags());
                               }));
   return std::strong_ordering::equal;
+}
+
+std::strong_ordering operator<=>(const OccurrenceExt &lhs,
+                                 const OccurrenceExt &rhs) {
+  return scip::compareOccurrences(lhs.occ, rhs.occ);
 }
 
 void SymbolInformationBuilder::finish(bool deterministic,
