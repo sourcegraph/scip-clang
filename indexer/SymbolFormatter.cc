@@ -41,9 +41,9 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   return std::string_view(newIt->second);
 }
 
-std::string_view
+std::optional<std::string_view>
 SymbolFormatter::getSymbolCached(const clang::Decl *decl,
-                                 absl::FunctionRef<std::string()> getSymbol) {
+                                 absl::FunctionRef<std::optional<std::string>()> getSymbol) {
   ENFORCE(decl);
   // NOTE(def: canonical-decl): Improve cache hit ratio by using
   // the canonical decl as the key.
@@ -72,12 +72,13 @@ SymbolFormatter::getSymbolCached(const clang::Decl *decl,
   if (it != this->declBasedCache.end()) {
     return std::string_view(it->second);
   }
-  auto symbol = getSymbol();
-  if (symbol.empty()) {
-    return "";
+  auto optSymbol = getSymbol();
+  if (!optSymbol.has_value()) {
+    return {};
   }
+  ENFORCE(!optSymbol.value().empty(), "forgot to use nullopt to signal failure in computing symbol name");
   auto [newIt, inserted] =
-      this->declBasedCache.insert({decl, std::move(symbol)});
+      this->declBasedCache.insert({decl, std::move(optSymbol.value())});
   ENFORCE(inserted);
   return std::string_view(newIt->second);
 }
@@ -94,7 +95,7 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext *declContext) {
       || llvm::isa<clang::ExternCContextDecl>(declContext)) {
     auto decl = llvm::dyn_cast<clang::Decl>(declContext);
     return this->getSymbolCached(
-        decl, [&]() -> std::string { return "c . todo-pkg todo-version "; });
+        decl, [&]() -> std::optional<std::string> { return "c . todo-pkg todo-version "; });
   }
   // TODO: Handle all cases of DeclContext here:
   // Done
@@ -117,7 +118,7 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext *declContext) {
 
 std::optional<std::string_view>
 SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
-  return this->getSymbolCached(tagDecl, [&]() -> std::string {
+  return this->getSymbolCached(tagDecl, [&]() -> std::optional<std::string> {
     auto optContextSymbol = this->getContextSymbol(tagDecl->getDeclContext());
     if (!optContextSymbol.has_value()) {
       return {};
@@ -197,7 +198,7 @@ SymbolFormatter::getEnumSymbol(const clang::EnumDecl *enumDecl) {
 
 std::optional<std::string_view>
 SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
-  auto symbol = this->getSymbolCached(namespaceDecl, [&]() -> std::string {
+  return this->getSymbolCached(namespaceDecl, [&]() -> std::optional<std::string> {
     if (namespaceDecl->isAnonymousNamespace()) {
       auto mainFileId = this->sourceManager.getMainFileID();
       ENFORCE(mainFileId.isValid());
@@ -212,7 +213,7 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
         // in header 1 and header 2. However, that is OK, because it is unclear
         // how to handle this case anyways, and anonymous namespaces are
         // rarely (if ever) used in headers.
-        return "";
+        return {};
       }
       fmt::format_to(std::back_inserter(this->scratchBuffer), "$ANON/{}\0",
                      path->asStringView());
@@ -229,10 +230,6 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
     this->scratchBuffer.clear();
     return out;
   });
-  if (symbol.empty()) {
-    return std::nullopt;
-  }
-  return symbol;
 }
 
 } // namespace scip_clang

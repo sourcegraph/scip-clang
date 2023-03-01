@@ -66,8 +66,8 @@ private:
   std::optional<std::string_view> getContextSymbol(const clang::DeclContext *);
   std::optional<std::string_view> getTagSymbol(const clang::TagDecl *);
 
-  std::string_view getSymbolCached(const clang::Decl *,
-                                   absl::FunctionRef<std::string()>);
+  std::optional<std::string_view> getSymbolCached(const clang::Decl *,
+    absl::FunctionRef<std::optional<std::string>()>);
 };
 
 } // namespace scip_clang
