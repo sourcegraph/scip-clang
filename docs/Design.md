@@ -352,6 +352,8 @@ so it makes sense to have a disambiguator.
 
 ### Symbol names for declarations
 
+<!-- NOTE(def: symbol-names-for-decls) -->
+
 - For builtins, we can create a synthetic namespace e.g. `$builtin::type`.
   (using `$` because it is not legal in C++)
 - For FQNs with no anonymous namespaces, we will use the FQN directly.
@@ -359,14 +361,26 @@ so it makes sense to have a disambiguator.
   and some suffix like `$anon`.
   Anonymous namespaces in headers are not semantically meaningful,
   we need to use the path of the final TU, not the path of the header.
+- For anonymous types defined in headers, we need to use the header path
+  in the symbol name, so that we can consistently identify the same
+  anonymous type even when the header is included in different TUs.
 
-One consequence of these rules is that header names
-never become a part of Symbol names (except for macros,
-as mentioned in the previous section).
+One consequence of these rules is that header names almost
+never become a part of Symbol names, except for two cases:
+
+1. Macros (as mentioned in the previous section)
+2. Anonymous types
+
 This is important because different headers
-may forward-declare the same types,
-and we want all such forward declarations to
-show up when doing Find references.
+may forward-declare the same (non-anonymous) declarations,
+and we want all such forward declarations
+to show up when doing Find references.
+
+The point about merging forward declarations does not
+apply to macros and anonymous types,
+as they cannot be forward-declared.
+Hence, it is OK to use the header path in the symbol name
+for both of these.
 
 #### Symbol names for enum cases
 

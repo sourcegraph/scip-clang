@@ -222,6 +222,24 @@ void MacroIndexer::emitDocumentOccurrencesAndSymbols(
 void MacroIndexer::emitExternalSymbols(bool deterministic,
                                        SymbolFormatter &symbolFormatter,
                                        scip::Index &index) {
+  std::string message;
+  ENFORCE(
+      [&]() -> bool {
+        absl::flat_hash_set<std::string_view> paths{};
+        message = "non-file based macros found in:\n";
+        for (auto &macro : this->nonFileBasedMacros) {
+          auto fileId =
+              this->sourceManager->getFileID(macro.defInfo->getDefinitionLoc());
+          auto path = scip_clang::toStringView(
+              debug::tryGetPath(*this->sourceManager, fileId));
+          bool inserted = paths.insert(path).second;
+          if (inserted) {
+            message.append(fmt::format("  {}\n", path));
+          }
+        }
+        return paths.size() <= 1;
+      }(),
+      "{}", message);
   scip_clang::extractTransform(
       std::move(this->nonFileBasedMacros), deterministic,
       absl::FunctionRef<void(NonFileBasedMacro &&)>(

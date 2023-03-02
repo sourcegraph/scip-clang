@@ -87,7 +87,7 @@ See the various `SourceManager::isWrittenIn*` methods and
 ### Caution: Spelling locations may not always be well-defined
 
 Since the preprocessor allows combining multiple tokens into one using `##`,
-it is possible that  atoken may not have a spelling location.
+it is possible that a token may not have a spelling location.
 
 ```
 #define VISIT(_name) void Visit##_name##Decl(_name##Decl *) const {}
