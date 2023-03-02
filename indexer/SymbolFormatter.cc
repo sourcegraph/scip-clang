@@ -108,7 +108,7 @@ std::optional<std::string_view> SymbolFormatter::getSymbolCached(
 std::optional<std::string_view>
 SymbolFormatter::getContextSymbol(const clang::DeclContext *declContext) {
   if (auto namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(declContext)) {
-    return this->getNamespaceSymbol(namespaceDecl).value_or("");
+    return this->getNamespaceSymbol(namespaceDecl);
   }
   if (auto tagDecl = llvm::dyn_cast<clang::TagDecl>(declContext)) {
     return this->getTagSymbol(tagDecl);
