@@ -11,6 +11,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
@@ -367,12 +368,52 @@ TuIndexer::getTokenExpansionRange(clang::SourceLocation startLoc) const {
                                             {startLoc, endLoc});
 }
 
+} // namespace scip_clang
+
+// This is buggy even in clangd, so roll our own workaround.
+// https://github.com/sourcegraph/scip-clang/issues/105#issuecomment-1451252984
+static bool
+checkIfCommentBelongsToPreviousEnumCase(const clang::Decl *decl,
+                                        const clang::RawComment &comment) {
+  if (auto *enumConstantDecl = llvm::dyn_cast<clang::EnumConstantDecl>(decl)) {
+    if (auto *enumDecl = llvm::dyn_cast<clang::EnumDecl>(
+            enumConstantDecl->getDeclContext())) {
+      int i = -1;
+      const clang::EnumConstantDecl *previous = nullptr;
+      for (const clang::EnumConstantDecl *current : enumDecl->enumerators()) {
+        i++;
+        if (i == 64) {
+          // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/105):
+          // There doesn't seem to be any API for quickly getting the
+          // previous EnumConstantDecl given an existing one. Attempting to
+          // find decls by iterating through the EnumDecl will be worst-case
+          // quadratic, so add a somewhat arbitrary limit here.
+          // We could potentially build up a cache for O(N) runtime,
+          // but it seems a bit overkill for now.
+          return false;
+        }
+        if (current != enumConstantDecl) {
+          previous = current;
+          continue;
+        }
+        return previous && (previous->getBeginLoc() > comment.getBeginLoc());
+      }
+    }
+  }
+  return false;
+}
+
+namespace scip_clang {
+
 void TuIndexer::tryGetDocComment(
     const clang::Decl *decl, llvm::SmallVectorImpl<std::string> &out) const {
   auto &astContext = decl->getASTContext();
   // FIXME(def: hovers, issue:
   // https://github.com/sourcegraph/scip-clang/issues/96)
   if (auto *rawComment = astContext.getRawCommentForAnyRedecl(decl)) {
+    if (::checkIfCommentBelongsToPreviousEnumCase(decl, *rawComment)) {
+      return;
+    }
     auto lines = rawComment->getFormattedLines(this->sourceManager,
                                                astContext.getDiagnostics());
     for (auto &line : lines) {
