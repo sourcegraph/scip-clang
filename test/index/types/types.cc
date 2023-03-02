@@ -71,3 +71,9 @@ void f() {
 enum VISIT(Sightseeing) {
   VISIT(Museum),
 };
+
+enum class PartiallyDocumented {
+  /// :smugcat:
+  Documented,
+  Undocumented,
+};

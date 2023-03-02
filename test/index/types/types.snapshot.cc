@@ -101,3 +101,16 @@
 //  ^^^^^ definition [..] VisitMuseum.
 //  ^^^^^ reference [..] types.cc:69:9#
   };
+  
+  enum class PartiallyDocumented {
+//           ^^^^^^^^^^^^^^^^^^^ definition [..] PartiallyDocumented#
+    /// :smugcat:
+    Documented,
+//  ^^^^^^^^^^ definition [..] PartiallyDocumented#Documented.
+//  documentation
+//  | :smugcat:
+    Undocumented,
+//  ^^^^^^^^^^^^ definition [..] PartiallyDocumented#Undocumented.
+//  documentation
+//  | :smugcat:
+  };
