@@ -71,3 +71,10 @@ void f() {
 enum VISIT(Sightseeing) {
   VISIT(Museum),
 };
+
+// Regression test for https://github.com/sourcegraph/scip-clang/issues/105
+enum class PartiallyDocumented {
+  /// :smugcat:
+  Documented,
+  Undocumented,
+};

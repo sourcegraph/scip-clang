@@ -101,3 +101,15 @@
 //  ^^^^^ definition [..] VisitMuseum.
 //  ^^^^^ reference [..] types.cc:69:9#
   };
+  
+  // Regression test for https://github.com/sourcegraph/scip-clang/issues/105
+  enum class PartiallyDocumented {
+//           ^^^^^^^^^^^^^^^^^^^ definition [..] PartiallyDocumented#
+    /// :smugcat:
+    Documented,
+//  ^^^^^^^^^^ definition [..] PartiallyDocumented#Documented.
+//  documentation
+//  | :smugcat:
+    Undocumented,
+//  ^^^^^^^^^^^^ definition [..] PartiallyDocumented#Undocumented.
+  };
