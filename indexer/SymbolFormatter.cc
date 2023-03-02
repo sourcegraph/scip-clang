@@ -41,32 +41,53 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   return std::string_view(newIt->second);
 }
 
+// NOTE(def: canonical-decl):
+// It is a little subtle as to why using getCanonicalDecl will
+// give correct results. In particular, the result of getCanonicalDecl
+// may change depending on include order. For example, if you have:
+//
+//   void f(int x); // In A.h
+//   void f(int x); // In B.h
+//
+// Then depending on #include order of A.h and B.h, the result of
+// getCanonicalDecl will be different, since tie-breaking is based on
+// lexical order if all declarations are forward declarations.
+//
+// Say we have two TUs which include these headers in different order:
+//
+//   // AThenB.cc
+//   #include "A.h"
+//   #include "B.h"
+//
+//   // BThenA.cc
+//   #include "B.h"
+//   #include "A.h"
+//
+// In this case, when AThenB.cc is indexed, the declaration from A.h
+// will be returned by getCanonicalDecl, whereas when BThenA.h is indexed,
+// the declaration from B.h will be returned.
+//
+// Consequently, if header paths are present in symbol names,
+// and we use the result for making symbol names,
+// then the two separate indexing processes will generate
+// two different symbol names, which is undesirable.
+//
+// NOTE(ref: symbol-names-for-decls) points out that header
+// names are only a part of symbol names in two cases:
+// 1. Macros
+// 2. Anonymous types (and hence, declarations inside anonymous types)
+//
+// In both of these cases, forward declarations are not possible,
+// so include ordering doesn't matter, and consequently using
+// getCanonicalDecl is fine.
+
 std::optional<std::string_view> SymbolFormatter::getSymbolCached(
     const clang::Decl *decl,
     absl::FunctionRef<std::optional<std::string>()> getSymbol) {
   ENFORCE(decl);
-  // NOTE(def: canonical-decl): Improve cache hit ratio by using
-  // the canonical decl as the key.
-  //
-  // It is a little subtle as to why picking the canonical decl will
-  // give correct results. In particular, the canonical decl may
-  // change depending on include order. For example, if you have:
-  //   void f(int x);     // In A.h
-  //   void f(int x = 0); // In B.h
-  // Then depending on #include order of A.h and B.h, the canonical decl
-  // will be different, since it is most commonly determined based on which
-  // one appears first.
-  //
-  // However, this doesn't matter because the symbol name of the function
-  // can only depend on:
-  // - The path of the main TU (if there is an anonymous namespace
-  //   in the decl context chain)
-  // - Names of namespaces.
-  // It cannot depend on the path of the header itself (header paths affect
-  // symbol names for anonymous types, but methods in different anonymous
-  // type declarations would never be mapped to the same symbol anyways),
-  // so even if the exact canonical decl is different, the symbol name
-  // will be the same exactly when required.
+  // Improve cache hit ratio by using the canonical decl as the key.
+  // It is a little subtle as to why using it is correct,
+  // see NOTE(ref: canonical-decl)
   decl = decl->getCanonicalDecl();
   auto it = this->declBasedCache.find(decl);
   if (it != this->declBasedCache.end()) {
@@ -208,10 +229,10 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
           auto path = this->getCanonicalPath(mainFileId);
           if (!path.has_value()) {
             // Strictly speaking, this will be suboptimal in the following case:
-            // - header 1: in source tree (has canonical path), uses namespace
-            // {..}
-            // - header 2: in source tree (has canonical path), uses namespace
-            // {..}
+            // - header 1: in source tree (has canonical path), uses
+            //     namespace {..}
+            // - header 2: in source tree (has canonical path), uses
+            //     namespace {..}
             // - generated C++ file: in build tree only (no canonical path), and
             //   includes header 1 and 2.
             // We will not emit a symbol that connects the anonymous namespace
