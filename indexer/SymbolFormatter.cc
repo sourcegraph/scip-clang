@@ -193,25 +193,26 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
 
 std::optional<std::string_view> SymbolFormatter::getEnumConstantSymbol(
     const clang::EnumConstantDecl *enumConstantDecl) {
-  return this->getSymbolCached(enumConstantDecl, [&]() -> std::string {
-    auto parentEnumDecl =
-        llvm::dyn_cast<clang::EnumDecl>(enumConstantDecl->getDeclContext());
-    ENFORCE(parentEnumDecl,
-            "decl context for EnumConstantDecl should be EnumDecl");
-    if (!parentEnumDecl) {
-      return {};
-    }
-    std::optional<std::string_view> optContextSymbol =
-        parentEnumDecl->isScoped()
-            ? this->getEnumSymbol(parentEnumDecl)
-            : this->getContextSymbol(parentEnumDecl->getDeclContext());
-    if (!optContextSymbol.has_value()) {
-      return {};
-    }
-    std::string out{fmt::format("{}{}.", optContextSymbol.value(),
-                                toStringView(enumConstantDecl->getName()))};
-    return out;
-  });
+  return this->getSymbolCached(
+      enumConstantDecl, [&]() -> std::optional<std::string> {
+        auto parentEnumDecl =
+            llvm::dyn_cast<clang::EnumDecl>(enumConstantDecl->getDeclContext());
+        ENFORCE(parentEnumDecl,
+                "decl context for EnumConstantDecl should be EnumDecl");
+        if (!parentEnumDecl) {
+          return {};
+        }
+        std::optional<std::string_view> optContextSymbol =
+            parentEnumDecl->isScoped()
+                ? this->getEnumSymbol(parentEnumDecl)
+                : this->getContextSymbol(parentEnumDecl->getDeclContext());
+        if (!optContextSymbol.has_value()) {
+          return {};
+        }
+        std::string out{fmt::format("{}{}.", optContextSymbol.value(),
+                                    toStringView(enumConstantDecl->getName()))};
+        return out;
+      });
 }
 
 std::optional<std::string_view>
