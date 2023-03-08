@@ -87,4 +87,7 @@ enum class E { E0 };
 void f(GenericClass<E, int(E::E0)>) {
   (void)E::E0;
   (void)::E::E0;
+#define QUALIFIED(enum_name, case_name) enum_name::case_name;
+  (void)QUALIFIED(E, E0);
+#undef QUALIFIED
 }

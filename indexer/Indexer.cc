@@ -369,8 +369,11 @@ void TuIndexer::saveNestedNameSpecifier(
       return;
     }
     scip::Occurrence occ;
-    auto [range, fileId] = FileLocalSourceRange::fromNonEmpty(
-        this->sourceManager, nameSpecLoc.getLocalSourceRange());
+    // Don't use nameSpecLoc.getLocalSourceRange() as that may give
+    // two MacroID SourceLocations, in case the NestedNameSpecifier
+    // arises from a macro expansion.
+    auto [range, fileId] =
+        this->getTokenExpansionRange(nameSpecLoc.getLocalBeginLoc());
     range.addToOccurrence(occ);
     std::string_view symbol = optSymbol.value();
     occ.set_symbol(symbol.data(), symbol.size());

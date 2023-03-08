@@ -134,4 +134,12 @@
     (void)::E::E0;
 //          ^ reference [..] E#
 //             ^^ reference [..] E#E0.
+  #define QUALIFIED(enum_name, case_name) enum_name::case_name;
+//        ^^^^^^^^^ definition [..] types.cc:90:9#
+    (void)QUALIFIED(E, E0);
+//        ^^^^^^^^^ reference [..] E#
+//        ^^^^^^^^^ reference [..] E#E0.
+//        ^^^^^^^^^ reference [..] types.cc:90:9#
+  #undef QUALIFIED
+//       ^^^^^^^^^ reference [..] types.cc:90:9#
   }
