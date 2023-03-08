@@ -45,3 +45,15 @@ EXPAND_TO_NAMESPACE_2
 #define IDENTITY(x) x
 
 IDENTITY(namespace in_macro { })
+
+namespace a {
+  namespace c {
+    enum E { E0 };
+  }
+  namespace c_alias = c;
+}
+
+void f(a::c_alias::E) {
+  (void)a::c::E::E0;
+  (void)a::c_alias::E::E0;
+}

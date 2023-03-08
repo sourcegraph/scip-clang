@@ -20,11 +20,14 @@
 #include "indexer/SymbolFormatter.h"
 
 namespace clang {
+class ASTContext;
 class Decl;
+class DeclRefExpr;
 class EnumConstantDecl;
 class EnumDecl;
 class MacroDefinition;
 class NamespaceDecl;
+class NestedNameSpecifier;
 class MacroInfo;
 class SourceManager;
 class Token;
@@ -179,18 +182,20 @@ struct PartialDocument {
 class TuIndexer final {
   const clang::SourceManager &sourceManager;
   const clang::LangOptions &langOptions;
+  [[maybe_unused]] const clang::ASTContext &astContext;
   SymbolFormatter &symbolFormatter;
   absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, PartialDocument>
       documentMap;
 
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
-            SymbolFormatter &);
+            const clang::ASTContext &, SymbolFormatter &);
 
   // See NOTE(ref: emit-vs-save) for naming conventions.
   void saveEnumConstantDecl(const clang::EnumConstantDecl *);
   void saveEnumDecl(const clang::EnumDecl *);
   void saveNamespaceDecl(const clang::NamespaceDecl *);
+  void saveDeclRefExpr(const clang::DeclRefExpr *);
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
                                          scip::Document &);
@@ -198,6 +203,8 @@ public:
 private:
   std::pair<FileLocalSourceRange, clang::FileID>
   getTokenExpansionRange(clang::SourceLocation startLoc) const;
+
+  void saveNestedNameSpecifier(const clang::NestedNameSpecifierLoc &);
 
   void tryGetDocComment(const clang::Decl *,
                         llvm::SmallVectorImpl<std::string> &) const;

@@ -221,6 +221,20 @@ SymbolFormatter::getEnumSymbol(const clang::EnumDecl *enumDecl) {
 }
 
 std::optional<std::string_view>
+SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl *namedDecl) {
+#define HANDLE(kind_)            \
+  case clang::Decl::Kind::kind_: \
+    return this->get##kind_##Symbol(llvm::cast<clang::kind_##Decl>(namedDecl));
+  switch (namedDecl->getKind()) {
+    HANDLE(Enum)
+    HANDLE(EnumConstant)
+    HANDLE(Namespace)
+  default:
+    return {};
+  }
+}
+
+std::optional<std::string_view>
 SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
   return this->getSymbolCached(
       namespaceDecl, [&]() -> std::optional<std::string> {

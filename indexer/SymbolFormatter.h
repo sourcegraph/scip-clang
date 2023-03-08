@@ -19,6 +19,7 @@ class Decl;
 class DeclContext;
 class EnumConstantDecl;
 class EnumDecl;
+class NamedDecl;
 class NamespaceDecl;
 class TagDecl;
 } // namespace clang
@@ -56,6 +57,8 @@ public:
   getEnumConstantSymbol(const clang::EnumConstantDecl *);
 
   std::optional<std::string_view> getEnumSymbol(const clang::EnumDecl *);
+
+  std::optional<std::string_view> getNamedDeclSymbol(const clang::NamedDecl *);
 
   /// Returns nullopt for anonymous namespaces in files for which
   /// getCanonicalPath returns nullopt.

@@ -689,6 +689,11 @@ public:
     return true;
   }
 
+  bool VisitDeclRefExpr(clang::DeclRefExpr *declRefExpr) {
+    this->tuIndexer.saveDeclRefExpr(declRefExpr);
+    return true;
+  }
+
   void writeIndex(SymbolFormatter &&symbolFormatter, MacroIndexer &&macroIndex,
                   scip::Index &scipIndex) {
     std::vector<std::pair<RootRelativePathRef, clang::FileID>> relativePaths;
@@ -794,7 +799,7 @@ public:
     };
     SymbolFormatter symbolFormatter{sourceManager, getRelativePath};
     TuIndexer tuIndexer{sourceManager, this->sema->getLangOpts(),
-                        symbolFormatter};
+                        this->sema->getASTContext(), symbolFormatter};
 
     IndexerAstVisitor visitor{canonicalPathMap, std::move(toBeIndexed),
                               this->options.deterministic, tuIndexer};
