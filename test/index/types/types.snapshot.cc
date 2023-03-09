@@ -3,7 +3,7 @@
   #include "types.h"
   
   enum {
-//^^^^ definition [..] $anontype_9a8b4e83cf46cb05_0#
+//^^^^ definition [..] $anonymous_type_9a8b4e83cf46cb05_0#
     ANON,
 //  ^^^^ definition [..] ANON.
   };
@@ -45,7 +45,7 @@
     class X {};
   
     namespace {
-//  ^^^^^^^^^ definition [..] $ANON/types.cc/
+//  ^^^^^^^^^ definition [..] a/`$anonymous_namespace_types.cc`/
       class Y {};
     }
   }
@@ -53,7 +53,7 @@
   namespace has_anon_enum {
 //          ^^^^^^^^^^^^^ definition [..] has_anon_enum/
     enum {
-//  ^^^^ definition [..] has_anon_enum/$anontype_9a8b4e83cf46cb05_1#
+//  ^^^^ definition [..] has_anon_enum/$anonymous_type_9a8b4e83cf46cb05_1#
       /* Here a moo, there a moo */
       F1,
 //    ^^ definition [..] has_anon_enum/F1.
@@ -73,10 +73,10 @@
     friend F0;
   
     enum { ANON1 } anon1;
-//  ^^^^ definition [..] F1#$anontype_2#
+//  ^^^^ definition [..] F1#$anonymous_type_2#
 //         ^^^^^ definition [..] F1#ANON1.
     enum { ANON2 = ANON1 } anon2;
-//  ^^^^ definition [..] F1#$anontype_3#
+//  ^^^^ definition [..] F1#$anonymous_type_3#
 //         ^^^^^ definition [..] F1#ANON2.
 //                 ^^^^^ reference [..] F1#ANON1.
   };
@@ -96,14 +96,14 @@
   }
   
   #define VISIT(_name) Visit##_name
-//        ^^^^^ definition [..] types.cc:69:9#
+//        ^^^^^ definition [..] `types.cc:69:9`!
   
   enum VISIT(Sightseeing) {
-//     ^^^^^ reference [..] types.cc:69:9#
+//     ^^^^^ reference [..] `types.cc:69:9`!
 //     ^^^^^ definition [..] VisitSightseeing#
     VISIT(Museum),
 //  ^^^^^ definition [..] VisitMuseum.
-//  ^^^^^ reference [..] types.cc:69:9#
+//  ^^^^^ reference [..] `types.cc:69:9`!
   };
   
   // Regression test for https://github.com/sourcegraph/scip-clang/issues/105
@@ -135,11 +135,11 @@
 //          ^ reference [..] E#
 //             ^^ reference [..] E#E0.
   #define QUALIFIED(enum_name, case_name) enum_name::case_name;
-//        ^^^^^^^^^ definition [..] types.cc:90:9#
+//        ^^^^^^^^^ definition [..] `types.cc:90:9`!
     (void)QUALIFIED(E, E0);
 //        ^^^^^^^^^ reference [..] E#
 //        ^^^^^^^^^ reference [..] E#E0.
-//        ^^^^^^^^^ reference [..] types.cc:90:9#
+//        ^^^^^^^^^ reference [..] `types.cc:90:9`!
   #undef QUALIFIED
-//       ^^^^^^^^^ reference [..] types.cc:90:9#
+//       ^^^^^^^^^ reference [..] `types.cc:90:9`!
   }

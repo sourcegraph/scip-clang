@@ -10,9 +10,11 @@
 
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
+#include "scip/scip.pb.h"
 
 namespace clang {
 class Decl;
@@ -24,10 +26,40 @@ class NamespaceDecl;
 class TagDecl;
 } // namespace clang
 
+namespace llvm {
+class raw_ostream;
+}
+
 namespace scip_clang {
 
 using GetCanonicalPath =
     absl::FunctionRef<std::optional<RootRelativePathRef>(clang::FileID)>;
+
+/// Type similar to \c scip::Descriptor but carrying \c string_view fields
+/// instead to avoid redundant intermediate allocations.
+struct DescriptorBuilder {
+  std::string_view name;
+  std::string_view disambiguator;
+  scip::Descriptor::Suffix suffix;
+
+  void formatTo(llvm::raw_ostream &) const;
+};
+
+/// Type similar to \c scip::Symbol but carrying \c string_view fields instead
+/// to avoid redundant allocations.
+///
+/// Meant for transient use in constructing symbol strings, since a
+/// \c scip::Index doesn't store any \c scip::Symbol values directly.
+struct SymbolBuilder {
+  std::string_view packageName;
+  std::string_view packageVersion;
+  llvm::SmallVector<DescriptorBuilder, 4> descriptors;
+
+  void formatTo(std::string &) const;
+
+  static std::string formatContextual(std::string_view contextSymbol,
+                                      const DescriptorBuilder &);
+};
 
 class SymbolFormatter final {
   const clang::SourceManager &sourceManager;
@@ -72,6 +104,18 @@ private:
   std::optional<std::string_view>
   getSymbolCached(const clang::Decl *,
                   absl::FunctionRef<std::optional<std::string>()>);
+
+  /// Format the string to a buffer stored by `this` and return a view to it.
+  template <typename... T>
+  std::string_view formatTemporary(fmt::format_string<T...> fmt, T &&...args) {
+    this->scratchBuffer.clear();
+    fmt::format_to(std::back_inserter(this->scratchBuffer), fmt,
+                   std::forward<T>(args)...);
+    return std::string_view(this->scratchBuffer);
+  }
+
+  /// Format the string to a buffer stored by `this` and return a view to it.
+  std::string_view formatTemporary(const clang::NamedDecl *);
 };
 
 } // namespace scip_clang

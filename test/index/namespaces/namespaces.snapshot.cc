@@ -13,7 +13,7 @@
   }
   
   namespace {
-//^^^^^^^^^ definition [..] $ANON/namespaces.cc/
+//^^^^^^^^^ definition [..] `$anonymous_namespace_namespaces.cc`/
   }
   
   inline namespace xx {
@@ -24,7 +24,7 @@
 //          ^ definition [..] z/
   
   inline namespace {
-//       ^^^^^^^^^ definition [..] $ANON/namespaces.cc/
+//       ^^^^^^^^^ definition [..] z/`$anonymous_namespace_namespaces.cc`/
   }
   
   }
@@ -44,27 +44,27 @@
   using C = c::C;
   
   #define EXPAND_TO_NAMESPACE \
-//        ^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:36:9#
+//        ^^^^^^^^^^^^^^^^^^^ definition [..] `namespaces.cc:36:9`!
     namespace from_macro {}
   
   EXPAND_TO_NAMESPACE
 //^^^^^^^^^^^^^^^^^^^ definition [..] from_macro/
-//^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:36:9#
+//^^^^^^^^^^^^^^^^^^^ reference [..] `namespaces.cc:36:9`!
   
   #define EXPAND_TO_NAMESPACE_2 EXPAND_TO_NAMESPACE
-//        ^^^^^^^^^^^^^^^^^^^^^ definition [..] namespaces.cc:41:9#
-//                              ^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:36:9#
+//        ^^^^^^^^^^^^^^^^^^^^^ definition [..] `namespaces.cc:41:9`!
+//                              ^^^^^^^^^^^^^^^^^^^ reference [..] `namespaces.cc:36:9`!
   
   EXPAND_TO_NAMESPACE_2
 //^^^^^^^^^^^^^^^^^^^^^ definition [..] from_macro/
-//^^^^^^^^^^^^^^^^^^^^^ reference [..] namespaces.cc:41:9#
+//^^^^^^^^^^^^^^^^^^^^^ reference [..] `namespaces.cc:41:9`!
   
   #define IDENTITY(x) x
-//        ^^^^^^^^ definition [..] namespaces.cc:45:9#
+//        ^^^^^^^^ definition [..] `namespaces.cc:45:9`!
   
   IDENTITY(namespace in_macro { })
 //^^^^^^^^ definition [..] in_macro/
-//^^^^^^^^ reference [..] namespaces.cc:45:9#
+//^^^^^^^^ reference [..] `namespaces.cc:45:9`!
   
   namespace a {
 //          ^ definition [..] a/
