@@ -108,6 +108,7 @@ void SymbolBuilder::formatTo(std::string &buf) const {
   }
 }
 
+// static
 std::string
 SymbolBuilder::formatContextual(std::string_view contextSymbol,
                                 const DescriptorBuilder &descriptor) {
