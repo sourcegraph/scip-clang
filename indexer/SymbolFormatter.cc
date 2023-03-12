@@ -35,7 +35,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, Escaped s) {
         || c == '_') {
       continue;
     }
-    needsBacktickEscape = c == '`';
+    needsBacktickEscape |= c == '`';
     needsEscape = true;
   }
   if (needsEscape) {
