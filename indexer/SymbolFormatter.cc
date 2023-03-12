@@ -112,8 +112,9 @@ std::string
 SymbolBuilder::formatContextual(std::string_view contextSymbol,
                                 const DescriptorBuilder &descriptor) {
   std::string buffer;
+  auto maxExtraChars = 3; // For methods, we end up adding '(', ')' and '.'
   buffer.reserve(contextSymbol.size() + descriptor.name.size()
-                 + descriptor.disambiguator.size() + 2);
+                 + descriptor.disambiguator.size() + maxExtraChars);
   buffer.append(contextSymbol);
   llvm::raw_string_ostream os(buffer);
   descriptor.formatTo(os);
