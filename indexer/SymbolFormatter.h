@@ -55,10 +55,21 @@ struct SymbolBuilder {
   std::string_view packageVersion;
   llvm::SmallVector<DescriptorBuilder, 4> descriptors;
 
+  /// Format a symbol string according to the standardized SCIP representation:
+  /// https://github.com/sourcegraph/scip/blob/main/scip.proto#L101-L127
   void formatTo(std::string &) const;
 
+  /// Format the symbol string for an entity, making use of the symbol string
+  /// for its declaration context.
+  ///
+  /// For example, when constructing a symbol string for \c std::string_view,
+  /// \p contextSymbol would be the symbol string for \c std,
+  /// and \p descriptor would describe the \c string_view type.
+  ///
+  /// Since the standard formatting for SCIP symbols is prefix-based,
+  /// this avoids the extra work of recomputing parent symbol strings.
   static std::string formatContextual(std::string_view contextSymbol,
-                                      const DescriptorBuilder &);
+                                      const DescriptorBuilder &descriptor);
 };
 
 class SymbolFormatter final {
