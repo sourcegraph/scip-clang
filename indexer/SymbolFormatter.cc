@@ -396,6 +396,17 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
       });
 }
 
+std::optional<std::string_view>
+SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl *varDecl) {
+  return this->getSymbolCached(varDecl, [&]() -> std::optional<std::string> {
+    ENFORCE(varDecl->isLocalVarDeclOrParm());
+    auto loc = this->sourceManager.getExpansionLoc(varDecl->getLocation());
+    auto defFileId = this->sourceManager.getFileID(loc);
+    auto counter = this->localVariableCounters[{defFileId}]++;
+    return std::string(this->formatTemporary("local {}", counter));
+  });
+}
+
 std::string_view
 SymbolFormatter::formatTemporary(const clang::NamedDecl *namedDecl) {
   this->scratchBuffer.clear();

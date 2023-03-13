@@ -11,6 +11,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
@@ -406,6 +407,33 @@ void TuIndexer::saveNestedNameSpecifier(
   }
 }
 
+void TuIndexer::saveVarDecl(const clang::VarDecl *varDecl) {
+  // The main cases here are:
+  // 1. Local variables, declared directly or using structured bindings
+  // 2. Parameters
+  // 3. Data members (static or non-static)
+
+  // TODO: Add test case for DecompositionDecl.
+  if (auto *decompositionDecl =
+          llvm::dyn_cast<clang::DecompositionDecl>(varDecl)) {
+    for (auto *bindingDecl : decompositionDecl->bindings()) {
+      if (auto *innerVarDecl = bindingDecl->getHoldingVar()) {
+        this->saveVarDecl(innerVarDecl);
+      }
+    }
+    return;
+  }
+  if (varDecl->isLocalVarDeclOrParm()) {
+    auto optSymbol = this->symbolFormatter.getLocalVarOrParmSymbol(varDecl);
+    if (!optSymbol.has_value()) {
+      return;
+    }
+    this->saveDefinition(optSymbol.value(), varDecl->getLocation(),
+                         std::nullopt);
+  }
+  // TODO: Add support for static and non-static data members.
+}
+
 void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr *declRefExpr) {
   // In the presence of 'using', prefer going to the 'using' instead
   // of directly dereferencing.
@@ -465,13 +493,15 @@ void TuIndexer::saveReference(std::string_view symbol,
   (void)this->saveOccurrence(symbol, loc, extraRoles);
 }
 
-void TuIndexer::saveDefinition(std::string_view symbol,
-                               clang::SourceLocation loc,
-                               scip::SymbolInformation &&symbolInfo,
-                               int32_t extraRoles) {
+void TuIndexer::saveDefinition(
+    std::string_view symbol, clang::SourceLocation loc,
+    std::optional<scip::SymbolInformation> &&optSymbolInfo,
+    int32_t extraRoles) {
   auto &doc = this->saveOccurrence(symbol, loc,
                                    extraRoles | scip::SymbolRole::Definition);
-  doc.symbolInfos.emplace(symbol, std::move(symbolInfo));
+  if (optSymbolInfo.has_value()) {
+    doc.symbolInfos.emplace(symbol, std::move(optSymbolInfo.value()));
+  }
 }
 
 PartialDocument &TuIndexer::saveOccurrence(std::string_view symbol,

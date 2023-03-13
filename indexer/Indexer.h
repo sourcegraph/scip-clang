@@ -26,11 +26,12 @@ class DeclRefExpr;
 class EnumConstantDecl;
 class EnumDecl;
 class MacroDefinition;
-class NamespaceDecl;
-class NestedNameSpecifier;
 class MacroInfo;
+class NamespaceDecl;
+class NestedNameSpecifierLoc;
 class SourceManager;
 class Token;
+class VarDecl;
 } // namespace clang
 
 namespace scip {
@@ -195,6 +196,8 @@ public:
   void saveEnumConstantDecl(const clang::EnumConstantDecl *);
   void saveEnumDecl(const clang::EnumDecl *);
   void saveNamespaceDecl(const clang::NamespaceDecl *);
+  void saveVarDecl(const clang::VarDecl *);
+
   void saveDeclRefExpr(const clang::DeclRefExpr *);
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
@@ -207,11 +210,14 @@ private:
   void saveReference(std::string_view symbol, clang::SourceLocation loc,
                      int32_t extraRoles = 0);
 
-  /// Helper method to record a definition Occurrence + SymbolInformation.
+  /// Helper method for recording a \c scip::Occurrence and a
+  /// \c scip::SymbolInformation for a definition.
   ///
   /// Setting the symbol name on \param symbolInfo is not necessary.
+  ///
+  /// For local variables, \param symbolInfo should be \c std::nullopt.
   void saveDefinition(std::string_view symbol, clang::SourceLocation loc,
-                      scip::SymbolInformation &&symbolInfo,
+                      std::optional<scip::SymbolInformation> &&symbolInfo,
                       int32_t extraRoles = 0);
 
   /// Lower-level method for only saving a Occurrence.

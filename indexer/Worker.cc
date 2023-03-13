@@ -689,6 +689,11 @@ public:
     return true;
   }
 
+  bool VisitVarDecl(clang::VarDecl *varDecl) {
+    this->tuIndexer.saveVarDecl(varDecl);
+    return true;
+  }
+
   bool VisitDeclRefExpr(clang::DeclRefExpr *declRefExpr) {
     this->tuIndexer.saveDeclRefExpr(declRefExpr);
     return true;

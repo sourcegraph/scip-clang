@@ -24,6 +24,7 @@ class EnumDecl;
 class NamedDecl;
 class NamespaceDecl;
 class TagDecl;
+class VarDecl;
 } // namespace clang
 
 namespace llvm {
@@ -85,6 +86,8 @@ class SymbolFormatter final {
   absl::flat_hash_map<const clang::Decl *, std::string> declBasedCache;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
       anonymousTypeCounters;
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
+      localVariableCounters;
   std::string scratchBuffer;
 
 public:
@@ -108,6 +111,9 @@ public:
   /// getCanonicalPath returns nullopt.
   std::optional<std::string_view>
   getNamespaceSymbol(const clang::NamespaceDecl *);
+
+  std::optional<std::string_view>
+  getLocalVarOrParmSymbol(const clang::VarDecl *);
 
 private:
   std::optional<std::string_view> getContextSymbol(const clang::DeclContext *);
