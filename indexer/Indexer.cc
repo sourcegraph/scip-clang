@@ -260,6 +260,16 @@ TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
     : sourceManager(sourceManager), langOptions(langOptions),
       astContext(astContext), symbolFormatter(symbolFormatter), documentMap() {}
 
+void TuIndexer::saveBindingDecl(const clang::BindingDecl *bindingDecl) {
+  ENFORCE(bindingDecl);
+  auto optSymbol = this->symbolFormatter.getBindingSymbol(bindingDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  this->saveDefinition(optSymbol.value(), bindingDecl->getLocation(),
+                       std::nullopt);
+}
+
 void TuIndexer::saveEnumConstantDecl(
     const clang::EnumConstantDecl *enumConstantDecl) {
   ENFORCE(enumConstantDecl);
@@ -408,19 +418,8 @@ void TuIndexer::saveNestedNameSpecifier(
 }
 
 void TuIndexer::saveVarDecl(const clang::VarDecl *varDecl) {
-  // The main cases here are:
-  // 1. Local variables, declared directly or using structured bindings
-  // 2. Parameters
-  // 3. Data members (static or non-static)
-
-  // TODO: Add test case for DecompositionDecl.
-  if (auto *decompositionDecl =
-          llvm::dyn_cast<clang::DecompositionDecl>(varDecl)) {
-    for (auto *bindingDecl : decompositionDecl->bindings()) {
-      if (auto *innerVarDecl = bindingDecl->getHoldingVar()) {
-        this->saveVarDecl(innerVarDecl);
-      }
-    }
+  if (llvm::isa<clang::DecompositionDecl>(varDecl)) {
+    // Individual bindings will be visited by VisitBindingDecl
     return;
   }
   if (varDecl->isLocalVarDeclOrParm()) {

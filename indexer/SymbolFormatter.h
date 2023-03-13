@@ -17,6 +17,7 @@
 #include "scip/scip.pb.h"
 
 #define FOR_EACH_DECL_TO_BE_INDEXED(F) \
+  F(Binding)                           \
   F(EnumConstant)                      \
   F(Enum)                              \
   F(Namespace)                         \
@@ -31,6 +32,7 @@ class Decl;
 class DeclContext;
 class NamedDecl;
 class TagDecl;
+class ValueDecl;
 } // namespace clang
 
 namespace llvm {
@@ -124,6 +126,8 @@ private:
   std::optional<std::string_view>
   getSymbolCached(const clang::Decl *,
                   absl::FunctionRef<std::optional<std::string>()>);
+
+  std::optional<std::string_view> getNextLocalSymbol(const clang::ValueDecl *);
 
   /// Format the string to a buffer stored by `this` and return a view to it.
   template <typename... T>

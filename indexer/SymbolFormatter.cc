@@ -8,6 +8,7 @@
 #include "absl/strings/str_replace.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
@@ -313,6 +314,21 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
   });
 }
 
+std::optional<std::string_view>
+SymbolFormatter::getBindingSymbol(const clang::BindingDecl *bindingDecl) {
+  return this->getNextLocalSymbol(bindingDecl);
+}
+
+std::optional<std::string_view>
+SymbolFormatter::getNextLocalSymbol(const clang::ValueDecl *decl) {
+  return this->getSymbolCached(decl, [&]() -> std::optional<std::string> {
+    auto loc = this->sourceManager.getExpansionLoc(decl->getLocation());
+    auto defFileId = this->sourceManager.getFileID(loc);
+    auto counter = this->localVariableCounters[{defFileId}]++;
+    return std::string(this->formatTemporary("local {}", counter));
+  });
+}
+
 std::optional<std::string_view> SymbolFormatter::getEnumConstantSymbol(
     const clang::EnumConstantDecl *enumConstantDecl) {
   return this->getSymbolCached(
@@ -405,17 +421,11 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
 
 std::optional<std::string_view>
 SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl *varDecl) {
-  return this->getSymbolCached(varDecl, [&]() -> std::optional<std::string> {
-    ENFORCE(varDecl->isLocalVarDeclOrParm());
-    // E.g. void f(int) {} will create a nameless ParmVarDecl
-    if (varDecl->getName().empty()) {
-      return {};
-    }
-    auto loc = this->sourceManager.getExpansionLoc(varDecl->getLocation());
-    auto defFileId = this->sourceManager.getFileID(loc);
-    auto counter = this->localVariableCounters[{defFileId}]++;
-    return std::string(this->formatTemporary("local {}", counter));
-  });
+  ENFORCE(varDecl->isLocalVarDeclOrParm());
+  if (varDecl->getName().empty()) {
+    return {};
+  }
+  return this->getNextLocalSymbol(varDecl);
 }
 
 std::optional<std::string_view>

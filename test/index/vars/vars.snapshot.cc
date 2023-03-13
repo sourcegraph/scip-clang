@@ -14,9 +14,13 @@
 //                ^ reference local 0
 //                   ^ reference local 1
     auto [a, b] = arr;
+//        ^ definition local 4
+//           ^ definition local 5
 //                ^^^ reference local 3
     return z + a + b + MyGlobal;
 //         ^ reference local 2
+//             ^ reference local 4
+//                 ^ reference local 5
   }
   
   struct S {
@@ -25,7 +29,7 @@
   };
   
   int f(S s) {
-//        ^ definition local 4
+//        ^ definition local 6
     return s.x + S::y;
-//         ^ reference local 4
+//         ^ reference local 6
   }
