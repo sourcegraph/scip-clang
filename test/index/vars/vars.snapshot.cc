@@ -10,7 +10,9 @@
     int arr[2] = {x, y};
 //      ^^^ definition local 3
     auto [a, b] = arr;
+//                ^^^ reference local 3
     return z + a + b + MyGlobal;
+//         ^ reference local 2
   }
   
   struct S {

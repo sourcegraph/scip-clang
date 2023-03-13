@@ -115,6 +115,8 @@ public:
   std::optional<std::string_view>
   getLocalVarOrParmSymbol(const clang::VarDecl *);
 
+  std::optional<std::string_view> getVarSymbol(const clang::VarDecl *);
+
 private:
   std::optional<std::string_view> getContextSymbol(const clang::DeclContext *);
   std::optional<std::string_view> getTagSymbol(const clang::TagDecl *);

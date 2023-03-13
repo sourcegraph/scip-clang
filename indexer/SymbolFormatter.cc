@@ -353,6 +353,7 @@ SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl *namedDecl) {
     HANDLE(Enum)
     HANDLE(EnumConstant)
     HANDLE(Namespace)
+    HANDLE(Var)
   default:
     return {};
   }
@@ -408,6 +409,38 @@ SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl *varDecl) {
     auto defFileId = this->sourceManager.getFileID(loc);
     auto counter = this->localVariableCounters[{defFileId}]++;
     return std::string(this->formatTemporary("local {}", counter));
+  });
+}
+
+std::optional<std::string_view>
+SymbolFormatter::getVarSymbol(const clang::VarDecl *varDecl) {
+  if (varDecl->isLocalVarDeclOrParm()) {
+    return this->getLocalVarOrParmSymbol(varDecl);
+  }
+  return this->getSymbolCached(varDecl, [&]() -> std::optional<std::string> {
+    using Kind = clang::Decl::Kind;
+    // Based on
+    // https://sourcegraph.com/github.com/llvm/llvm-project/-/blob/clang/include/clang/Basic/DeclNodes.td?L57-64
+    switch (varDecl->getKind()) {
+    case Kind::Decomposition:
+      ENFORCE(false, "DecompositionDecls require recursive traversal"
+                     " and do not have a single symbol name;"
+                     " they should be handled in TuIndexer");
+    case Kind::ParmVar:
+      ENFORCE(false, "already handled parameter case earlier");
+    // TODO: Add support for template specializations and OMP captured exprs.
+    case Kind::VarTemplatePartialSpecialization:
+    case Kind::VarTemplateSpecialization:
+    case Kind::OMPCapturedExpr:
+    case Kind::Var:
+      // TODO: Add support for static and non-static data members
+      return {};
+    default: {
+      spdlog::warn("unhandled kind {} of VarDecl: {}",
+                   varDecl->getDeclKindName(), llvm_ext::formatDecl(varDecl));
+      return {};
+    }
+    }
   });
 }
 

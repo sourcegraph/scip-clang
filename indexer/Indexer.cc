@@ -400,7 +400,7 @@ void TuIndexer::saveNestedNameSpecifier(
       // In 'template Y<U0>', clangd will navigate to 'Y' in the body of 'X',
       // even when there is partial template specialization of X
       // (so calling f<int>() will print a different value).
-      // Ideally, we should handle surface such specializations too.
+      // Ideally, we should surface such specializations too.
       break;
     }
     nameSpecLoc = nameSpecLoc.getPrefix();
