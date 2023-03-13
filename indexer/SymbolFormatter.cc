@@ -346,6 +346,7 @@ SymbolFormatter::getEnumSymbol(const clang::EnumDecl *enumDecl) {
 
 std::optional<std::string_view>
 SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl *namedDecl) {
+  using Kind = clang::Decl::Kind;
 #define HANDLE(kind_)            \
   case clang::Decl::Kind::kind_: \
     return this->get##kind_##Symbol(llvm::cast<clang::kind_##Decl>(namedDecl));
@@ -353,6 +354,11 @@ SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl *namedDecl) {
     HANDLE(Enum)
     HANDLE(EnumConstant)
     HANDLE(Namespace)
+    case Kind::VarTemplateSpecialization:
+    case Kind::VarTemplatePartialSpecialization:
+    case Kind::OMPCapturedExpr:
+    case Kind::Decomposition:
+    case Kind::ParmVar:
     HANDLE(Var)
   default:
     return {};
