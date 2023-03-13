@@ -351,20 +351,20 @@ SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl *namedDecl) {
   case clang::Decl::Kind::kind_: \
     return this->get##kind_##Symbol(llvm::cast<clang::kind_##Decl>(namedDecl));
   switch (namedDecl->getKind()) {
-    HANDLE(Enum)
-    HANDLE(EnumConstant)
-    HANDLE(Namespace)
-    case Kind::VarTemplateSpecialization:
-    case Kind::VarTemplatePartialSpecialization:
-    case Kind::OMPCapturedExpr:
-    case Kind::Decomposition:
-    case Kind::ParmVar:
-    HANDLE(Var)
+    FOR_EACH_DECL_TO_BE_INDEXED(HANDLE)
+  case Kind::VarTemplateSpecialization:
+  case Kind::VarTemplatePartialSpecialization:
+  case Kind::OMPCapturedExpr:
+  case Kind::Decomposition:
+  case Kind::ParmVar:
+    return this->getVarSymbol(llvm::dyn_cast<clang::VarDecl>(namedDecl));
   default:
     return {};
   }
 }
 
+/// Returns nullopt for anonymous namespaces in files for which
+/// getCanonicalPath returns nullopt.
 std::optional<std::string_view>
 SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
   return this->getSymbolCached(

@@ -674,25 +674,14 @@ public:
         deterministic(deterministic), tuIndexer(tuIndexer) {}
 
   // See clang/include/clang/Basic/DeclNodes.td for list of declarations.
-  bool VisitNamespaceDecl(clang::NamespaceDecl *namespaceDecl) {
-    this->tuIndexer.saveNamespaceDecl(namespaceDecl);
-    return true;
-  }
 
-  bool VisitEnumDecl(clang::EnumDecl *enumDecl) {
-    this->tuIndexer.saveEnumDecl(enumDecl);
-    return true;
+#define VISIT_DECL(DeclName)                                \
+  bool Visit##DeclName##Decl(clang::DeclName##Decl *decl) { \
+    this->tuIndexer.save##DeclName##Decl(decl);             \
+    return true;                                            \
   }
-
-  bool VisitEnumConstantDecl(clang::EnumConstantDecl *enumConstantDecl) {
-    this->tuIndexer.saveEnumConstantDecl(enumConstantDecl);
-    return true;
-  }
-
-  bool VisitVarDecl(clang::VarDecl *varDecl) {
-    this->tuIndexer.saveVarDecl(varDecl);
-    return true;
-  }
+  FOR_EACH_DECL_TO_BE_INDEXED(VISIT_DECL)
+#undef VISIT_DECL
 
   bool VisitDeclRefExpr(clang::DeclRefExpr *declRefExpr) {
     this->tuIndexer.saveDeclRefExpr(declRefExpr);

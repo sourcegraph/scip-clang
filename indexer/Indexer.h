@@ -20,18 +20,18 @@
 #include "indexer/SymbolFormatter.h"
 
 namespace clang {
+#define FORWARD_DECLARE(DeclName) class DeclName##Decl;
+FOR_EACH_DECL_TO_BE_INDEXED(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
+
 class ASTContext;
 class Decl;
 class DeclRefExpr;
-class EnumConstantDecl;
-class EnumDecl;
 class MacroDefinition;
 class MacroInfo;
-class NamespaceDecl;
 class NestedNameSpecifierLoc;
 class SourceManager;
 class Token;
-class VarDecl;
 } // namespace clang
 
 namespace scip {
@@ -193,10 +193,10 @@ public:
             const clang::ASTContext &, SymbolFormatter &);
 
   // See NOTE(ref: emit-vs-save) for naming conventions.
-  void saveEnumConstantDecl(const clang::EnumConstantDecl *);
-  void saveEnumDecl(const clang::EnumDecl *);
-  void saveNamespaceDecl(const clang::NamespaceDecl *);
-  void saveVarDecl(const clang::VarDecl *);
+#define SAVE_DECL(DeclName) \
+  void save##DeclName##Decl(const clang::DeclName##Decl *);
+  FOR_EACH_DECL_TO_BE_INDEXED(SAVE_DECL)
+#undef SAVE_DECL
 
   void saveDeclRefExpr(const clang::DeclRefExpr *);
 

@@ -16,15 +16,21 @@
 #include "indexer/Path.h"
 #include "scip/scip.pb.h"
 
+#define FOR_EACH_DECL_TO_BE_INDEXED(F) \
+  F(EnumConstant)                      \
+  F(Enum)                              \
+  F(Namespace)                         \
+  F(Var)
+
 namespace clang {
+#define FORWARD_DECLARE(DeclName) class DeclName##Decl;
+FOR_EACH_DECL_TO_BE_INDEXED(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
+
 class Decl;
 class DeclContext;
-class EnumConstantDecl;
-class EnumDecl;
 class NamedDecl;
-class NamespaceDecl;
 class TagDecl;
-class VarDecl;
 } // namespace clang
 
 namespace llvm {
@@ -100,22 +106,16 @@ public:
 
   std::string_view getMacroSymbol(clang::SourceLocation defLoc);
 
-  std::optional<std::string_view>
-  getEnumConstantSymbol(const clang::EnumConstantDecl *);
-
-  std::optional<std::string_view> getEnumSymbol(const clang::EnumDecl *);
-
-  std::optional<std::string_view> getNamedDeclSymbol(const clang::NamedDecl *);
-
-  /// Returns nullopt for anonymous namespaces in files for which
-  /// getCanonicalPath returns nullopt.
-  std::optional<std::string_view>
-  getNamespaceSymbol(const clang::NamespaceDecl *);
+#define DECLARE_GET_SYMBOL(DeclName)                     \
+  std::optional<std::string_view> get##DeclName##Symbol( \
+      const clang::DeclName##Decl *);
+  FOR_EACH_DECL_TO_BE_INDEXED(DECLARE_GET_SYMBOL)
+#undef DECLARE_GET_SYMBOL
 
   std::optional<std::string_view>
   getLocalVarOrParmSymbol(const clang::VarDecl *);
 
-  std::optional<std::string_view> getVarSymbol(const clang::VarDecl *);
+  std::optional<std::string_view> getNamedDeclSymbol(const clang::NamedDecl *);
 
 private:
   std::optional<std::string_view> getContextSymbol(const clang::DeclContext *);
