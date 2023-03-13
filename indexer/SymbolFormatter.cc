@@ -400,6 +400,10 @@ std::optional<std::string_view>
 SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl *varDecl) {
   return this->getSymbolCached(varDecl, [&]() -> std::optional<std::string> {
     ENFORCE(varDecl->isLocalVarDeclOrParm());
+    // E.g. void f(int) {} will create a nameless ParmVarDecl
+    if (varDecl->getName().empty()) {
+      return {};
+    }
     auto loc = this->sourceManager.getExpansionLoc(varDecl->getLocation());
     auto defFileId = this->sourceManager.getFileID(loc);
     auto counter = this->localVariableCounters[{defFileId}]++;

@@ -85,7 +85,6 @@
     friend class F1;
   
     void f1(F1 *) { }
-//              ^ definition local 0
   };
   
   void f() {
@@ -129,7 +128,6 @@
   void f(GenericClass<E, int(E::E0)>) {
 //                           ^ reference [..] E#
 //                              ^^ reference [..] E#E0.
-//                                  ^ definition local 1
     (void)E::E0;
 //        ^ reference [..] E#
 //           ^^ reference [..] E#E0.

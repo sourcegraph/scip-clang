@@ -78,7 +78,6 @@
   }
   
   void f(a::c_alias::E) {
-//                    ^ definition local 0
     (void)a::c::E::E0;
 //        ^ reference [..] a/
 //           ^ reference [..] a/c/
