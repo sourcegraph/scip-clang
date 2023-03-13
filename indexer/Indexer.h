@@ -131,7 +131,7 @@ class MacroIndexer final {
   //
   // When expanding each reference to A2 on line 3, we will also
   // see an occurrence of 'A' on line 2. The set de-duplicates those.
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>,
                       absl::flat_hash_set<FileLocalMacroOccurrence>>
       table;
 
@@ -184,7 +184,7 @@ class TuIndexer final {
   const clang::LangOptions &langOptions;
   [[maybe_unused]] const clang::ASTContext &astContext;
   SymbolFormatter &symbolFormatter;
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, PartialDocument>
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, PartialDocument>
       documentMap;
 
 public:

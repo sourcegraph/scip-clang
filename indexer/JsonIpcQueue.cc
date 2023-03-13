@@ -17,7 +17,7 @@ namespace scip_clang {
 char TimeoutError::ID = 0;
 
 void JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
-  auto buffer = scip_clang::formatLlvm(jsonValue);
+  auto buffer = llvm_ext::format(jsonValue);
   this->queue->send(buffer.c_str(), buffer.size(), 1);
   if (buffer.size() > IPC_BUFFER_MAX_SIZE) {
     spdlog::warn("previous message exceeded IPC_BUFFER_MAX_SIZE: {}...{}",

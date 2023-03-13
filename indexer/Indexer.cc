@@ -231,7 +231,7 @@ void MacroIndexer::emitExternalSymbols(bool deterministic,
         for (auto &macro : this->nonFileBasedMacros) {
           auto fileId =
               this->sourceManager->getFileID(macro.defInfo->getDefinitionLoc());
-          auto path = scip_clang::toStringView(
+          auto path = llvm_ext::toStringView(
               debug::tryGetPath(*this->sourceManager, fileId));
           bool inserted = paths.insert(path).second;
           if (inserted) {

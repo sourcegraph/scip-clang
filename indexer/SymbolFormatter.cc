@@ -333,8 +333,9 @@ std::optional<std::string_view> SymbolFormatter::getEnumConstantSymbol(
         }
         return SymbolBuilder::formatContextual(
             optContextSymbol.value(),
-            DescriptorBuilder{.name = toStringView(enumConstantDecl->getName()),
-                              .suffix = scip::Descriptor::Term});
+            DescriptorBuilder{
+                .name = llvm_ext::toStringView(enumConstantDecl->getName()),
+                .suffix = scip::Descriptor::Term});
       });
 }
 

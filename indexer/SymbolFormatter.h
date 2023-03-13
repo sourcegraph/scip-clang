@@ -79,10 +79,11 @@ class SymbolFormatter final {
   // Q: Should we allocate into an arena instead of having standalone
   // std::string values here?
 
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::SourceLocation>, std::string>
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::SourceLocation>,
+                      std::string>
       locationBasedCache;
   absl::flat_hash_map<const clang::Decl *, std::string> declBasedCache;
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, uint32_t>
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
       anonymousTypeCounters;
   std::string scratchBuffer;
 

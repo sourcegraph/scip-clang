@@ -221,11 +221,11 @@ class IndexerPreprocessorWrapper final : public clang::PPCallbacks {
   // Headers which we've seen only expand in a single way.
   // The extra bit inside the MultiHashValue struct indicates
   // if should look in the finishedProcessingMulti map instead.
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, MultiHashValue>
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, MultiHashValue>
       finishedProcessing;
   // Headers which expand in at least 2 different ways.
   // The values have size() >= 2.
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>,
                       absl::flat_hash_set<HashValue>>
       finishedProcessingMulti;
 
@@ -283,7 +283,7 @@ public:
       if (!optAbsPath.has_value()) {
         spdlog::warn("unexpected relative path from tryGetRealPathName() = {} "
                      "when indexing {}",
-                     scip_clang::toStringView(path),
+                     llvm_ext::toStringView(path),
                      this->debugContext.tuMainFilePath);
       }
       return optAbsPath;
@@ -345,8 +345,8 @@ private:
         if (!path.empty() && recorder->filter.matches(path)) {
           this->enterFileImpl(true, enteredFileId);
           MIX_INTO_HASH(this->stack.topHash(),
-                        toStringView(recorder->normalizePath(path)), "",
-                        "self path");
+                        llvm_ext::toStringView(recorder->normalizePath(path)),
+                        "", "self path");
           return;
         }
       }
@@ -384,7 +384,7 @@ private:
               debug::tryGetPath(this->sourceManager, fileId));
     }
 
-    auto key = LlvmToAbslHashAdapter<clang::FileID>{fileInfo.fileId};
+    auto key = llvm_ext::AbslHashAdapter<clang::FileID>{fileInfo.fileId};
     auto it = this->finishedProcessing.find(key);
     auto [hashValue, history] = fileInfo.hashValueBuilder.finish();
     if (it == this->finishedProcessing.end()) {
@@ -547,7 +547,7 @@ class IndexerAstVisitor;
 /// For example, if a file+hash was already indexed by another worker,
 /// then one shouldn't call insert(..) for that file.
 using FilesToBeIndexedSet =
-    absl::flat_hash_set<LlvmToAbslHashAdapter<clang::FileID>>;
+    absl::flat_hash_set<llvm_ext::AbslHashAdapter<clang::FileID>>;
 
 /// Type to track canonical relative paths for FileIDs.
 ///
@@ -560,7 +560,7 @@ using FilesToBeIndexedSet =
 /// may be supplied or inferred, which would provide canonical relative
 /// paths for more files.
 class CanonicalPathMap final {
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>,
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>,
                       std::variant<RootRelativePathRef, AbsolutePathRef>>
       map;
 
@@ -644,7 +644,7 @@ public:
 };
 
 struct PartialScipIndex {
-  absl::flat_hash_map<LlvmToAbslHashAdapter<clang::FileID>, scip::Document>
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, scip::Document>
       documents;
   std::vector<scip::SymbolInformation> externalSymbols;
 
@@ -833,8 +833,9 @@ private:
         canonicalPathMap.insert(mainFileId, optMainFileAbsPath.value());
         toBeIndexed.insert({mainFileId});
       } else {
-        spdlog::debug("tryGetRealPathName() returned non-absolute path '{}'",
-                      toStringView(mainFileEntry->tryGetRealPathName()));
+        spdlog::debug(
+            "tryGetRealPathName() returned non-absolute path '{}'",
+            llvm_ext::toStringView(mainFileEntry->tryGetRealPathName()));
       }
     }
 
@@ -1207,7 +1208,7 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
   }
   if (recvError) {
     spdlog::error("received malformed message: {}",
-                  scip_clang::formatLlvm(recvError));
+                  llvm_ext::format(recvError));
     return Status::MalformedMessage;
   }
   if (request.id == JobId::Shutdown()) {

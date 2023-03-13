@@ -804,7 +804,7 @@ private:
       // because TimeoutError means we already exceeded the timeout limit.
     } else if (recvError) {
       spdlog::error("received malformed message: {}",
-                    scip_clang::formatLlvm(recvError));
+                    llvm_ext::format(recvError));
       // Keep going instead of exiting early for robustness.
     } else {
       // TODO(def: add-job-debug-helper): Add a simplified debug representation
