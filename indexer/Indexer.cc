@@ -269,25 +269,16 @@ void TuIndexer::saveEnumConstantDecl(
   }
   auto symbol = optSymbol.value();
 
-  ENFORCE(enumConstantDecl->getBeginLoc() == enumConstantDecl->getLocation());
-  auto [range, fileId] =
-      this->getTokenExpansionRange(enumConstantDecl->getLocation());
-
-  scip::Occurrence occ;
-  range.addToOccurrence(occ);
-  occ.set_symbol(symbol.data(), symbol.size());
-  occ.set_symbol_roles(scip::SymbolRole::Definition);
-
-  auto &doc = this->documentMap[{fileId}];
-  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
-
   llvm::SmallVector<std::string, 4> docComments{};
   this->tryGetDocComment(enumConstantDecl, docComments);
   scip::SymbolInformation symbolInfo;
   for (auto &docComment : docComments) {
     *symbolInfo.add_documentation() = std::move(docComment);
   }
-  doc.symbolInfos.emplace(symbol, std::move(symbolInfo));
+
+  ENFORCE(enumConstantDecl->getBeginLoc() == enumConstantDecl->getLocation());
+  this->saveDefinition(symbol, enumConstantDecl->getLocation(),
+                       std::move(symbolInfo));
 }
 
 void TuIndexer::saveEnumDecl(const clang::EnumDecl *enumDecl) {
@@ -298,22 +289,14 @@ void TuIndexer::saveEnumDecl(const clang::EnumDecl *enumDecl) {
   }
   auto symbol = optSymbol.value();
 
-  auto [range, fileId] = this->getTokenExpansionRange(enumDecl->getLocation());
-  scip::Occurrence occ;
-  range.addToOccurrence(occ);
-  occ.set_symbol(symbol.data(), symbol.size());
-  occ.set_symbol_roles(scip::SymbolRole::Definition);
-
-  auto &doc = this->documentMap[{fileId}];
-  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
-
   llvm::SmallVector<std::string, 4> docComments{};
   this->tryGetDocComment(enumDecl, docComments);
   scip::SymbolInformation symbolInfo;
   for (auto &docComment : docComments) {
     *symbolInfo.add_documentation() = std::move(docComment);
   }
-  doc.symbolInfos.emplace(symbol, std::move(symbolInfo));
+
+  this->saveDefinition(symbol, enumDecl->getLocation(), std::move(symbolInfo));
 }
 
 void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
@@ -345,17 +328,12 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
     return n->getLocation();
   }(namespaceDecl);
 
-  auto [range, fileId] = this->getTokenExpansionRange(startLoc);
-
-  scip::Occurrence occ;
-  range.addToOccurrence(occ);
-  occ.set_symbol(symbol.data(), symbol.size());
-  occ.set_symbol_roles(scip::SymbolRole::Definition);
-
-  auto &doc = this->documentMap[{fileId}];
-  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
-
-  doc.symbolInfos.insert({symbol, scip::SymbolInformation{}});
+  // The blank SymbolInformation looks a little weird, but we
+  // don't need to set the symbol name since that's handled by
+  // saveDefinition, and we generally don't want to try to infer
+  // doc comments for namespaces since preceding comments are
+  // likely to be free-floating top-level comments.
+  this->saveDefinition(symbol, startLoc, scip::SymbolInformation{});
 }
 
 void TuIndexer::saveNestedNameSpecifier(
@@ -368,17 +346,10 @@ void TuIndexer::saveNestedNameSpecifier(
     if (!optSymbol.has_value()) {
       return;
     }
-    scip::Occurrence occ;
     // Don't use nameSpecLoc.getLocalSourceRange() as that may give
     // two MacroID SourceLocations, in case the NestedNameSpecifier
     // arises from a macro expansion.
-    auto [range, fileId] =
-        this->getTokenExpansionRange(nameSpecLoc.getLocalBeginLoc());
-    range.addToOccurrence(occ);
-    std::string_view symbol = optSymbol.value();
-    occ.set_symbol(symbol.data(), symbol.size());
-    auto &doc = this->documentMap[{fileId}];
-    doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
+    this->saveOccurrence(optSymbol.value(), nameSpecLoc.getLocalBeginLoc());
   };
 
   while (nameSpecLoc.hasQualifier()) {
@@ -443,22 +414,12 @@ void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr *declRefExpr) {
   if (!optSymbol.has_value()) {
     return;
   }
-  auto symbol = optSymbol.value();
-
   // A::B::C
   //       ^ getLocation()
   // ^^^^^^ getSourceRange()
   // ^ getExprLoc()
-  auto [range, fileId] =
-      this->getTokenExpansionRange(declRefExpr->getLocation());
-
-  scip::Occurrence occ;
-  range.addToOccurrence(occ);
-  occ.set_symbol(symbol.data(), symbol.size());
-  // TODO: Appropriately add read-write access here
-
-  auto &doc = this->documentMap[{fileId}];
-  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
+  this->saveOccurrence(optSymbol.value(), declRefExpr->getLocation());
+  // ^ TODO: Add read-write access to the symbol role here
 
   if (!declRefExpr->hasQualifier()) {
     return;
@@ -495,6 +456,35 @@ TuIndexer::getTokenExpansionRange(clang::SourceLocation startLoc) const {
   auto endLoc = startLoc.getLocWithOffset(tokenLength);
   return FileLocalSourceRange::fromNonEmpty(this->sourceManager,
                                             {startLoc, endLoc});
+}
+
+void TuIndexer::saveReference(std::string_view symbol,
+                              clang::SourceLocation loc, int32_t extraRoles) {
+  ENFORCE((extraRoles & scip::SymbolRole::Definition) == 0,
+          "use saveDefinition instead");
+  (void)this->saveOccurrence(symbol, loc, extraRoles);
+}
+
+void TuIndexer::saveDefinition(std::string_view symbol,
+                               clang::SourceLocation loc,
+                               scip::SymbolInformation &&symbolInfo,
+                               int32_t extraRoles) {
+  auto &doc = this->saveOccurrence(symbol, loc,
+                                   extraRoles | scip::SymbolRole::Definition);
+  doc.symbolInfos.emplace(symbol, std::move(symbolInfo));
+}
+
+PartialDocument &TuIndexer::saveOccurrence(std::string_view symbol,
+                                           clang::SourceLocation loc,
+                                           int32_t allRoles) {
+  auto [range, fileId] = this->getTokenExpansionRange(loc);
+  scip::Occurrence occ;
+  range.addToOccurrence(occ);
+  occ.set_symbol(symbol.data(), symbol.size());
+  occ.set_symbol_roles(allRoles);
+  auto &doc = this->documentMap[{fileId}];
+  doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});
+  return doc;
 }
 
 } // namespace scip_clang

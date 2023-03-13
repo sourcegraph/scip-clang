@@ -204,6 +204,25 @@ private:
   std::pair<FileLocalSourceRange, clang::FileID>
   getTokenExpansionRange(clang::SourceLocation startLoc) const;
 
+  void saveReference(std::string_view symbol, clang::SourceLocation loc,
+                     int32_t extraRoles = 0);
+
+  /// Helper method to record a definition Occurrence + SymbolInformation.
+  ///
+  /// Setting the symbol name on \param symbolInfo is not necessary.
+  void saveDefinition(std::string_view symbol, clang::SourceLocation loc,
+                      scip::SymbolInformation &&symbolInfo,
+                      int32_t extraRoles = 0);
+
+  /// Lower-level method for only saving a Occurrence.
+  ///
+  /// Returns a \c PartialDocument reference so that \c scip::SymbolInformation
+  /// can be added into the document for definitions. Prefer using
+  /// \c saveDefinition or \c saveReference over this method.
+  PartialDocument &saveOccurrence(std::string_view symbol,
+                                  clang::SourceLocation loc,
+                                  int32_t allRoles = 0);
+
   void saveNestedNameSpecifier(const clang::NestedNameSpecifierLoc &);
 
   void tryGetDocComment(const clang::Decl *,
