@@ -74,7 +74,8 @@ RootRelativePathRef::RootRelativePathRef(std::string_view value, RootKind kind)
 }
 
 std::string_view RootRelativePathRef::extension() const {
-  return toStringView(llvm::sys::path::extension(this->asStringView()));
+  return llvm_ext::toStringView(
+      llvm::sys::path::extension(this->asStringView()));
 }
 
 std::strong_ordering operator<=>(const RootRelativePathRef &lhs,
