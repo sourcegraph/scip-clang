@@ -3,18 +3,124 @@
 #include <string_view>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include "scip/scip.pb.h"
 
 #include "indexer/Enforce.h"
 #include "indexer/Hash.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/SymbolFormatter.h"
 
+namespace {
+struct Escaped {
+  std::string_view text;
+};
+} // namespace
+
+namespace llvm {
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, Escaped s) {
+  bool needsEscape = false;
+  bool needsBacktickEscape = false;
+  for (auto &c : s.text) {
+    if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
+        || ('0' <= c && c <= '9') || c == '+' || c == '-' || c == '$'
+        || c == '_') {
+      continue;
+    }
+    needsBacktickEscape |= c == '`';
+    needsEscape = true;
+  }
+  if (needsEscape) {
+    if (needsBacktickEscape) {
+      return os << '`' << absl::StrReplaceAll(s.text, {{"`", "``"}}) << '`';
+    }
+    return os << '`' << s.text << '`';
+  }
+  return os << s.text;
+}
+} // namespace llvm
+
+static void addSpaceEscaped(llvm::raw_ostream &out, std::string_view in) {
+  if (absl::StrContains(in, ' ')) {
+    out << absl::StrReplaceAll(in, {{" ", "  "}});
+    return;
+  }
+  out << in;
+}
+
 namespace scip_clang {
+
+void DescriptorBuilder::formatTo(llvm::raw_ostream &out) const {
+  // See https://github.com/sourcegraph/scip/blob/main/scip.proto#L104-L125
+  switch (this->suffix) {
+  case scip::Descriptor::Namespace:
+    out << ::Escaped{this->name} << '/';
+    break;
+  case scip::Descriptor::Type:
+    out << ::Escaped{this->name} << '#';
+    break;
+  case scip::Descriptor::Term:
+    out << ::Escaped{this->name} << '.';
+    break;
+  case scip::Descriptor::Meta:
+    out << ::Escaped{this->name} << ':';
+    break;
+  case scip::Descriptor::Method:
+    out << ::Escaped{this->name} << '(' << ::Escaped{this->disambiguator}
+        << ").";
+    break;
+  case scip::Descriptor::TypeParameter:
+    out << '[' << ::Escaped{this->name} << ']';
+    break;
+  case scip::Descriptor::Parameter:
+    out << '(' << ::Escaped{this->name} << ')';
+    break;
+  case scip::Descriptor::Macro:
+    out << ::Escaped{this->name} << '!';
+    break;
+  default:
+    ENFORCE(false, "unknown descriptor suffix %s",
+            scip::Descriptor::Suffix_Name(this->suffix));
+  }
+}
+
+void SymbolBuilder::formatTo(std::string &buf) const {
+  llvm::raw_string_ostream out(buf);
+  out << "cxx . "; // scheme manager
+  for (auto text : {this->packageName, this->packageVersion}) {
+    if (text.empty()) {
+      out << ". ";
+      continue;
+    }
+    ::addSpaceEscaped(out, text);
+    out << ' ';
+  }
+  for (auto &descriptor : this->descriptors) {
+    descriptor.formatTo(out);
+  }
+}
+
+// static
+std::string
+SymbolBuilder::formatContextual(std::string_view contextSymbol,
+                                const DescriptorBuilder &descriptor) {
+  std::string buffer;
+  auto maxExtraChars = 3; // For methods, we end up adding '(', ')' and '.'
+  buffer.reserve(contextSymbol.size() + descriptor.name.size()
+                 + descriptor.disambiguator.size() + maxExtraChars);
+  buffer.append(contextSymbol);
+  llvm::raw_string_ostream os(buffer);
+  descriptor.formatTo(os);
+  return buffer;
+}
 
 std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   auto it = this->locationBasedCache.find({defLoc});
@@ -33,8 +139,18 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   } else {
     filename = std::string_view(defPLoc.getFilename());
   }
-  std::string out{fmt::format("c . todo-pkg todo-version {}:{}:{}#", filename,
-                              defPLoc.getLine(), defPLoc.getColumn())};
+
+  // Technically, ':' is used by SCIP for <meta>, but using ':'
+  // here lines up with other situations like compiler errors.
+  auto name = this->formatTemporary("{}:{}:{}", filename, defPLoc.getLine(),
+                                    defPLoc.getColumn());
+  std::string out{};
+  SymbolBuilder{.packageName = "todo-pkg",
+                .packageVersion = "todo-version",
+                .descriptors = {DescriptorBuilder{
+                    .name = name, .suffix = scip::Descriptor::Macro}}}
+      .formatTo(out);
+
   auto [newIt, inserted] =
       this->locationBasedCache.insert({{defLoc}, std::move(out)});
   ENFORCE(inserted, "key was missing earlier, so insert should've succeeded");
@@ -117,7 +233,12 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext *declContext) {
       || llvm::isa<clang::ExternCContextDecl>(declContext)) {
     auto decl = llvm::dyn_cast<clang::Decl>(declContext);
     return this->getSymbolCached(decl, [&]() -> std::optional<std::string> {
-      return "c . todo-pkg todo-version ";
+      this->scratchBuffer.clear();
+      SymbolBuilder{.packageName = "todo-pkg",
+                    .packageVersion = "todo-version",
+                    .descriptors = {}}
+          .formatTo(this->scratchBuffer);
+      return std::string(this->scratchBuffer);
     });
   }
   // TODO: Handle all cases of DeclContext here:
@@ -148,11 +269,10 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
     }
     auto contextSymbol = optContextSymbol.value();
     if (!tagDecl->getDeclName().isEmpty()) {
-      llvm::raw_string_ostream os(this->scratchBuffer);
-      static_cast<const clang::NamedDecl *>(tagDecl)->printName(os);
-      std::string out{fmt::format("{}{}#", contextSymbol, this->scratchBuffer)};
-      this->scratchBuffer.clear();
-      return out;
+      return SymbolBuilder::formatContextual(
+          contextSymbol,
+          DescriptorBuilder{.name = this->formatTemporary(tagDecl),
+                            .suffix = scip::Descriptor::Type});
     }
     auto definitionTagDecl = tagDecl->getDefinition();
     ENFORCE(definitionTagDecl, "can't forward-declare an anonymous type");
@@ -164,6 +284,7 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
     auto counter = this->anonymousTypeCounters[{defFileId}]++;
 
     auto declContext = definitionTagDecl->getDeclContext();
+    DescriptorBuilder descriptor{.name = {}, .suffix = scip::Descriptor::Type};
     if (llvm::isa<clang::NamespaceDecl>(declContext)
         || llvm::isa<clang::TranslationUnitDecl>(declContext)) {
       // If the anonymous type is inside a namespace, then we know the
@@ -180,14 +301,15 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
       // If we don't include the hash, the anonymous structs will end up with
       // the same symbol name.
       if (auto optRelativePath = this->getCanonicalPath(defFileId)) {
-        HashValue hashValue{0};
-        auto sv = optRelativePath->asStringView();
-        hashValue.mix(reinterpret_cast<const uint8_t *>(sv.data()), sv.size());
-        return fmt::format("{}$anontype_{:x}_{}#", contextSymbol,
-                           hashValue.rawValue, counter);
+        descriptor.name = this->formatTemporary(
+            "$anonymous_type_{:x}_{}",
+            HashValue::forText(optRelativePath->asStringView()), counter);
       }
     }
-    return fmt::format("{}$anontype_{}#", contextSymbol, counter);
+    if (descriptor.name.empty()) {
+      descriptor.name = this->formatTemporary("$anonymous_type_{}", counter);
+    }
+    return SymbolBuilder::formatContextual(contextSymbol, descriptor);
   });
 }
 
@@ -209,9 +331,10 @@ std::optional<std::string_view> SymbolFormatter::getEnumConstantSymbol(
         if (!optContextSymbol.has_value()) {
           return {};
         }
-        std::string out{fmt::format("{}{}.", optContextSymbol.value(),
-                                    toStringView(enumConstantDecl->getName()))};
-        return out;
+        return SymbolBuilder::formatContextual(
+            optContextSymbol.value(),
+            DescriptorBuilder{.name = toStringView(enumConstantDecl->getName()),
+                              .suffix = scip::Descriptor::Term});
       });
 }
 
@@ -238,6 +361,13 @@ std::optional<std::string_view>
 SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
   return this->getSymbolCached(
       namespaceDecl, [&]() -> std::optional<std::string> {
+        auto optContextSymbol =
+            this->getContextSymbol(namespaceDecl->getDeclContext());
+        if (!optContextSymbol.has_value()) {
+          return {};
+        }
+        auto contextSymbol = optContextSymbol.value();
+        DescriptorBuilder descriptor{.suffix = scip::Descriptor::Namespace};
         if (namespaceDecl->isAnonymousNamespace()) {
           auto mainFileId = this->sourceManager.getMainFileID();
           ENFORCE(mainFileId.isValid());
@@ -256,22 +386,21 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
             // are rarely (if ever) used in headers.
             return {};
           }
-          fmt::format_to(std::back_inserter(this->scratchBuffer), "$ANON/{}\0",
-                         path->asStringView());
+          descriptor.name = this->formatTemporary("$anonymous_namespace_{}",
+                                                  path->asStringView());
         } else {
-          llvm::raw_string_ostream os(this->scratchBuffer);
-          namespaceDecl->printQualifiedName(os);
-          // Directly using string replacement is justified because the
-          // DeclContext chain for a NamespaceDecl only contains namespaces or
-          // the main TU. Namespaces cannot be declared inside types, functions
-          // etc.
-          absl::StrReplaceAll({{"::", "/"}}, &this->scratchBuffer);
+          descriptor.name = this->formatTemporary(namespaceDecl);
         }
-        std::string out{
-            fmt::format("c . todo-pkg todo-version {}/", this->scratchBuffer)};
-        this->scratchBuffer.clear();
-        return out;
+        return SymbolBuilder::formatContextual(contextSymbol, descriptor);
       });
+}
+
+std::string_view
+SymbolFormatter::formatTemporary(const clang::NamedDecl *namedDecl) {
+  this->scratchBuffer.clear();
+  llvm::raw_string_ostream os(this->scratchBuffer);
+  namedDecl->printName(os);
+  return std::string_view(this->scratchBuffer);
 }
 
 } // namespace scip_clang

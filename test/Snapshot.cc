@@ -127,7 +127,7 @@ void formatSnapshot(const scip::Document &document,
   auto formatSymbol = [](const std::string &symbol) -> std::string {
     // Strip out repeating information for cleaner snapshots.
     return absl::StrReplaceAll(symbol, {
-                                           {"c . ", ""}, // indexer prefix
+                                           {"cxx . ", ""}, // indexer prefix
                                            {"todo-pkg todo-version", "[..]"},
                                        });
   };
