@@ -91,3 +91,8 @@ void f(GenericClass<E, int(E::E0)>) {
   (void)QUALIFIED(E, E0);
 #undef QUALIFIED
 }
+
+/// Restating what's already implied by the name
+class DocumentedForwardDeclaration;
+
+class DocumentedForwardDeclaration { };

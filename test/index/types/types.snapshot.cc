@@ -151,3 +151,12 @@
   #undef QUALIFIED
 //       ^^^^^^^^^ reference [..] `types.cc:90:9`!
   }
+  
+  /// Restating what's already implied by the name
+  class DocumentedForwardDeclaration;
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ reference [..] DocumentedForwardDeclaration#
+  
+  class DocumentedForwardDeclaration { };
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] DocumentedForwardDeclaration#
+//      documentation
+//      | Restating what's already implied by the name
