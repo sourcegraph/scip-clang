@@ -160,3 +160,20 @@
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] DocumentedForwardDeclaration#
 //      documentation
 //      | Restating what's already implied by the name
+  
+  class Parent {};
+//      ^^^^^^ definition [..] Parent#
+  
+  class Child: Parent {};
+//      ^^^^^ definition [..] Child#
+  
+  template <class CRTPChild>
+  class CRTPBase {
+//      ^^^^^^^^ definition [..] CRTPBase#
+    void castAndDoStuff() { static_cast<CRTPChild *>(this)->doStuff(); }
+  };
+  
+  class CRTPChild: CRTPBase<CRTPChild> {
+//      ^^^^^^^^^ definition [..] CRTPChild#
+    void doStuff() { }
+  };

@@ -96,3 +96,16 @@ void f(GenericClass<E, int(E::E0)>) {
 class DocumentedForwardDeclaration;
 
 class DocumentedForwardDeclaration { };
+
+class Parent {};
+
+class Child: Parent {};
+
+template <class CRTPChild>
+class CRTPBase {
+  void castAndDoStuff() { static_cast<CRTPChild *>(this)->doStuff(); }
+};
+
+class CRTPChild: CRTPBase<CRTPChild> {
+  void doStuff() { }
+};
