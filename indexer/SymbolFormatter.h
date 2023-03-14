@@ -110,24 +110,24 @@ public:
 
 #define DECLARE_GET_SYMBOL(DeclName)                     \
   std::optional<std::string_view> get##DeclName##Symbol( \
-      const clang::DeclName##Decl *);
+      const clang::DeclName##Decl &);
   FOR_EACH_DECL_TO_BE_INDEXED(DECLARE_GET_SYMBOL)
 #undef DECLARE_GET_SYMBOL
 
   std::optional<std::string_view>
-  getLocalVarOrParmSymbol(const clang::VarDecl *);
+  getLocalVarOrParmSymbol(const clang::VarDecl &);
 
-  std::optional<std::string_view> getNamedDeclSymbol(const clang::NamedDecl *);
+  std::optional<std::string_view> getNamedDeclSymbol(const clang::NamedDecl &);
 
 private:
-  std::optional<std::string_view> getContextSymbol(const clang::DeclContext *);
-  std::optional<std::string_view> getTagSymbol(const clang::TagDecl *);
+  std::optional<std::string_view> getContextSymbol(const clang::DeclContext &);
+  std::optional<std::string_view> getTagSymbol(const clang::TagDecl &);
 
   std::optional<std::string_view>
-  getSymbolCached(const clang::Decl *,
+  getSymbolCached(const clang::Decl &,
                   absl::FunctionRef<std::optional<std::string>()>);
 
-  std::optional<std::string_view> getNextLocalSymbol(const clang::ValueDecl *);
+  std::optional<std::string_view> getNextLocalSymbol(const clang::ValueDecl &);
 
   /// Format the string to a buffer stored by `this` and return a view to it.
   template <typename... T>
@@ -139,7 +139,7 @@ private:
   }
 
   /// Format the string to a buffer stored by `this` and return a view to it.
-  std::string_view formatTemporary(const clang::NamedDecl *);
+  std::string_view formatTemporary(const clang::NamedDecl &);
 };
 
 } // namespace scip_clang

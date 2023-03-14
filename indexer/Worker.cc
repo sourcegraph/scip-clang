@@ -675,16 +675,17 @@ public:
 
   // See clang/include/clang/Basic/DeclNodes.td for list of declarations.
 
-#define VISIT_DECL(DeclName)                                \
-  bool Visit##DeclName##Decl(clang::DeclName##Decl *decl) { \
-    this->tuIndexer.save##DeclName##Decl(decl);             \
-    return true;                                            \
+#define VISIT_DECL(DeclName)                                         \
+  bool Visit##DeclName##Decl(clang::DeclName##Decl *decl) {          \
+    ENFORCE(decl, "expected visitor to only access non-null decls"); \
+    this->tuIndexer.save##DeclName##Decl(*decl);                     \
+    return true;                                                     \
   }
   FOR_EACH_DECL_TO_BE_INDEXED(VISIT_DECL)
 #undef VISIT_DECL
 
   bool VisitDeclRefExpr(clang::DeclRefExpr *declRefExpr) {
-    this->tuIndexer.saveDeclRefExpr(declRefExpr);
+    this->tuIndexer.saveDeclRefExpr(*declRefExpr);
     return true;
   }
 
