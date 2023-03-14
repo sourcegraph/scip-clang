@@ -166,6 +166,7 @@
   
   class Child: Parent {};
 //      ^^^^^ definition [..] Child#
+//             ^^^^^^ reference [..] Parent#
   
   template <class CRTPChild>
   class CRTPBase {
@@ -175,5 +176,6 @@
   
   class CRTPChild: CRTPBase<CRTPChild> {
 //      ^^^^^^^^^ definition [..] CRTPChild#
+//                 ^^^^^^^^ reference [..] CRTPBase#
     void doStuff() { }
   };
