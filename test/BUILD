@@ -52,6 +52,7 @@ scip_clang_test_suite(
         "compdb/*.snapshot.yaml",
     ]),
     index_data = glob([
+        "index/**/*.c",
         "index/**/*.cc",
         "index/**/*.h",
     ]),
