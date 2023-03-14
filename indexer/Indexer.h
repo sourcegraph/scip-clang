@@ -194,11 +194,11 @@ public:
 
   // See NOTE(ref: emit-vs-save) for naming conventions.
 #define SAVE_DECL(DeclName) \
-  void save##DeclName##Decl(const clang::DeclName##Decl *);
+  void save##DeclName##Decl(const clang::DeclName##Decl &);
   FOR_EACH_DECL_TO_BE_INDEXED(SAVE_DECL)
 #undef SAVE_DECL
 
-  void saveDeclRefExpr(const clang::DeclRefExpr *);
+  void saveDeclRefExpr(const clang::DeclRefExpr &);
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
                                          scip::Document &);
@@ -231,7 +231,7 @@ private:
 
   void saveNestedNameSpecifier(const clang::NestedNameSpecifierLoc &);
 
-  void tryGetDocComment(const clang::Decl *,
+  void tryGetDocComment(const clang::Decl &,
                         llvm::SmallVectorImpl<std::string> &) const;
 };
 

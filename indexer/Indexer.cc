@@ -260,19 +260,17 @@ TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
     : sourceManager(sourceManager), langOptions(langOptions),
       astContext(astContext), symbolFormatter(symbolFormatter), documentMap() {}
 
-void TuIndexer::saveBindingDecl(const clang::BindingDecl *bindingDecl) {
-  ENFORCE(bindingDecl);
+void TuIndexer::saveBindingDecl(const clang::BindingDecl &bindingDecl) {
   auto optSymbol = this->symbolFormatter.getBindingSymbol(bindingDecl);
   if (!optSymbol.has_value()) {
     return;
   }
-  this->saveDefinition(optSymbol.value(), bindingDecl->getLocation(),
+  this->saveDefinition(optSymbol.value(), bindingDecl.getLocation(),
                        std::nullopt);
 }
 
 void TuIndexer::saveEnumConstantDecl(
-    const clang::EnumConstantDecl *enumConstantDecl) {
-  ENFORCE(enumConstantDecl);
+    const clang::EnumConstantDecl &enumConstantDecl) {
   auto optSymbol =
       this->symbolFormatter.getEnumConstantSymbol(enumConstantDecl);
   if (!optSymbol.has_value()) {
@@ -287,13 +285,12 @@ void TuIndexer::saveEnumConstantDecl(
     *symbolInfo.add_documentation() = std::move(docComment);
   }
 
-  ENFORCE(enumConstantDecl->getBeginLoc() == enumConstantDecl->getLocation());
-  this->saveDefinition(symbol, enumConstantDecl->getLocation(),
+  ENFORCE(enumConstantDecl.getBeginLoc() == enumConstantDecl.getLocation());
+  this->saveDefinition(symbol, enumConstantDecl.getLocation(),
                        std::move(symbolInfo));
 }
 
-void TuIndexer::saveEnumDecl(const clang::EnumDecl *enumDecl) {
-  ENFORCE(enumDecl);
+void TuIndexer::saveEnumDecl(const clang::EnumDecl &enumDecl) {
   auto optSymbol = this->symbolFormatter.getEnumSymbol(enumDecl);
   if (!optSymbol.has_value()) {
     return;
@@ -307,11 +304,10 @@ void TuIndexer::saveEnumDecl(const clang::EnumDecl *enumDecl) {
     *symbolInfo.add_documentation() = std::move(docComment);
   }
 
-  this->saveDefinition(symbol, enumDecl->getLocation(), std::move(symbolInfo));
+  this->saveDefinition(symbol, enumDecl.getLocation(), std::move(symbolInfo));
 }
 
-void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
-  ENFORCE(namespaceDecl);
+void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   auto optSymbol = this->symbolFormatter.getNamespaceSymbol(namespaceDecl);
   if (!optSymbol.has_value()) {
     return;
@@ -323,21 +319,22 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl *namespaceDecl) {
   // - for non-anonymous namespaces, returns the location of the name
   // getBeginLoc():
   // - returns the location of the first keyword
-  auto startLoc = [this](auto *n) -> clang::SourceLocation {
-    if (n->isAnonymousNamespace()) {
-      if (n->isInlineNamespace()) {
+  auto startLoc = [this, &namespaceDecl]() -> clang::SourceLocation {
+    if (namespaceDecl.isAnonymousNamespace()) {
+      if (namespaceDecl.isInlineNamespace()) {
         // getBeginLoc() points to 'inline', so find the location of 'namespace'
-        auto namespaceToken = clang::Lexer::findNextToken(
-            n->getBeginLoc(), this->sourceManager, this->langOptions);
+        auto namespaceToken =
+            clang::Lexer::findNextToken(namespaceDecl.getBeginLoc(),
+                                        this->sourceManager, this->langOptions);
         ENFORCE(namespaceToken.has_value());
         if (namespaceToken.has_value()) {
           return namespaceToken->getLocation();
         }
       }
-      return n->getBeginLoc();
+      return namespaceDecl.getBeginLoc();
     }
-    return n->getLocation();
-  }(namespaceDecl);
+    return namespaceDecl.getLocation();
+  }();
 
   // The blank SymbolInformation looks a little weird, but we
   // don't need to set the symbol name since that's handled by
@@ -352,7 +349,7 @@ void TuIndexer::saveNestedNameSpecifier(
   clang::NestedNameSpecifierLoc nameSpecLoc = argNameSpecLoc;
 
   auto tryEmit = [this](clang::NestedNameSpecifierLoc nameSpecLoc,
-                        const clang::NamedDecl *namedDecl) {
+                        const clang::NamedDecl &namedDecl) {
     auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(namedDecl);
     if (!optSymbol.has_value()) {
       return;
@@ -368,14 +365,13 @@ void TuIndexer::saveNestedNameSpecifier(
     using Kind = clang::NestedNameSpecifier;
     switch (nameSpec->getKind()) {
     case Kind::Namespace: {
-      auto namespaceDecl = nameSpec->getAsNamespace();
-      tryEmit(nameSpecLoc, namespaceDecl);
+      tryEmit(nameSpecLoc, *nameSpec->getAsNamespace());
       break;
     }
     case Kind::TypeSpec: {
       auto *type = nameSpec->getAsType();
       if (auto *tagDecl = type->getAsTagDecl()) {
-        tryEmit(nameSpecLoc, tagDecl);
+        tryEmit(nameSpecLoc, *tagDecl);
       }
       break;
     }
@@ -417,27 +413,30 @@ void TuIndexer::saveNestedNameSpecifier(
   }
 }
 
-void TuIndexer::saveVarDecl(const clang::VarDecl *varDecl) {
-  if (llvm::isa<clang::DecompositionDecl>(varDecl)) {
+void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
+  if (llvm::isa<clang::DecompositionDecl>(&varDecl)) {
     // Individual bindings will be visited by VisitBindingDecl
     return;
   }
-  if (varDecl->isLocalVarDeclOrParm()) {
+  if (varDecl.isLocalVarDeclOrParm()) {
     auto optSymbol = this->symbolFormatter.getLocalVarOrParmSymbol(varDecl);
     if (!optSymbol.has_value()) {
       return;
     }
-    this->saveDefinition(optSymbol.value(), varDecl->getLocation(),
+    this->saveDefinition(optSymbol.value(), varDecl.getLocation(),
                          std::nullopt);
   }
   // TODO: Add support for static and non-static data members.
 }
 
-void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr *declRefExpr) {
+void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   // In the presence of 'using', prefer going to the 'using' instead
   // of directly dereferencing.
-  auto foundDecl = declRefExpr->getFoundDecl();
-  auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(foundDecl);
+  auto *foundDecl = declRefExpr.getFoundDecl();
+  if (!foundDecl) {
+    return;
+  }
+  auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*foundDecl);
   if (!optSymbol.has_value()) {
     return;
   }
@@ -445,13 +444,13 @@ void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr *declRefExpr) {
   //       ^ getLocation()
   // ^^^^^^ getSourceRange()
   // ^ getExprLoc()
-  this->saveOccurrence(optSymbol.value(), declRefExpr->getLocation());
+  this->saveOccurrence(optSymbol.value(), declRefExpr.getLocation());
   // ^ TODO: Add read-write access to the symbol role here
 
-  if (!declRefExpr->hasQualifier()) {
+  if (!declRefExpr.hasQualifier()) {
     return;
   }
-  auto qualifierLoc = declRefExpr->getQualifierLoc();
+  auto qualifierLoc = declRefExpr.getQualifierLoc();
   this->saveNestedNameSpecifier(qualifierLoc);
 }
 
@@ -521,9 +520,9 @@ PartialDocument &TuIndexer::saveOccurrence(std::string_view symbol,
 // This is buggy even in clangd, so roll our own workaround.
 // https://github.com/sourcegraph/scip-clang/issues/105#issuecomment-1451252984
 static bool
-checkIfCommentBelongsToPreviousEnumCase(const clang::Decl *decl,
+checkIfCommentBelongsToPreviousEnumCase(const clang::Decl &decl,
                                         const clang::RawComment &comment) {
-  if (auto *enumConstantDecl = llvm::dyn_cast<clang::EnumConstantDecl>(decl)) {
+  if (auto *enumConstantDecl = llvm::dyn_cast<clang::EnumConstantDecl>(&decl)) {
     if (auto *enumDecl = llvm::dyn_cast<clang::EnumDecl>(
             enumConstantDecl->getDeclContext())) {
       int i = -1;
@@ -554,11 +553,11 @@ checkIfCommentBelongsToPreviousEnumCase(const clang::Decl *decl,
 namespace scip_clang {
 
 void TuIndexer::tryGetDocComment(
-    const clang::Decl *decl, llvm::SmallVectorImpl<std::string> &out) const {
-  auto &astContext = decl->getASTContext();
+    const clang::Decl &decl, llvm::SmallVectorImpl<std::string> &out) const {
+  auto &astContext = decl.getASTContext();
   // FIXME(def: hovers, issue:
   // https://github.com/sourcegraph/scip-clang/issues/96)
-  if (auto *rawComment = astContext.getRawCommentForAnyRedecl(decl)) {
+  if (auto *rawComment = astContext.getRawCommentForAnyRedecl(&decl)) {
     if (::checkIfCommentBelongsToPreviousEnumCase(decl, *rawComment)) {
       return;
     }
