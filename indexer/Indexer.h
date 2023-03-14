@@ -20,15 +20,16 @@
 #include "indexer/SymbolFormatter.h"
 
 namespace clang {
+#define FORWARD_DECLARE(DeclName) class DeclName##Decl;
+FOR_EACH_DECL_TO_BE_INDEXED(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
+
 class ASTContext;
 class Decl;
 class DeclRefExpr;
-class EnumConstantDecl;
-class EnumDecl;
 class MacroDefinition;
-class NamespaceDecl;
-class NestedNameSpecifier;
 class MacroInfo;
+class NestedNameSpecifierLoc;
 class SourceManager;
 class Token;
 } // namespace clang
@@ -192,9 +193,11 @@ public:
             const clang::ASTContext &, SymbolFormatter &);
 
   // See NOTE(ref: emit-vs-save) for naming conventions.
-  void saveEnumConstantDecl(const clang::EnumConstantDecl *);
-  void saveEnumDecl(const clang::EnumDecl *);
-  void saveNamespaceDecl(const clang::NamespaceDecl *);
+#define SAVE_DECL(DeclName) \
+  void save##DeclName##Decl(const clang::DeclName##Decl *);
+  FOR_EACH_DECL_TO_BE_INDEXED(SAVE_DECL)
+#undef SAVE_DECL
+
   void saveDeclRefExpr(const clang::DeclRefExpr *);
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
@@ -207,11 +210,14 @@ private:
   void saveReference(std::string_view symbol, clang::SourceLocation loc,
                      int32_t extraRoles = 0);
 
-  /// Helper method to record a definition Occurrence + SymbolInformation.
+  /// Helper method for recording a \c scip::Occurrence and a
+  /// \c scip::SymbolInformation for a definition.
   ///
   /// Setting the symbol name on \param symbolInfo is not necessary.
+  ///
+  /// For local variables, \param symbolInfo should be \c std::nullopt.
   void saveDefinition(std::string_view symbol, clang::SourceLocation loc,
-                      scip::SymbolInformation &&symbolInfo,
+                      std::optional<scip::SymbolInformation> &&symbolInfo,
                       int32_t extraRoles = 0);
 
   /// Lower-level method for only saving a Occurrence.

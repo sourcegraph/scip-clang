@@ -8,6 +8,7 @@
 #include "absl/strings/str_replace.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
@@ -313,6 +314,21 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl *tagDecl) {
   });
 }
 
+std::optional<std::string_view>
+SymbolFormatter::getBindingSymbol(const clang::BindingDecl *bindingDecl) {
+  return this->getNextLocalSymbol(bindingDecl);
+}
+
+std::optional<std::string_view>
+SymbolFormatter::getNextLocalSymbol(const clang::ValueDecl *decl) {
+  return this->getSymbolCached(decl, [&]() -> std::optional<std::string> {
+    auto loc = this->sourceManager.getExpansionLoc(decl->getLocation());
+    auto defFileId = this->sourceManager.getFileID(loc);
+    auto counter = this->localVariableCounters[{defFileId}]++;
+    return std::string(this->formatTemporary("local {}", counter));
+  });
+}
+
 std::optional<std::string_view> SymbolFormatter::getEnumConstantSymbol(
     const clang::EnumConstantDecl *enumConstantDecl) {
   return this->getSymbolCached(
@@ -346,18 +362,25 @@ SymbolFormatter::getEnumSymbol(const clang::EnumDecl *enumDecl) {
 
 std::optional<std::string_view>
 SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl *namedDecl) {
+  using Kind = clang::Decl::Kind;
 #define HANDLE(kind_)            \
   case clang::Decl::Kind::kind_: \
     return this->get##kind_##Symbol(llvm::cast<clang::kind_##Decl>(namedDecl));
   switch (namedDecl->getKind()) {
-    HANDLE(Enum)
-    HANDLE(EnumConstant)
-    HANDLE(Namespace)
+    FOR_EACH_DECL_TO_BE_INDEXED(HANDLE)
+  case Kind::VarTemplateSpecialization:
+  case Kind::VarTemplatePartialSpecialization:
+  case Kind::OMPCapturedExpr:
+  case Kind::Decomposition:
+  case Kind::ParmVar:
+    return this->getVarSymbol(llvm::dyn_cast<clang::VarDecl>(namedDecl));
   default:
     return {};
   }
 }
 
+/// Returns nullopt for anonymous namespaces in files for which
+/// getCanonicalPath returns nullopt.
 std::optional<std::string_view>
 SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
   return this->getSymbolCached(
@@ -394,6 +417,47 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl *namespaceDecl) {
         }
         return SymbolBuilder::formatContextual(contextSymbol, descriptor);
       });
+}
+
+std::optional<std::string_view>
+SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl *varDecl) {
+  ENFORCE(varDecl->isLocalVarDeclOrParm());
+  if (varDecl->getName().empty()) {
+    return {};
+  }
+  return this->getNextLocalSymbol(varDecl);
+}
+
+std::optional<std::string_view>
+SymbolFormatter::getVarSymbol(const clang::VarDecl *varDecl) {
+  if (varDecl->isLocalVarDeclOrParm()) {
+    return this->getLocalVarOrParmSymbol(varDecl);
+  }
+  return this->getSymbolCached(varDecl, [&]() -> std::optional<std::string> {
+    using Kind = clang::Decl::Kind;
+    // Based on
+    // https://sourcegraph.com/github.com/llvm/llvm-project/-/blob/clang/include/clang/Basic/DeclNodes.td?L57-64
+    switch (varDecl->getKind()) {
+    case Kind::Decomposition:
+      ENFORCE(false, "DecompositionDecls require recursive traversal"
+                     " and do not have a single symbol name;"
+                     " they should be handled in TuIndexer");
+    case Kind::ParmVar:
+      ENFORCE(false, "already handled parameter case earlier");
+    // TODO: Add support for template specializations and OMP captured exprs.
+    case Kind::VarTemplatePartialSpecialization:
+    case Kind::VarTemplateSpecialization:
+    case Kind::OMPCapturedExpr:
+    case Kind::Var:
+      // TODO: Add support for static and non-static data members
+      return {};
+    default: {
+      spdlog::warn("unhandled kind {} of VarDecl: {}",
+                   varDecl->getDeclKindName(), llvm_ext::formatDecl(varDecl));
+      return {};
+    }
+    }
+  });
 }
 
 std::string_view

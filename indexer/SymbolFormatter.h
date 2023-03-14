@@ -16,14 +16,23 @@
 #include "indexer/Path.h"
 #include "scip/scip.pb.h"
 
+#define FOR_EACH_DECL_TO_BE_INDEXED(F) \
+  F(Binding)                           \
+  F(EnumConstant)                      \
+  F(Enum)                              \
+  F(Namespace)                         \
+  F(Var)
+
 namespace clang {
+#define FORWARD_DECLARE(DeclName) class DeclName##Decl;
+FOR_EACH_DECL_TO_BE_INDEXED(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
+
 class Decl;
 class DeclContext;
-class EnumConstantDecl;
-class EnumDecl;
 class NamedDecl;
-class NamespaceDecl;
 class TagDecl;
+class ValueDecl;
 } // namespace clang
 
 namespace llvm {
@@ -85,6 +94,8 @@ class SymbolFormatter final {
   absl::flat_hash_map<const clang::Decl *, std::string> declBasedCache;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
       anonymousTypeCounters;
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
+      localVariableCounters;
   std::string scratchBuffer;
 
 public:
@@ -97,17 +108,16 @@ public:
 
   std::string_view getMacroSymbol(clang::SourceLocation defLoc);
 
-  std::optional<std::string_view>
-  getEnumConstantSymbol(const clang::EnumConstantDecl *);
+#define DECLARE_GET_SYMBOL(DeclName)                     \
+  std::optional<std::string_view> get##DeclName##Symbol( \
+      const clang::DeclName##Decl *);
+  FOR_EACH_DECL_TO_BE_INDEXED(DECLARE_GET_SYMBOL)
+#undef DECLARE_GET_SYMBOL
 
-  std::optional<std::string_view> getEnumSymbol(const clang::EnumDecl *);
+  std::optional<std::string_view>
+  getLocalVarOrParmSymbol(const clang::VarDecl *);
 
   std::optional<std::string_view> getNamedDeclSymbol(const clang::NamedDecl *);
-
-  /// Returns nullopt for anonymous namespaces in files for which
-  /// getCanonicalPath returns nullopt.
-  std::optional<std::string_view>
-  getNamespaceSymbol(const clang::NamespaceDecl *);
 
 private:
   std::optional<std::string_view> getContextSymbol(const clang::DeclContext *);
@@ -116,6 +126,8 @@ private:
   std::optional<std::string_view>
   getSymbolCached(const clang::Decl *,
                   absl::FunctionRef<std::optional<std::string>()>);
+
+  std::optional<std::string_view> getNextLocalSymbol(const clang::ValueDecl *);
 
   /// Format the string to a buffer stored by `this` and return a view to it.
   template <typename... T>

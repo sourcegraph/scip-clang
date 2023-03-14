@@ -11,6 +11,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
@@ -259,6 +260,16 @@ TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
     : sourceManager(sourceManager), langOptions(langOptions),
       astContext(astContext), symbolFormatter(symbolFormatter), documentMap() {}
 
+void TuIndexer::saveBindingDecl(const clang::BindingDecl *bindingDecl) {
+  ENFORCE(bindingDecl);
+  auto optSymbol = this->symbolFormatter.getBindingSymbol(bindingDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  this->saveDefinition(optSymbol.value(), bindingDecl->getLocation(),
+                       std::nullopt);
+}
+
 void TuIndexer::saveEnumConstantDecl(
     const clang::EnumConstantDecl *enumConstantDecl) {
   ENFORCE(enumConstantDecl);
@@ -399,11 +410,27 @@ void TuIndexer::saveNestedNameSpecifier(
       // In 'template Y<U0>', clangd will navigate to 'Y' in the body of 'X',
       // even when there is partial template specialization of X
       // (so calling f<int>() will print a different value).
-      // Ideally, we should handle surface such specializations too.
+      // Ideally, we should surface such specializations too.
       break;
     }
     nameSpecLoc = nameSpecLoc.getPrefix();
   }
+}
+
+void TuIndexer::saveVarDecl(const clang::VarDecl *varDecl) {
+  if (llvm::isa<clang::DecompositionDecl>(varDecl)) {
+    // Individual bindings will be visited by VisitBindingDecl
+    return;
+  }
+  if (varDecl->isLocalVarDeclOrParm()) {
+    auto optSymbol = this->symbolFormatter.getLocalVarOrParmSymbol(varDecl);
+    if (!optSymbol.has_value()) {
+      return;
+    }
+    this->saveDefinition(optSymbol.value(), varDecl->getLocation(),
+                         std::nullopt);
+  }
+  // TODO: Add support for static and non-static data members.
 }
 
 void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr *declRefExpr) {
@@ -465,13 +492,15 @@ void TuIndexer::saveReference(std::string_view symbol,
   (void)this->saveOccurrence(symbol, loc, extraRoles);
 }
 
-void TuIndexer::saveDefinition(std::string_view symbol,
-                               clang::SourceLocation loc,
-                               scip::SymbolInformation &&symbolInfo,
-                               int32_t extraRoles) {
+void TuIndexer::saveDefinition(
+    std::string_view symbol, clang::SourceLocation loc,
+    std::optional<scip::SymbolInformation> &&optSymbolInfo,
+    int32_t extraRoles) {
   auto &doc = this->saveOccurrence(symbol, loc,
                                    extraRoles | scip::SymbolRole::Definition);
-  doc.symbolInfos.emplace(symbol, std::move(symbolInfo));
+  if (optSymbolInfo.has_value()) {
+    doc.symbolInfos.emplace(symbol, std::move(optSymbolInfo.value()));
+  }
 }
 
 PartialDocument &TuIndexer::saveOccurrence(std::string_view symbol,

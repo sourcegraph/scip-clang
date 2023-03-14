@@ -9,6 +9,10 @@
 
 #include "indexer/Derive.h"
 
+namespace clang {
+class Decl;
+}
+
 namespace scip_clang {
 namespace llvm_ext {
 
@@ -18,6 +22,9 @@ template <typename T> std::string format(const T &llvmValue) {
   os << llvmValue;
   return buffer;
 }
+
+// Meant to only be used for debugging purposes
+std::string formatDecl(const clang::Decl *);
 
 inline std::string_view toStringView(llvm::StringRef sref) {
   return std::string_view(sref.data(), sref.size());
