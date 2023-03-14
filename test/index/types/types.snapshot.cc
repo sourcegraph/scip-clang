@@ -72,7 +72,7 @@
   }
   
   class F0;
-//      ^^ definition [..] F0#
+//      ^^ reference [..] F0#
   
   class F1 {
 //      ^^ definition [..] F1#

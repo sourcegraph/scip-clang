@@ -411,6 +411,13 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
   }
   auto symbol = optSymbol.value();
 
+  if (!tagDecl.isThisDeclarationADefinition()) {
+    // Forward declarations should be marked as references. In the future,
+    // we should add an extra role to SCIP for forward declarations.
+    this->saveReference(symbol, tagDecl.getLocation());
+    return;
+  }
+
   llvm::SmallVector<std::string, 4> docComments{};
   this->tryGetDocComment(tagDecl, docComments);
   scip::SymbolInformation symbolInfo;
