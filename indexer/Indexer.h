@@ -198,6 +198,8 @@ public:
   FOR_EACH_DECL_TO_BE_INDEXED(SAVE_DECL)
 #undef SAVE_DECL
 
+  void saveTagDecl(const clang::TagDecl &);
+
   void saveDeclRefExpr(const clang::DeclRefExpr &);
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,

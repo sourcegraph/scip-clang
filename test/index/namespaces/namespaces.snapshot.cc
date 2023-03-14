@@ -38,6 +38,7 @@
   namespace c {
 //          ^ definition [..] c/
   class C {
+//      ^ definition [..] c/C#
   };
   }
   

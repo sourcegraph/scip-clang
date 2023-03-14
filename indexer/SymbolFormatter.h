@@ -21,6 +21,7 @@
   F(EnumConstant)                      \
   F(Enum)                              \
   F(Namespace)                         \
+  F(Record)                            \
   F(Var)
 
 namespace clang {
@@ -119,9 +120,10 @@ public:
 
   std::optional<std::string_view> getNamedDeclSymbol(const clang::NamedDecl &);
 
+  std::optional<std::string_view> getTagSymbol(const clang::TagDecl &);
+
 private:
   std::optional<std::string_view> getContextSymbol(const clang::DeclContext &);
-  std::optional<std::string_view> getTagSymbol(const clang::TagDecl &);
 
   std::optional<std::string_view>
   getSymbolCached(const clang::Decl &,

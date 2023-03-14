@@ -28,6 +28,7 @@
   }
   
   struct S {
+//       ^ definition [..] S#
     int x;
     static int y;
   };

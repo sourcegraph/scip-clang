@@ -291,20 +291,7 @@ void TuIndexer::saveEnumConstantDecl(
 }
 
 void TuIndexer::saveEnumDecl(const clang::EnumDecl &enumDecl) {
-  auto optSymbol = this->symbolFormatter.getEnumSymbol(enumDecl);
-  if (!optSymbol.has_value()) {
-    return;
-  }
-  auto symbol = optSymbol.value();
-
-  llvm::SmallVector<std::string, 4> docComments{};
-  this->tryGetDocComment(enumDecl, docComments);
-  scip::SymbolInformation symbolInfo;
-  for (auto &docComment : docComments) {
-    *symbolInfo.add_documentation() = std::move(docComment);
-  }
-
-  this->saveDefinition(symbol, enumDecl.getLocation(), std::move(symbolInfo));
+  this->saveTagDecl(enumDecl);
 }
 
 void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
@@ -411,6 +398,27 @@ void TuIndexer::saveNestedNameSpecifier(
     }
     nameSpecLoc = nameSpecLoc.getPrefix();
   }
+}
+
+void TuIndexer::saveRecordDecl(const clang::RecordDecl &recordDecl) {
+  this->saveTagDecl(recordDecl);
+}
+
+void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
+  auto optSymbol = this->symbolFormatter.getTagSymbol(tagDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  auto symbol = optSymbol.value();
+
+  llvm::SmallVector<std::string, 4> docComments{};
+  this->tryGetDocComment(tagDecl, docComments);
+  scip::SymbolInformation symbolInfo;
+  for (auto &docComment : docComments) {
+    *symbolInfo.add_documentation() = std::move(docComment);
+  }
+
+  this->saveDefinition(symbol, tagDecl.getLocation(), std::move(symbolInfo));
 }
 
 void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {

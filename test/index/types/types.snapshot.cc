@@ -9,7 +9,9 @@
   };
   
   class C {
+//      ^ definition [..] C#
     class D {
+//        ^ definition [..] C#D#
     };
   };
   
@@ -43,10 +45,12 @@
   namespace a {
 //          ^ definition [..] a/
     class X {};
+//        ^ definition [..] a/X#
   
     namespace {
 //  ^^^^^^^^^ definition [..] a/`$anonymous_namespace_types.cc`/
       class Y {};
+//          ^ definition [..] a/`$anonymous_namespace_types.cc`/Y#
     }
   }
   
@@ -68,8 +72,10 @@
   }
   
   class F0;
+//      ^^ definition [..] F0#
   
   class F1 {
+//      ^^ definition [..] F1#
     friend F0;
   
     enum { ANON1 } anon1;
@@ -82,6 +88,7 @@
   };
   
   class F0 {
+//      ^^ definition [..] F0#
     friend class F1;
   
     void f1(F1 *) { }
@@ -120,6 +127,7 @@
   
   template <typename T, int N>
   class GenericClass {};
+//      ^^^^^^^^^^^^ definition [..] GenericClass#
   
   enum class E { E0 };
 //           ^ definition [..] E#

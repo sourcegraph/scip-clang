@@ -261,6 +261,11 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext) {
 }
 
 std::optional<std::string_view>
+SymbolFormatter::getRecordSymbol(const clang::RecordDecl &recordDecl) {
+  return this->getTagSymbol(recordDecl);
+}
+
+std::optional<std::string_view>
 SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
   return this->getSymbolCached(tagDecl, [&]() -> std::optional<std::string> {
     auto optContextSymbol = this->getContextSymbol(*tagDecl.getDeclContext());
@@ -356,7 +361,7 @@ std::optional<std::string_view> SymbolFormatter::getEnumConstantSymbol(
 
 std::optional<std::string_view>
 SymbolFormatter::getEnumSymbol(const clang::EnumDecl &enumDecl) {
-  return this->getTagSymbol(static_cast<const clang::TagDecl &>(enumDecl));
+  return this->getTagSymbol(enumDecl);
 }
 
 std::optional<std::string_view>
