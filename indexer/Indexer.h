@@ -20,7 +20,7 @@
 #include "indexer/SymbolFormatter.h"
 
 #define FOR_EACH_TYPE_TO_BE_INDEXED(F) \
-  F(Enum) \
+  F(Enum)                              \
   F(Record)
 
 namespace clang {
@@ -212,6 +212,7 @@ public:
   void saveTagTypeLoc(const clang::TagTypeLoc &);
 
   void saveDeclRefExpr(const clang::DeclRefExpr &);
+  void saveNestedNameSpecifierLoc(const clang::NestedNameSpecifierLoc &);
 
 #define SAVE_TYPE_LOC(TypeName) \
   void save##TypeName##TypeLoc(const clang::TypeName##TypeLoc &);
@@ -246,8 +247,6 @@ private:
   PartialDocument &saveOccurrence(std::string_view symbol,
                                   clang::SourceLocation loc,
                                   int32_t allRoles = 0);
-
-  void saveNestedNameSpecifier(const clang::NestedNameSpecifierLoc &);
 
   void tryGetDocComment(const clang::Decl &,
                         llvm::SmallVectorImpl<std::string> &) const;

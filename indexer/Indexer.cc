@@ -336,7 +336,7 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   this->saveDefinition(symbol, startLoc, scip::SymbolInformation{});
 }
 
-void TuIndexer::saveNestedNameSpecifier(
+void TuIndexer::saveNestedNameSpecifierLoc(
     const clang::NestedNameSpecifierLoc &argNameSpecLoc) {
   clang::NestedNameSpecifierLoc nameSpecLoc = argNameSpecLoc;
 
@@ -442,7 +442,8 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   if (tagTypeLoc.isDefinition()) {
     return;
   }
-  if (auto optSymbol = this->symbolFormatter.getTagSymbol(*tagTypeLoc.getDecl())) {
+  if (auto optSymbol =
+          this->symbolFormatter.getTagSymbol(*tagTypeLoc.getDecl())) {
     this->saveReference(optSymbol.value(), tagTypeLoc.getNameLoc());
   }
 }
@@ -480,12 +481,6 @@ void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   // ^ getExprLoc()
   this->saveOccurrence(optSymbol.value(), declRefExpr.getLocation());
   // ^ TODO: Add read-write access to the symbol role here
-
-  if (!declRefExpr.hasQualifier()) {
-    return;
-  }
-  auto qualifierLoc = declRefExpr.getQualifierLoc();
-  this->saveNestedNameSpecifier(qualifierLoc);
 }
 
 void TuIndexer::emitDocumentOccurrencesAndSymbols(

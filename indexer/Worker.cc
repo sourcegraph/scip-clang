@@ -698,17 +698,13 @@ public:
   FOR_EACH_TYPE_TO_BE_INDEXED(VISIT_TYPE_LOC)
 #undef VISIT_TYPE_LOC
 
-  bool TraverseNestedNameSpecifierLoc(const clang::NestedNameSpecifierLoc) {
-    // The default implementation of this function includes a call to
-    // TraverseTypeLocs on seeing a type in a qualified name
-    // (e.g. 'MyEnum' in 'MyEnum::MyCase') but there is no analog
-    // for namespaces (e.g. 'std' in 'std::vector').
-    //
-    // However, when we see a qualified name, we want to consistently
-    // traverse both namespaces and TypeLocs exactly once. That traversal
-    // is already implemented in TuIndexer::saveNestedNameSpecifier,
-    // which is invoked when visiting DeclRefExprs, so replace the default
-    // implementation with a stub implementation.
+  bool TraverseNestedNameSpecifierLoc(
+      const clang::NestedNameSpecifierLoc nestedNameSpecifierLoc) {
+    // Unlike many other entities, there is no corresponding Visit* method in
+    // RecursiveTypeVisitor, so override the Traverse* method instead.
+    if (nestedNameSpecifierLoc) {
+      this->tuIndexer.saveNestedNameSpecifierLoc(nestedNameSpecifierLoc);
+    }
     return true;
   }
 

@@ -43,6 +43,7 @@
   }
   
   using C = c::C;
+//          ^ reference [..] c/
 //             ^ reference [..] c/C#
   
   #define EXPAND_TO_NAMESPACE \
@@ -80,6 +81,7 @@
   }
   
   void f(a::c_alias::E) {
+//       ^ reference [..] a/
 //                   ^ reference [..] a/c/E#
     (void)a::c::E::E0;
 //        ^ reference [..] a/
