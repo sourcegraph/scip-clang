@@ -403,7 +403,8 @@ void TuIndexer::saveNestedNameSpecifier(
 void TuIndexer::saveRecordDecl(const clang::RecordDecl &recordDecl) {
   this->saveTagDecl(recordDecl);
   if (auto *cxxRecordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(&recordDecl)) {
-    for (const clang::CXXBaseSpecifier &cxxBaseSpecifier: cxxRecordDecl->bases()) {
+    for (const clang::CXXBaseSpecifier &cxxBaseSpecifier :
+         cxxRecordDecl->bases()) {
       // FIXME: We need a clang::TypeVisitor invocation here, to visit
       // template params etc.
       if (auto *tagDecl = cxxBaseSpecifier.getType()->getAsTagDecl()) {
@@ -411,7 +412,8 @@ void TuIndexer::saveRecordDecl(const clang::RecordDecl &recordDecl) {
         if (!optSymbol.has_value()) {
           continue;
         }
-        this->saveReference(optSymbol.value(), cxxBaseSpecifier.getBaseTypeLoc());
+        this->saveReference(optSymbol.value(),
+                            cxxBaseSpecifier.getBaseTypeLoc());
       }
     }
   }
