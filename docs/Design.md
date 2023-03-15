@@ -463,8 +463,110 @@ this is a change to the AST upstream.
 
 ### Forward declarations
 
-Forward declarations should only have reference Occurrences.
-This means that Go to Definition will work more intuitively.
+Forward declarations should be treated as reference Occurrences,
+so that Go to Definition doesn't take one to a forward declaration by default.
 
-We can potentially add a `isForwardDeclaration` bit
-to SCIP's occurrence mask in the future if needed.
+In the future, we could add a `ForwardDeclaration` case
+to `SymbolRole` in SCIP if we want to surface information
+about forward declarations in the UI.
+
+The tricky part about forward declarations is determining
+the package information, which is part of the symbol name.
+In particular, the following pattern is reasonably common:
+
+```cpp
+// MyProjectHeader.h
+
+namespace something {
+// Avoid #include "external_project/LargeHeader.h" to reduce compile times
+class ExternalClass;
+}
+
+void doStuff(const ExternalClass *);
+
+// MyProjectImpl.cc
+
+#include "external_project/LargeHeader.h"
+#include "MyProjectHeader.h"
+
+void doStuff(const ExternalClass *k) { /* impl */ }
+```
+
+Just by looking at forward-declaration with the name
+`something::ExternalClass`, an indexing process has
+no way to tell if the definition for `ExternalClass`
+lives in a file in the current package
+or in an external package.
+
+<details>
+<summary>
+Could we determine the package information based
+on the namespace, maybe with a user-supplied mapping
+from FQN regexes to package information?
+</summary>
+
+At first glance, it might seem that maybe we can
+determine the package information based on the namespace.
+For example, if the user could provide a mapping for
+namespaces (regexes) -> packages, and if we see 
+a forward declaration in (say) the `llvm::` namespace,
+and the mapping has `llvm::.* -> llvm@15.0.0`,
+we could use `llvm@15.0.0` as the package information
+for the forward declaration.
+
+However, there isn't always such a strong correspondence
+between namespaces and packages,
+especially for patterns relying on features like ADL
+and template specializations.
+
+ADL example: (from our own code!)
+
+```
+namespace llvm {
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, Escaped s) {..}
+}
+```
+
+Template specialization example: (via https://stackoverflow.com/a/8157967)
+
+```
+namespace std {
+template <> struct hash<MyType> {
+  size_t operator()(const MyType & x) const { .. }
+};
+}
+```
+
+In both of these cases, the corresponding function or template specialization
+lives in a different project than the project which "owns" the namespace.
+
+</details>
+
+So, in general, if we want proper navigation for forward declarations,
+we need to actually discover which file
+the definition lives in,
+and this means that we need to index every TU,
+even if the main file does not belong to the current package.
+
+This raises a further problem, what do we do when the definition
+is not part of the indexing process at all?
+There are 4 possible cases here:
+1. Third-party binary-only libraries: In this case, there's not
+   really much that can be done, since a definition isn't available.
+2. First-party libraries built separately: In this case, we can
+   potentially consume the SCIP index generated from indexing the
+   first-party library, to identify which forward declaration
+   belongs to which library.
+3. Platform headers (e.g. `unistd.h`): These can depend on standard
+   library headers. TODO: How should we handle this case?
+4. Standard library headers (e.g. `iostream`): We can double-check
+   if standard library headers include any platform headers.
+   If not, we can make the simplifying assumption that any
+   forward declarations in standard library headers belong
+   to the corresponding synthetic standard library package
+   (e.g. `libc++@15.0.0`).
+
+For simplicity, an initial implementation
+can put fake `SymbolInformation` values
+in the `external_symbols` list
+with an empty package name and version.
