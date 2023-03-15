@@ -19,9 +19,17 @@
 #include "indexer/ScipExtras.h"
 #include "indexer/SymbolFormatter.h"
 
+#define FOR_EACH_TYPE_TO_BE_INDEXED(F) \
+  F(Enum) \
+  F(Record)
+
 namespace clang {
 #define FORWARD_DECLARE(DeclName) class DeclName##Decl;
 FOR_EACH_DECL_TO_BE_INDEXED(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
+
+#define FORWARD_DECLARE(TypeName) class TypeName##TypeLoc;
+FOR_EACH_TYPE_TO_BE_INDEXED(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
 
 class ASTContext;
@@ -31,6 +39,8 @@ class MacroDefinition;
 class MacroInfo;
 class NestedNameSpecifierLoc;
 class SourceManager;
+class TagDecl;
+class TagTypeLoc;
 class Token;
 } // namespace clang
 
@@ -199,8 +209,14 @@ public:
 #undef SAVE_DECL
 
   void saveTagDecl(const clang::TagDecl &);
+  void saveTagTypeLoc(const clang::TagTypeLoc &);
 
   void saveDeclRefExpr(const clang::DeclRefExpr &);
+
+#define SAVE_TYPE_LOC(TypeName) \
+  void save##TypeName##TypeLoc(const clang::TypeName##TypeLoc &);
+  FOR_EACH_TYPE_TO_BE_INDEXED(SAVE_TYPE_LOC)
+#undef SAVE_TYPE_LOC
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
                                          scip::Document &);

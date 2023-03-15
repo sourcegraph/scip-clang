@@ -77,6 +77,7 @@
   class F1 {
 //      ^^ definition [..] F1#
     friend F0;
+//         ^^ reference [..] F0#
   
     enum { ANON1 } anon1;
 //  ^^^^ definition [..] F1#$anonymous_type_2#
@@ -90,8 +91,10 @@
   class F0 {
 //      ^^ definition [..] F0#
     friend class F1;
+//               ^^ reference [..] F1#
   
     void f1(F1 *) { }
+//          ^^ reference [..] F1#
   };
   
   void f() {
@@ -134,6 +137,7 @@
 //               ^^ definition [..] E#E0.
   
   void f(GenericClass<E, int(E::E0)>) {
+//                    ^ reference [..] E#
 //                           ^ reference [..] E#
 //                              ^^ reference [..] E#E0.
     (void)E::E0;
@@ -176,6 +180,6 @@
   
   class CRTPChild: CRTPBase<CRTPChild> {
 //      ^^^^^^^^^ definition [..] CRTPChild#
-//                 ^^^^^^^^ reference [..] CRTPBase#
+//                          ^^^^^^^^^ reference [..] CRTPChild#
     void doStuff() { }
   };

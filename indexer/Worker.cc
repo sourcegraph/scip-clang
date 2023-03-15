@@ -21,6 +21,7 @@
 #include "spdlog/spdlog.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Sema/Sema.h"
@@ -686,6 +687,28 @@ public:
 
   bool VisitDeclRefExpr(clang::DeclRefExpr *declRefExpr) {
     this->tuIndexer.saveDeclRefExpr(*declRefExpr);
+    return true;
+  }
+
+#define VISIT_TYPE_LOC(TypeName)                                    \
+  bool Visit##TypeName##TypeLoc(clang::TypeName##TypeLoc typeLoc) { \
+    this->tuIndexer.save##TypeName##TypeLoc(typeLoc);               \
+    return true;                                                    \
+  }
+  FOR_EACH_TYPE_TO_BE_INDEXED(VISIT_TYPE_LOC)
+#undef VISIT_TYPE_LOC
+
+  bool TraverseNestedNameSpecifierLoc(const clang::NestedNameSpecifierLoc) {
+    // The default implementation of this function includes a call to
+    // TraverseTypeLocs on seeing a type in a qualified name
+    // (e.g. 'MyEnum' in 'MyEnum::MyCase') but there is no analog
+    // for namespaces (e.g. 'std' in 'std::vector').
+    //
+    // However, when we see a qualified name, we want to consistently
+    // traverse both namespaces and TypeLocs exactly once. That traversal
+    // is already implemented in TuIndexer::saveNestedNameSpecifier,
+    // which is invoked when visiting DeclRefExprs, so replace the default
+    // implementation with a stub implementation.
     return true;
   }
 

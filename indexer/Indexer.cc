@@ -14,6 +14,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RawCommentList.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
@@ -294,6 +295,10 @@ void TuIndexer::saveEnumDecl(const clang::EnumDecl &enumDecl) {
   this->saveTagDecl(enumDecl);
 }
 
+void TuIndexer::saveEnumTypeLoc(const clang::EnumTypeLoc &enumTypeLoc) {
+  this->saveTagTypeLoc(enumTypeLoc);
+}
+
 void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   auto optSymbol = this->symbolFormatter.getNamespaceSymbol(namespaceDecl);
   if (!optSymbol.has_value()) {
@@ -402,21 +407,11 @@ void TuIndexer::saveNestedNameSpecifier(
 
 void TuIndexer::saveRecordDecl(const clang::RecordDecl &recordDecl) {
   this->saveTagDecl(recordDecl);
-  if (auto *cxxRecordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(&recordDecl)) {
-    for (const clang::CXXBaseSpecifier &cxxBaseSpecifier :
-         cxxRecordDecl->bases()) {
-      // FIXME: We need a clang::TypeVisitor invocation here, to visit
-      // template params etc.
-      if (auto *tagDecl = cxxBaseSpecifier.getType()->getAsTagDecl()) {
-        auto optSymbol = this->symbolFormatter.getTagSymbol(*tagDecl);
-        if (!optSymbol.has_value()) {
-          continue;
-        }
-        this->saveReference(optSymbol.value(),
-                            cxxBaseSpecifier.getBaseTypeLoc());
-      }
-    }
-  }
+  // Superclass declarations will be visited during Visit*TypeLoc methods.
+}
+
+void TuIndexer::saveRecordTypeLoc(const clang::RecordTypeLoc &recordTypeLoc) {
+  this->saveTagTypeLoc(recordTypeLoc);
 }
 
 void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
@@ -441,6 +436,15 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
   }
 
   this->saveDefinition(symbol, tagDecl.getLocation(), std::move(symbolInfo));
+}
+
+void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
+  if (tagTypeLoc.isDefinition()) {
+    return;
+  }
+  if (auto optSymbol = this->symbolFormatter.getTagSymbol(*tagTypeLoc.getDecl())) {
+    this->saveReference(optSymbol.value(), tagTypeLoc.getNameLoc());
+  }
 }
 
 void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {

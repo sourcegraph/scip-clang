@@ -34,6 +34,7 @@
   };
   
   int f(S s) {
+//      ^ reference [..] S#
 //        ^ definition local 8
     return s.x + S::y;
 //         ^ reference local 8
