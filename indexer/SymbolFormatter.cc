@@ -279,8 +279,14 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
           DescriptorBuilder{.name = this->formatTemporary(tagDecl),
                             .suffix = scip::Descriptor::Type});
     }
-    auto definitionTagDecl = tagDecl.getDefinition();
-    ENFORCE(definitionTagDecl, "can't forward-declare an anonymous type");
+    auto *definitionTagDecl = tagDecl.getDefinition();
+    if (!definitionTagDecl) {
+      // NOTE(def: missing-definition-for-tagdecl)
+      // Intuitively, it seems like this case where an anonymous type
+      // lacks a definition should be impossible (you can't forward declare
+      // such a type), but this case is triggered when indexing LLVM.
+      return {};
+    }
     auto defLoc =
         this->sourceManager.getExpansionLoc(definitionTagDecl->getLocation());
 
