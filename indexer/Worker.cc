@@ -698,10 +698,10 @@ public:
   FOR_EACH_TYPE_TO_BE_INDEXED(VISIT_TYPE_LOC)
 #undef VISIT_TYPE_LOC
 
+  /// Unlike many other entities, there is no corresponding Visit* method in
+  /// RecursiveTypeVisitor, so override the Traverse* method instead.
   bool TraverseNestedNameSpecifierLoc(
       const clang::NestedNameSpecifierLoc nestedNameSpecifierLoc) {
-    // Unlike many other entities, there is no corresponding Visit* method in
-    // RecursiveTypeVisitor, so override the Traverse* method instead.
     if (nestedNameSpecifierLoc) {
       this->tuIndexer.saveNestedNameSpecifierLoc(nestedNameSpecifierLoc);
     }
