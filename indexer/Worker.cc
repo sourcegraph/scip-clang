@@ -154,6 +154,22 @@ public:
   void push(HeaderInfoBuilder &&info) {
     this->state.emplace_back(std::move(info));
   }
+  size_t size() const {
+    return this->state.size();
+  }
+  std::string debugToString(const clang::SourceManager &sourceManager) const {
+    std::string buf = fmt::format("[{}]{{", this->state.size());
+    llvm::raw_string_ostream os(buf);
+    for (size_t i = 0; i < this->state.size(); ++i) {
+      size_t j = this->state.size() - i - 1;
+      os << debug::tryGetPath(sourceManager, this->state[j].fileId);
+      if (j != 0) {
+        os << ", ";
+      }
+    }
+    os << "}";
+    return buf;
+  }
 };
 
 struct IndexerPreprocessorOptions {
@@ -245,18 +261,22 @@ public:
                   MacroIndexer &macroIndexerOutput) {
     // HACK: It seems like EnterInclude and ExitInclude events are not
     // perfectly balanced in Clang. Work around that.
+    auto mainFileId = this->sourceManager.getMainFileID();
+    // When working with already pre-processed files (mainly invoked by
+    // C-Reduce), we can end up having hundreds of superfluous residual entries
+    // in the stack.
+    if (this->stack.size() > 2) {
+      for (size_t i = 0, toDrain = this->stack.size() - 2; i < toDrain; ++i) {
+        auto redundantEntry = this->stack.pop();
+        ENFORCE(redundantEntry->fileId == mainFileId);
+      }
+    }
     auto lastEntry = this->stack.pop();
     ENFORCE(lastEntry.has_value());
-    if (lastEntry->fileId == this->sourceManager.getMainFileID()) {
-      // Already pre-processed files have yet another unbalanced entry
-      auto newLastEntry = this->stack.pop();
-      ENFORCE(newLastEntry.has_value());
-      lastEntry.emplace(std::move(newLastEntry.value()));
-    }
     ENFORCE(this->sourceManager.getFileEntryForID(lastEntry->fileId) == nullptr,
             "carelessly popped entry for '{}' without exiting",
             debug::tryGetPath(this->sourceManager, lastEntry->fileId));
-    this->exitFile(this->sourceManager.getMainFileID());
+    this->exitFile(mainFileId);
     ENFORCE(this->stack.empty(), "entry for '{}' present at top of stack",
             debug::tryGetPath(this->sourceManager, this->stack.pop()->fileId));
     // END HACK
