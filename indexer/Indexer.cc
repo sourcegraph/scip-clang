@@ -423,7 +423,8 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
 
   if (!tagDecl.isThisDeclarationADefinition()) {
     // Forward declarations should be marked as references. In the future,
-    // we should add an extra role to SCIP for forward declarations.
+    // we should add an extra role to SCIP for forward declarations,
+    // once https://github.com/sourcegraph/scip/issues/131 is addressed.
     this->saveReference(symbol, tagDecl.getLocation());
     return;
   }
