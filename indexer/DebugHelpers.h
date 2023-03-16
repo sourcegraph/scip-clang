@@ -8,6 +8,10 @@
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/StringRef.h"
 
+namespace clang {
+class Decl;
+}
+
 namespace scip_clang {
 namespace debug {
 
@@ -24,6 +28,8 @@ std::string formatRange(const clang::SourceManager &, clang::SourceRange);
 
 std::string formatRange(const clang::SourceManager &,
                         clang::SourceLocation start, clang::SourceLocation end);
+
+std::string formatDecl(const clang::Decl *);
 
 } // namespace debug
 } // namespace scip_clang

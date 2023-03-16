@@ -15,6 +15,7 @@
 
 #include "scip/scip.pb.h"
 
+#include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
 #include "indexer/Hash.h"
 #include "indexer/LlvmAdapter.h"
@@ -452,7 +453,7 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
       return {};
     default: {
       spdlog::warn("unhandled kind {} of VarDecl: {}",
-                   varDecl.getDeclKindName(), llvm_ext::formatDecl(&varDecl));
+                   varDecl.getDeclKindName(), debug::formatDecl(&varDecl));
       return {};
     }
     }

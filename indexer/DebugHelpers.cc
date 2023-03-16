@@ -1,9 +1,12 @@
 #include "spdlog/fmt/fmt.h"
 
+#include "clang/AST/Decl.h"
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
@@ -138,6 +141,20 @@ std::string formatRange(const clang::SourceManager &sourceManager,
   // Addressed most common cases, fallback to something that always works.
   return fmt::format("[{}]-[{}]", formatLoc(sourceManager, loc1),
                      formatLoc(sourceManager, loc2));
+}
+
+std::string formatDecl(const clang::Decl *decl) {
+  if (!decl) {
+    return "<null>";
+  }
+  std::string buf;
+  llvm::raw_string_ostream out(buf);
+  if (auto *namedDecl = llvm::dyn_cast<clang::NamedDecl>(decl)) {
+    namedDecl->printQualifiedName(out);
+  } else {
+    decl->print(out);
+  }
+  return buf;
 }
 
 } // namespace debug
