@@ -5,10 +5,12 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 
+#include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -19,9 +21,17 @@
 #include "indexer/ScipExtras.h"
 #include "indexer/SymbolFormatter.h"
 
+#define FOR_EACH_TYPE_TO_BE_INDEXED(F) \
+  F(Enum)                              \
+  F(Record)
+
 namespace clang {
 #define FORWARD_DECLARE(DeclName) class DeclName##Decl;
 FOR_EACH_DECL_TO_BE_INDEXED(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
+
+#define FORWARD_DECLARE(TypeName) class TypeName##TypeLoc;
+FOR_EACH_TYPE_TO_BE_INDEXED(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
 
 class ASTContext;
@@ -31,6 +41,8 @@ class MacroDefinition;
 class MacroInfo;
 class NestedNameSpecifierLoc;
 class SourceManager;
+class TagDecl;
+class TagTypeLoc;
 class Token;
 } // namespace clang
 
@@ -198,7 +210,16 @@ public:
   FOR_EACH_DECL_TO_BE_INDEXED(SAVE_DECL)
 #undef SAVE_DECL
 
+  void saveTagDecl(const clang::TagDecl &);
+  void saveTagTypeLoc(const clang::TagTypeLoc &);
+
   void saveDeclRefExpr(const clang::DeclRefExpr &);
+  void saveNestedNameSpecifierLoc(const clang::NestedNameSpecifierLoc &);
+
+#define SAVE_TYPE_LOC(TypeName) \
+  void save##TypeName##TypeLoc(const clang::TypeName##TypeLoc &);
+  FOR_EACH_TYPE_TO_BE_INDEXED(SAVE_TYPE_LOC)
+#undef SAVE_TYPE_LOC
 
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
                                          scip::Document &);
@@ -229,10 +250,8 @@ private:
                                   clang::SourceLocation loc,
                                   int32_t allRoles = 0);
 
-  void saveNestedNameSpecifier(const clang::NestedNameSpecifierLoc &);
-
-  void tryGetDocComment(const clang::Decl &,
-                        llvm::SmallVectorImpl<std::string> &) const;
+  std::vector<clang::RawComment::CommentLine>
+  tryGetDocComment(const clang::Decl &) const;
 };
 
 } // namespace scip_clang

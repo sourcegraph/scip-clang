@@ -262,6 +262,11 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext) {
 }
 
 std::optional<std::string_view>
+SymbolFormatter::getRecordSymbol(const clang::RecordDecl &recordDecl) {
+  return this->getTagSymbol(recordDecl);
+}
+
+std::optional<std::string_view>
 SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
   return this->getSymbolCached(tagDecl, [&]() -> std::optional<std::string> {
     auto optContextSymbol = this->getContextSymbol(*tagDecl.getDeclContext());
@@ -275,8 +280,14 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
           DescriptorBuilder{.name = this->formatTemporary(tagDecl),
                             .suffix = scip::Descriptor::Type});
     }
-    auto definitionTagDecl = tagDecl.getDefinition();
-    ENFORCE(definitionTagDecl, "can't forward-declare an anonymous type");
+    auto *definitionTagDecl = tagDecl.getDefinition();
+    if (!definitionTagDecl) {
+      // NOTE(def: missing-definition-for-tagdecl)
+      // Intuitively, it seems like this case where an anonymous type
+      // lacks a definition should be impossible (you can't forward declare
+      // such a type), but this case is triggered when indexing LLVM.
+      return {};
+    }
     auto defLoc =
         this->sourceManager.getExpansionLoc(definitionTagDecl->getLocation());
 
@@ -357,7 +368,7 @@ std::optional<std::string_view> SymbolFormatter::getEnumConstantSymbol(
 
 std::optional<std::string_view>
 SymbolFormatter::getEnumSymbol(const clang::EnumDecl &enumDecl) {
-  return this->getTagSymbol(static_cast<const clang::TagDecl &>(enumDecl));
+  return this->getTagSymbol(enumDecl);
 }
 
 std::optional<std::string_view>

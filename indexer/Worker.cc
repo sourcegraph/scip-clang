@@ -21,6 +21,7 @@
 #include "spdlog/spdlog.h"
 
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Sema/Sema.h"
@@ -706,6 +707,24 @@ public:
 
   bool VisitDeclRefExpr(clang::DeclRefExpr *declRefExpr) {
     this->tuIndexer.saveDeclRefExpr(*declRefExpr);
+    return true;
+  }
+
+#define VISIT_TYPE_LOC(TypeName)                                    \
+  bool Visit##TypeName##TypeLoc(clang::TypeName##TypeLoc typeLoc) { \
+    this->tuIndexer.save##TypeName##TypeLoc(typeLoc);               \
+    return true;                                                    \
+  }
+  FOR_EACH_TYPE_TO_BE_INDEXED(VISIT_TYPE_LOC)
+#undef VISIT_TYPE_LOC
+
+  /// Unlike many other entities, there is no corresponding Visit* method in
+  /// RecursiveTypeVisitor, so override the Traverse* method instead.
+  bool TraverseNestedNameSpecifierLoc(
+      const clang::NestedNameSpecifierLoc nestedNameSpecifierLoc) {
+    if (nestedNameSpecifierLoc) {
+      this->tuIndexer.saveNestedNameSpecifierLoc(nestedNameSpecifierLoc);
+    }
     return true;
   }
 

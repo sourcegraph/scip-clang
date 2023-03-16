@@ -14,6 +14,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RawCommentList.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
@@ -278,11 +279,9 @@ void TuIndexer::saveEnumConstantDecl(
   }
   auto symbol = optSymbol.value();
 
-  llvm::SmallVector<std::string, 4> docComments{};
-  this->tryGetDocComment(enumConstantDecl, docComments);
   scip::SymbolInformation symbolInfo;
-  for (auto &docComment : docComments) {
-    *symbolInfo.add_documentation() = std::move(docComment);
+  for (auto &docComment : this->tryGetDocComment(enumConstantDecl)) {
+    *symbolInfo.add_documentation() = std::move(docComment.Text);
   }
 
   ENFORCE(enumConstantDecl.getBeginLoc() == enumConstantDecl.getLocation());
@@ -291,20 +290,11 @@ void TuIndexer::saveEnumConstantDecl(
 }
 
 void TuIndexer::saveEnumDecl(const clang::EnumDecl &enumDecl) {
-  auto optSymbol = this->symbolFormatter.getEnumSymbol(enumDecl);
-  if (!optSymbol.has_value()) {
-    return;
-  }
-  auto symbol = optSymbol.value();
+  this->saveTagDecl(enumDecl);
+}
 
-  llvm::SmallVector<std::string, 4> docComments{};
-  this->tryGetDocComment(enumDecl, docComments);
-  scip::SymbolInformation symbolInfo;
-  for (auto &docComment : docComments) {
-    *symbolInfo.add_documentation() = std::move(docComment);
-  }
-
-  this->saveDefinition(symbol, enumDecl.getLocation(), std::move(symbolInfo));
+void TuIndexer::saveEnumTypeLoc(const clang::EnumTypeLoc &enumTypeLoc) {
+  this->saveTagTypeLoc(enumTypeLoc);
 }
 
 void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
@@ -344,7 +334,7 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   this->saveDefinition(symbol, startLoc, scip::SymbolInformation{});
 }
 
-void TuIndexer::saveNestedNameSpecifier(
+void TuIndexer::saveNestedNameSpecifierLoc(
     const clang::NestedNameSpecifierLoc &argNameSpecLoc) {
   clang::NestedNameSpecifierLoc nameSpecLoc = argNameSpecLoc;
 
@@ -413,6 +403,48 @@ void TuIndexer::saveNestedNameSpecifier(
   }
 }
 
+void TuIndexer::saveRecordDecl(const clang::RecordDecl &recordDecl) {
+  this->saveTagDecl(recordDecl);
+  // Superclass declarations will be visited during Visit*TypeLoc methods.
+}
+
+void TuIndexer::saveRecordTypeLoc(const clang::RecordTypeLoc &recordTypeLoc) {
+  this->saveTagTypeLoc(recordTypeLoc);
+}
+
+void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
+  auto optSymbol = this->symbolFormatter.getTagSymbol(tagDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  auto symbol = optSymbol.value();
+
+  if (!tagDecl.isThisDeclarationADefinition()) {
+    // Forward declarations should be marked as references. In the future,
+    // we should add an extra role to SCIP for forward declarations,
+    // once https://github.com/sourcegraph/scip/issues/131 is addressed.
+    this->saveReference(symbol, tagDecl.getLocation());
+    return;
+  }
+
+  scip::SymbolInformation symbolInfo;
+  for (auto &docComment : this->tryGetDocComment(tagDecl)) {
+    *symbolInfo.add_documentation() = std::move(docComment.Text);
+  }
+
+  this->saveDefinition(symbol, tagDecl.getLocation(), std::move(symbolInfo));
+}
+
+void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
+  if (tagTypeLoc.isDefinition()) {
+    return;
+  }
+  if (auto optSymbol =
+          this->symbolFormatter.getTagSymbol(*tagTypeLoc.getDecl())) {
+    this->saveReference(optSymbol.value(), tagTypeLoc.getNameLoc());
+  }
+}
+
 void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
   if (llvm::isa<clang::DecompositionDecl>(&varDecl)) {
     // Individual bindings will be visited by VisitBindingDecl
@@ -446,12 +478,6 @@ void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   // ^ getExprLoc()
   this->saveOccurrence(optSymbol.value(), declRefExpr.getLocation());
   // ^ TODO: Add read-write access to the symbol role here
-
-  if (!declRefExpr.hasQualifier()) {
-    return;
-  }
-  auto qualifierLoc = declRefExpr.getQualifierLoc();
-  this->saveNestedNameSpecifier(qualifierLoc);
 }
 
 void TuIndexer::emitDocumentOccurrencesAndSymbols(
@@ -552,21 +578,19 @@ checkIfCommentBelongsToPreviousEnumCase(const clang::Decl &decl,
 
 namespace scip_clang {
 
-void TuIndexer::tryGetDocComment(
-    const clang::Decl &decl, llvm::SmallVectorImpl<std::string> &out) const {
+std::vector<clang::RawComment::CommentLine>
+TuIndexer::tryGetDocComment(const clang::Decl &decl) const {
   auto &astContext = decl.getASTContext();
   // FIXME(def: hovers, issue:
   // https://github.com/sourcegraph/scip-clang/issues/96)
   if (auto *rawComment = astContext.getRawCommentForAnyRedecl(&decl)) {
     if (::checkIfCommentBelongsToPreviousEnumCase(decl, *rawComment)) {
-      return;
+      return {};
     }
-    auto lines = rawComment->getFormattedLines(this->sourceManager,
-                                               astContext.getDiagnostics());
-    for (auto &line : lines) {
-      out.emplace_back(std::move(line.Text));
-    }
+    return rawComment->getFormattedLines(this->sourceManager,
+                                         astContext.getDiagnostics());
   }
+  return {};
 }
 
 } // namespace scip_clang
