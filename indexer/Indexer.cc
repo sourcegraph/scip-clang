@@ -279,11 +279,9 @@ void TuIndexer::saveEnumConstantDecl(
   }
   auto symbol = optSymbol.value();
 
-  llvm::SmallVector<std::string, 4> docComments{};
-  this->tryGetDocComment(enumConstantDecl, docComments);
   scip::SymbolInformation symbolInfo;
-  for (auto &docComment : docComments) {
-    *symbolInfo.add_documentation() = std::move(docComment);
+  for (auto &docComment : this->tryGetDocComment(enumConstantDecl)) {
+    *symbolInfo.add_documentation() = std::move(docComment.Text);
   }
 
   ENFORCE(enumConstantDecl.getBeginLoc() == enumConstantDecl.getLocation());
@@ -429,11 +427,9 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
     return;
   }
 
-  llvm::SmallVector<std::string, 4> docComments{};
-  this->tryGetDocComment(tagDecl, docComments);
   scip::SymbolInformation symbolInfo;
-  for (auto &docComment : docComments) {
-    *symbolInfo.add_documentation() = std::move(docComment);
+  for (auto &docComment : this->tryGetDocComment(tagDecl)) {
+    *symbolInfo.add_documentation() = std::move(docComment.Text);
   }
 
   this->saveDefinition(symbol, tagDecl.getLocation(), std::move(symbolInfo));
@@ -582,21 +578,19 @@ checkIfCommentBelongsToPreviousEnumCase(const clang::Decl &decl,
 
 namespace scip_clang {
 
-void TuIndexer::tryGetDocComment(
-    const clang::Decl &decl, llvm::SmallVectorImpl<std::string> &out) const {
+std::vector<clang::RawComment::CommentLine>
+TuIndexer::tryGetDocComment(const clang::Decl &decl) const {
   auto &astContext = decl.getASTContext();
   // FIXME(def: hovers, issue:
   // https://github.com/sourcegraph/scip-clang/issues/96)
   if (auto *rawComment = astContext.getRawCommentForAnyRedecl(&decl)) {
     if (::checkIfCommentBelongsToPreviousEnumCase(decl, *rawComment)) {
-      return;
+      return {};
     }
-    auto lines = rawComment->getFormattedLines(this->sourceManager,
-                                               astContext.getDiagnostics());
-    for (auto &line : lines) {
-      out.emplace_back(std::move(line.Text));
-    }
+    return rawComment->getFormattedLines(this->sourceManager,
+                                         astContext.getDiagnostics());
   }
+  return {};
 }
 
 } // namespace scip_clang

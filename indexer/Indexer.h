@@ -5,10 +5,12 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 
+#include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -248,8 +250,8 @@ private:
                                   clang::SourceLocation loc,
                                   int32_t allRoles = 0);
 
-  void tryGetDocComment(const clang::Decl &,
-                        llvm::SmallVectorImpl<std::string> &) const;
+  std::vector<clang::RawComment::CommentLine>
+  tryGetDocComment(const clang::Decl &) const;
 };
 
 } // namespace scip_clang
