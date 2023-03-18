@@ -21,6 +21,10 @@
 #include "indexer/ScipExtras.h"
 #include "indexer/SymbolFormatter.h"
 
+#define FOR_EACH_EXPR_TO_BE_INDEXED(F) \
+  F(DeclRef)                           \
+  F(Member)
+
 #define FOR_EACH_TYPE_TO_BE_INDEXED(F) \
   F(Enum)                              \
   F(Record)
@@ -30,13 +34,16 @@ namespace clang {
 FOR_EACH_DECL_TO_BE_INDEXED(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
 
+#define FORWARD_DECLARE(ExprName) class ExprName##Expr;
+FOR_EACH_EXPR_TO_BE_INDEXED(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
+
 #define FORWARD_DECLARE(TypeName) class TypeName##TypeLoc;
 FOR_EACH_TYPE_TO_BE_INDEXED(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
 
 class ASTContext;
 class Decl;
-class DeclRefExpr;
 class MacroDefinition;
 class MacroInfo;
 class NestedNameSpecifierLoc;
@@ -213,7 +220,10 @@ public:
   void saveTagDecl(const clang::TagDecl &);
   void saveTagTypeLoc(const clang::TagTypeLoc &);
 
-  void saveDeclRefExpr(const clang::DeclRefExpr &);
+#define SAVE_EXPR(ExprName) \
+  void save##ExprName##Expr(const clang::ExprName##Expr &);
+  FOR_EACH_EXPR_TO_BE_INDEXED(SAVE_EXPR)
+#undef SAVE_EXPR
   void saveNestedNameSpecifierLoc(const clang::NestedNameSpecifierLoc &);
 
 #define SAVE_TYPE_LOC(TypeName) \

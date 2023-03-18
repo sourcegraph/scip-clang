@@ -167,7 +167,8 @@ void formatSnapshot(const scip::Document &document,
       }
 
       ENFORCE(range.start.column < range.end.column,
-              "We shouldn't be emitting empty ranges 🙅");
+              "Found empty range for {} at {}:{}:{}", occ.symbol(),
+               sourceFilePath.asStringView(), range.start.line, range.start.column);
 
       auto lineStart =
           absl::StrCat("//", std::string(range.start.column - 1, ' '));

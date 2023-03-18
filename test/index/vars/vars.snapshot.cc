@@ -3,10 +3,12 @@
   int MyGlobal = 3;
   
   int f(int x_, int y_);
+//    ^ reference [..] f(9b79fb6aee4c0440).
 //          ^^ definition local 0
 //                  ^^ definition local 1
   
   int f(int x, int y) {
+//    ^ definition [..] f(9b79fb6aee4c0440).
 //          ^ definition local 2
 //                 ^ definition local 3
     int z = x + y;
@@ -34,8 +36,10 @@
   };
   
   int f(S s) {
+//    ^ definition [..] f(6871c211ea8bb0a1).
 //      ^ reference [..] S#
 //        ^ definition local 8
     return s.x + S::y;
 //         ^ reference local 8
+//               ^ reference [..] S#
   }

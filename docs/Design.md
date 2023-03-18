@@ -566,6 +566,7 @@ There are 4 possible cases here:
    to the corresponding synthetic standard library package
    (e.g. `libc++@15.0.0`).
 
+<!-- TODO(def: handle-forward-decls) -->
 For simplicity, an initial implementation
 can put fake `SymbolInformation` values
 in the `external_symbols` list
