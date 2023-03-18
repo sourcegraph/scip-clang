@@ -170,6 +170,7 @@
   
   class Child: Parent {};
 //      ^^^^^ definition [..] Child#
+//      relation implementation=[..] Parent#
 //             ^^^^^^ reference [..] Parent#
   
   template <class CRTPChild>
@@ -180,6 +181,7 @@
   
   class CRTPChild: CRTPBase<CRTPChild> {
 //      ^^^^^^^^^ definition [..] CRTPChild#
+//      relation implementation=[..] CRTPBase#
 //                          ^^^^^^^^^ reference [..] CRTPChild#
     void doStuff() { }
   };
