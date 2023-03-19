@@ -432,6 +432,22 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
     *symbolInfo.add_documentation() = std::move(docComment.Text);
   }
 
+  if (auto *cxxRecordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(&tagDecl)) {
+    for (const clang::CXXBaseSpecifier &cxxBaseSpecifier :
+         cxxRecordDecl->bases()) {
+      if (auto *tagDecl = cxxBaseSpecifier.getType()->getAsTagDecl()) {
+        auto optRelatedSymbol = this->symbolFormatter.getTagSymbol(*tagDecl);
+        if (!optRelatedSymbol.has_value()) {
+          continue;
+        }
+        scip::Relationship rel{};
+        rel.set_symbol(optRelatedSymbol->data(), optRelatedSymbol->size());
+        rel.set_is_implementation(true);
+        *symbolInfo.add_relationships() = std::move(rel);
+      }
+    }
+  }
+
   this->saveDefinition(symbol, tagDecl.getLocation(), std::move(symbolInfo));
 }
 
