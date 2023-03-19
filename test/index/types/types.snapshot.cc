@@ -185,3 +185,19 @@
 //                          ^^^^^^^^^ reference [..] CRTPChild#
     void doStuff() { }
   };
+  
+  class DiamondBase {};
+//      ^^^^^^^^^^^ definition [..] DiamondBase#
+  class Derived1 : public virtual DiamondBase {};
+//      ^^^^^^^^ definition [..] Derived1#
+//      relation implementation=[..] DiamondBase#
+//                                ^^^^^^^^^^^ reference [..] DiamondBase#
+  class Derived2 : public virtual DiamondBase {};
+//      ^^^^^^^^ definition [..] Derived2#
+//      relation implementation=[..] DiamondBase#
+//                                ^^^^^^^^^^^ reference [..] DiamondBase#
+  class Join : public Derived1, public Derived2 {};
+//      ^^^^ definition [..] Join#
+//      relation implementation=[..] Derived1# implementation=[..] Derived2#
+//                    ^^^^^^^^ reference [..] Derived1#
+//                                     ^^^^^^^^ reference [..] Derived2#

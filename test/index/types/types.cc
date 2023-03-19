@@ -109,3 +109,8 @@ class CRTPBase {
 class CRTPChild: CRTPBase<CRTPChild> {
   void doStuff() { }
 };
+
+class DiamondBase {};
+class Derived1 : public virtual DiamondBase {};
+class Derived2 : public virtual DiamondBase {};
+class Join : public Derived1, public Derived2 {};
