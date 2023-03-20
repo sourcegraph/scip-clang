@@ -103,6 +103,8 @@
 //  ^^^^^^ reference [..] FnLike#
 //          ^ reference [..] FnLike#`operator()`(b126dc7c1de90089).
     Table{}[0, 1];
+//  ^^^^^ reference [..] Table#
+//         ^ reference [..] Table#`operator[]`(77cf9b7ed2f5124c).
     TablePtr{}->value;
 //  ^^^^^^^^ reference [..] TablePtr#
 //            ^^ reference [..] TablePtr#`operator->`(ed921902444779f1).
@@ -269,6 +271,7 @@
     123_templated_lit;
 //     ^^^^^^^^^^^^^^ reference [..] `operator""_templated_lit`(49f6e7a06ebc5aa8).
     "123"_a_op; // invokes operator""_a_op<A("123")>
+//       ^^^^^ reference [..] `operator""_a_op`(49f6e7a06ebc5aa8).
   }
   
   // Overloaded co_await
