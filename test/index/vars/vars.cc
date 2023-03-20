@@ -19,3 +19,12 @@ struct S {
 int f(S s) {
   return s.x + S::y;
 }
+
+void lambdas() {
+  int x = 0;
+  int y = 1;
+  auto add = [&x, y](int z) mutable {
+    y += z;
+    x += y;
+  };
+}
