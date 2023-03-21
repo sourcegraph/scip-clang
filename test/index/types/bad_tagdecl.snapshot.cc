@@ -26,5 +26,6 @@
   template <class T>
   struct ShouldEnable { static bool const value = false; };
 //       ^^^^^^^^^^^^ definition [..] ShouldEnable#
+//                                        ^^^^^ definition [..] ShouldEnable#value.
   
   struct MyTemplate<Undeclared, enable_if_t<ShouldEnable<int8_t>::value>> { };

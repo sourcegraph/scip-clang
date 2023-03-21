@@ -18,13 +18,17 @@
   struct C {
 //       ^ definition [..] C#
     int x;
+//      ^ definition [..] C#x.
     int y;
+//      ^ definition [..] C#y.
   };
   
   struct D {
 //       ^ definition [..] D#
     int x;
+//      ^ definition [..] D#x.
     int y;
+//      ^ definition [..] D#y.
   
     D() = default;
 //  ^ definition [..] D#D(ced63f7c635d850d).

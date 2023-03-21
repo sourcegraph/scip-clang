@@ -11,10 +11,10 @@
 //    ^ definition [..] f(9b79fb6aee4c0440).
 //          ^ definition local 2
 //                 ^ definition local 3
-    int z = x + y;
-//      ^ definition local 4
-//          ^ reference local 2
-//              ^ reference local 3
+    static int z = x + y;
+//             ^ definition local 4
+//                 ^ reference local 2
+//                     ^ reference local 3
     int arr[2] = {x, y};
 //      ^^^ definition local 5
 //                ^ reference local 2
@@ -27,12 +27,15 @@
 //         ^ reference local 4
 //             ^ reference local 6
 //                 ^ reference local 7
+//                     ^^^^^^^^ reference [..] MyGlobal.
   }
   
   struct S {
 //       ^ definition [..] S#
     int x;
+//      ^ definition [..] S#x.
     static int y;
+//             ^ definition [..] S#y.
   };
   
   int f(S s) {
@@ -41,10 +44,13 @@
 //        ^ definition local 8
     return s.x + S::y;
 //         ^ reference local 8
+//           ^ reference [..] S#x.
 //               ^ reference [..] S#
+//                  ^ reference [..] S#y.
   }
   
   void lambdas() {
+//     ^^^^^^^ definition [..] lambdas(49f6e7a06ebc5aa8).
     int x = 0;
 //      ^ definition local 9
     int y = 1;
