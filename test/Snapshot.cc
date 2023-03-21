@@ -8,6 +8,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "doctest/doctest.h"
@@ -209,27 +210,20 @@ void formatSnapshot(const scip::Document &document,
                       const scip::Relationship &r2) -> bool {
                      return r1.symbol() < r2.symbol();
                    });
-      if (!relationships.empty()) {
+      for (size_t i = 0; i < relationships.size(); ++i) {
         out << lineStart << "relation ";
-        for (size_t i = 0; i < relationships.size(); ++i) {
-          auto &rel = relationships[i];
-          if (rel.is_implementation()) {
-            out << "implementation=";
-          }
-          if (rel.is_reference()) {
-            out << "reference=";
-          }
-          if (rel.is_type_definition()) {
-            out << "type_definition=";
-          }
-          if (rel.is_definition()) {
-            out << "definition=";
-          }
-          out << formatSymbol(rel.symbol());
-          if (i != relationships.size() - 1) {
-            out << ' ';
-          }
-        }
+        auto &rel = relationships[i];
+        std::vector<const char *> kinds{};
+#define ADD_KIND(kind_)      \
+  if (rel.is_##kind_()) {    \
+    kinds.push_back(#kind_); \
+  }
+        ADD_KIND(implementation)
+        ADD_KIND(reference)
+        ADD_KIND(type_definition)
+        ADD_KIND(definition)
+        out << absl::StrJoin(kinds, "+") << ' ';
+        out << formatSymbol(rel.symbol());
         out << '\n';
       }
     }
