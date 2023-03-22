@@ -23,11 +23,17 @@
   F(Field)                             \
   F(Function)                          \
   F(Namespace)                         \
+  F(NonTypeTemplateParm)               \
   F(Record)                            \
   F(TemplateTemplateParm)              \
   F(TemplateTypeParm)                  \
   F(TypedefName)                       \
   F(Var)
+
+#define FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(F) \
+  F(NonTypeTemplateParm)                        \
+  F(TemplateTemplateParm)                       \
+  F(TemplateTypeParm)
 
 namespace clang {
 #define FORWARD_DECLARE(DeclName) class DeclName##Decl;

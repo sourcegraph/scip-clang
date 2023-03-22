@@ -28,3 +28,10 @@
 //         ^^ reference local 6
 //                 ^ reference local 5
   }
+  
+  template <int N>
+//              ^ definition local 7
+  void f(int arr[N]) {}
+//     ^ definition [..] f(11b0e290e57a7e53).
+//           ^^^ definition local 8
+//               ^ reference local 7

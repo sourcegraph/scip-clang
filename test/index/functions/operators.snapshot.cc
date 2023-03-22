@@ -271,6 +271,7 @@
   
   template <A a> // since C++20
 //          ^ reference [..] A#
+//            ^ definition local 25
   void operator ""_a_op() { return; }
 //     ^^^^^^^^ definition [..] `operator""_a_op`(49f6e7a06ebc5aa8).
   

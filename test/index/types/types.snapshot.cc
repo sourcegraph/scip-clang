@@ -136,6 +136,7 @@
   
   template <typename T, int N>
 //                   ^ definition local 0
+//                          ^ definition local 1
   class GenericClass {};
 //      ^^^^^^^^^^^^ definition [..] GenericClass#
   
@@ -182,12 +183,12 @@
 //             ^^^^^^ reference [..] Parent#
   
   template <class CRTPChild>
-//                ^^^^^^^^^ definition local 1
+//                ^^^^^^^^^ definition local 2
   class CRTPBase {
 //      ^^^^^^^^ definition [..] CRTPBase#
     void castAndDoStuff() { static_cast<CRTPChild *>(this)->doStuff(); }
 //       ^^^^^^^^^^^^^^ definition [..] CRTPBase#castAndDoStuff(49f6e7a06ebc5aa8).
-//                                      ^^^^^^^^^ reference local 1
+//                                      ^^^^^^^^^ reference local 2
   };
   
   class CRTPChild: CRTPBase<CRTPChild> {
@@ -222,16 +223,16 @@
 //                               ^ reference [..] L#
     // Explicit template param list on lambda needs C++20
     auto ignore_first = []<class T>(T, L l) -> L {
-//       ^^^^^^^^^^^^ definition local 2
-//                               ^ definition local 3
-//                                  ^ reference local 3
+//       ^^^^^^^^^^^^ definition local 3
+//                               ^ definition local 4
+//                                  ^ reference local 4
 //                                     ^ reference [..] L#
-//                                       ^ definition local 4
+//                                       ^ definition local 5
 //                                             ^ reference [..] L#
       return l;
-//           ^ reference local 4
+//           ^ reference local 5
     };
     return ignore_first("", L{});
-//         ^^^^^^^^^^^^ reference local 2
+//         ^^^^^^^^^^^^ reference local 3
 //                          ^ reference [..] L#
   }

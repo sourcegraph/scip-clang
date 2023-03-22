@@ -29,6 +29,7 @@
 #include "indexer/Indexer.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/SymbolFormatter.h"
 
 namespace scip_clang {
 
@@ -525,23 +526,14 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   }
 }
 
-void TuIndexer::saveTemplateTemplateParmDecl(
-    const clang::TemplateTemplateParmDecl &templateTemplateParmDecl) {
-  if (auto optSymbol = this->symbolFormatter.getTemplateTemplateParmSymbol(
-          templateTemplateParmDecl)) {
-    this->saveDefinition(*optSymbol, templateTemplateParmDecl.getLocation(),
-                         std::nullopt);
+#define SAVE_TEMPLATE_PARM(name_)                                          \
+  void TuIndexer::save##name_##Decl(const clang::name_##Decl &decl) {      \
+    if (auto optSymbol = this->symbolFormatter.get##name_##Symbol(decl)) { \
+      this->saveDefinition(*optSymbol, decl.getLocation(), std::nullopt);  \
+    }                                                                      \
   }
-}
-
-void TuIndexer::saveTemplateTypeParmDecl(
-    const clang::TemplateTypeParmDecl &templateTypeParmDecl) {
-  if (auto optSymbol = this->symbolFormatter.getTemplateTypeParmSymbol(
-          templateTypeParmDecl)) {
-    this->saveDefinition(*optSymbol, templateTypeParmDecl.getLocation(),
-                         std::nullopt);
-  }
-}
+FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(SAVE_TEMPLATE_PARM)
+#undef SAVE_TEMPLATE_PARM
 
 void TuIndexer::saveTemplateTypeParmTypeLoc(
     const clang::TemplateTypeParmTypeLoc &templateTypeParmTypeLoc) {

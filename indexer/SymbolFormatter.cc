@@ -333,6 +333,9 @@ SymbolFormatter::getBindingSymbol(const clang::BindingDecl &bindingDecl) {
 
 std::optional<std::string_view>
 SymbolFormatter::getNextLocalSymbol(const clang::NamedDecl &decl) {
+  if (decl.getDeclName().isEmpty()) {
+    return {};
+  }
   return this->getSymbolCached(decl, [&]() -> std::optional<std::string> {
     auto loc = this->sourceManager.getExpansionLoc(decl.getLocation());
     auto defFileId = this->sourceManager.getFileID(loc);
@@ -468,27 +471,16 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl &namespaceDecl) {
 std::optional<std::string_view>
 SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl &varDecl) {
   ENFORCE(varDecl.isLocalVarDeclOrParm());
-  if (varDecl.getName().empty()) {
-    return {};
-  }
   return this->getNextLocalSymbol(varDecl);
 }
 
-std::optional<std::string_view> SymbolFormatter::getTemplateTemplateParmSymbol(
-    const clang::TemplateTemplateParmDecl &templateTemplateParmDecl) {
-  if (templateTemplateParmDecl.getDeclName().isEmpty()) {
-    return {};
+#define GET_AS_LOCAL(name_)                                            \
+  std::optional<std::string_view> SymbolFormatter::get##name_##Symbol( \
+      const clang::name_##Decl &decl) {                                \
+    return this->getNextLocalSymbol(decl);                             \
   }
-  return this->getNextLocalSymbol(templateTemplateParmDecl);
-}
-
-std::optional<std::string_view> SymbolFormatter::getTemplateTypeParmSymbol(
-    const clang::TemplateTypeParmDecl &templateTypeParmDecl) {
-  if (templateTypeParmDecl.getDeclName().isEmpty()) {
-    return {};
-  }
-  return this->getNextLocalSymbol(templateTypeParmDecl);
-}
+FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(GET_AS_LOCAL)
+#undef GET_AS_LOCAL
 
 std::optional<std::string_view> SymbolFormatter::getTypedefNameSymbol(
     const clang::TypedefNameDecl &typedefNameDecl) {
