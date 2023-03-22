@@ -157,5 +157,22 @@ std::string formatDecl(const clang::Decl *decl) {
   return buf;
 }
 
+std::string formatTemplateNameKind(const clang::TemplateName::NameKind kind) {
+#define HANDLE_KIND(kind_)                   \
+  case clang::TemplateName::NameKind::kind_: \
+    return #kind_;
+  switch (kind) {
+    HANDLE_KIND(Template)
+    HANDLE_KIND(OverloadedTemplate)
+    HANDLE_KIND(AssumedTemplate)
+    HANDLE_KIND(QualifiedTemplate)
+    HANDLE_KIND(DependentTemplate)
+    HANDLE_KIND(SubstTemplateTemplateParm)
+    HANDLE_KIND(SubstTemplateTemplateParmPack)
+    HANDLE_KIND(UsingTemplate)
+  }
+#undef HANDLE_KIND
+}
+
 } // namespace debug
 } // namespace scip_clang
