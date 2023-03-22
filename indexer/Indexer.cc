@@ -12,6 +12,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/AST/TypeLoc.h"
@@ -521,6 +522,23 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   if (auto optSymbol =
           this->symbolFormatter.getTagSymbol(*tagTypeLoc.getDecl())) {
     this->saveReference(optSymbol.value(), tagTypeLoc.getNameLoc());
+  }
+}
+
+void TuIndexer::saveTemplateTypeParmDecl(
+    const clang::TemplateTypeParmDecl &templateTypeParmDecl) {
+  if (auto optSymbol = this->symbolFormatter.getTemplateTypeParmSymbol(
+          templateTypeParmDecl)) {
+    this->saveDefinition(*optSymbol, templateTypeParmDecl.getLocation(),
+                         std::nullopt);
+  }
+}
+
+void TuIndexer::saveTemplateTypeParmTypeLoc(
+    const clang::TemplateTypeParmTypeLoc &templateTypeParmTypeLoc) {
+  if (auto optSymbol = this->symbolFormatter.getTemplateTypeParmSymbol(
+          *templateTypeParmTypeLoc.getDecl())) {
+    this->saveReference(*optSymbol, templateTypeParmTypeLoc.getNameLoc());
   }
 }
 

@@ -9,6 +9,7 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
@@ -331,7 +332,7 @@ SymbolFormatter::getBindingSymbol(const clang::BindingDecl &bindingDecl) {
 }
 
 std::optional<std::string_view>
-SymbolFormatter::getNextLocalSymbol(const clang::ValueDecl &decl) {
+SymbolFormatter::getNextLocalSymbol(const clang::NamedDecl &decl) {
   return this->getSymbolCached(decl, [&]() -> std::optional<std::string> {
     auto loc = this->sourceManager.getExpansionLoc(decl.getLocation());
     auto defFileId = this->sourceManager.getFileID(loc);
@@ -471,6 +472,14 @@ SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl &varDecl) {
     return {};
   }
   return this->getNextLocalSymbol(varDecl);
+}
+
+std::optional<std::string_view> SymbolFormatter::getTemplateTypeParmSymbol(
+    const clang::TemplateTypeParmDecl &templateTypeParmDecl) {
+  if (templateTypeParmDecl.getDeclName().isEmpty()) {
+    return {};
+  }
+  return this->getNextLocalSymbol(templateTypeParmDecl);
 }
 
 std::optional<std::string_view> SymbolFormatter::getTypedefNameSymbol(

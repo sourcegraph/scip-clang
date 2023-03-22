@@ -10,22 +10,30 @@
   // See NOTE(def: missing-definition-for-tagdecl)
   
   template<bool B, class T = void>
+//                       ^ definition local 0
   struct enable_if {};
 //       ^^^^^^^^^ definition [..] enable_if#
    
   template<class T>
+//               ^ definition local 1
   struct enable_if<true, T> { typedef T type; };
 //       ^^^^^^^^^ definition [..] enable_if#
+//                       ^ reference local 1
+//                                    ^ reference local 1
 //                                      ^^^^ definition [..] enable_if#type#
   
   template< bool B, class T = void >
+//                        ^ definition local 2
   using enable_if_t = typename enable_if<B,T>::type;
 //      ^^^^^^^^^^^ definition [..] enable_if_t#
   
   template <typename T, typename Enable = void> struct MyTemplate { };
+//                   ^ definition local 3
+//                               ^^^^^^ definition local 4
 //                                                     ^^^^^^^^^^ definition [..] MyTemplate#
   
   template <class T>
+//                ^ definition local 5
   struct ShouldEnable { static bool const value = false; };
 //       ^^^^^^^^^^^^ definition [..] ShouldEnable#
 //                                        ^^^^^ definition [..] ShouldEnable#value.

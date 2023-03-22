@@ -24,6 +24,7 @@
   F(Function)                          \
   F(Namespace)                         \
   F(Record)                            \
+  F(TemplateTypeParm)                  \
   F(TypedefName)                       \
   F(Var)
 
@@ -132,7 +133,7 @@ private:
   getSymbolCached(const clang::Decl &,
                   absl::FunctionRef<std::optional<std::string>()>);
 
-  std::optional<std::string_view> getNextLocalSymbol(const clang::ValueDecl &);
+  std::optional<std::string_view> getNextLocalSymbol(const clang::NamedDecl &);
 
   /// Format the string to a buffer stored by `this` and return a view to it.
   template <typename... T>
