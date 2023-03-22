@@ -10,8 +10,10 @@
 #include "llvm/ADT/StringRef.h"
 
 namespace clang {
+class ASTContext;
 class Decl;
-}
+class QualType;
+} // namespace clang
 
 namespace scip_clang {
 namespace debug {
@@ -33,6 +35,9 @@ std::string formatRange(const clang::SourceManager &,
 std::string formatDecl(const clang::Decl *);
 
 std::string formatTemplateNameKind(clang::TemplateName::NameKind);
+
+std::string formatTypeInternals(const clang::QualType &,
+                                const clang::ASTContext &);
 
 } // namespace debug
 } // namespace scip_clang
