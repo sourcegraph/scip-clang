@@ -525,6 +525,15 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   }
 }
 
+void TuIndexer::saveTemplateTemplateParmDecl(
+    const clang::TemplateTemplateParmDecl &templateTemplateParmDecl) {
+  if (auto optSymbol = this->symbolFormatter.getTemplateTemplateParmSymbol(
+          templateTemplateParmDecl)) {
+    this->saveDefinition(*optSymbol, templateTemplateParmDecl.getLocation(),
+                         std::nullopt);
+  }
+}
+
 void TuIndexer::saveTemplateTypeParmDecl(
     const clang::TemplateTypeParmDecl &templateTypeParmDecl) {
   if (auto optSymbol = this->symbolFormatter.getTemplateTypeParmSymbol(
@@ -539,6 +548,35 @@ void TuIndexer::saveTemplateTypeParmTypeLoc(
   if (auto optSymbol = this->symbolFormatter.getTemplateTypeParmSymbol(
           *templateTypeParmTypeLoc.getDecl())) {
     this->saveReference(*optSymbol, templateTypeParmTypeLoc.getNameLoc());
+  }
+}
+
+void TuIndexer::saveTemplateSpecializationTypeLoc(
+    const clang::TemplateSpecializationTypeLoc &templateSpecializationTypeLoc) {
+  auto *templateSpecializationType = templateSpecializationTypeLoc.getTypePtr();
+  auto templateName = templateSpecializationType->getTemplateName();
+  using Kind = clang::TemplateName::NameKind;
+  switch (templateName.getKind()) {
+  case Kind::Template: {
+    if (auto *templateTemplateParmDecl =
+            llvm::dyn_cast<clang::TemplateTemplateParmDecl>(
+                templateName.getAsTemplateDecl())) {
+      if (auto optSymbol = this->symbolFormatter.getTemplateTemplateParmSymbol(
+              *templateTemplateParmDecl)) {
+        this->saveReference(*optSymbol,
+                            templateSpecializationTypeLoc.getTemplateNameLoc());
+      }
+    }
+    break;
+  }
+  case Kind::OverloadedTemplate:
+  case Kind::AssumedTemplate:
+  case Kind::QualifiedTemplate:
+  case Kind::DependentTemplate:
+  case Kind::SubstTemplateTemplateParm:
+  case Kind::SubstTemplateTemplateParmPack:
+  case Kind::UsingTemplate:
+    break;
   }
 }
 

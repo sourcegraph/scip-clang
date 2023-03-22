@@ -28,6 +28,7 @@
 #define FOR_EACH_TYPE_TO_BE_INDEXED(F) \
   F(Enum)                              \
   F(Record)                            \
+  F(TemplateSpecialization)            \
   F(TemplateTypeParm)
 
 namespace clang {

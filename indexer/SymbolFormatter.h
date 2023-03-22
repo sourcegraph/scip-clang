@@ -24,6 +24,7 @@
   F(Function)                          \
   F(Namespace)                         \
   F(Record)                            \
+  F(TemplateTemplateParm)              \
   F(TemplateTypeParm)                  \
   F(TypedefName)                       \
   F(Var)

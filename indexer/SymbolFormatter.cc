@@ -474,6 +474,14 @@ SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl &varDecl) {
   return this->getNextLocalSymbol(varDecl);
 }
 
+std::optional<std::string_view> SymbolFormatter::getTemplateTemplateParmSymbol(
+    const clang::TemplateTemplateParmDecl &templateTemplateParmDecl) {
+  if (templateTemplateParmDecl.getDeclName().isEmpty()) {
+    return {};
+  }
+  return this->getNextLocalSymbol(templateTemplateParmDecl);
+}
+
 std::optional<std::string_view> SymbolFormatter::getTemplateTypeParmSymbol(
     const clang::TemplateTypeParmDecl &templateTypeParmDecl) {
   if (templateTypeParmDecl.getDeclName().isEmpty()) {
