@@ -2,13 +2,17 @@
 
 int MyGlobal = 3;
 
+namespace n {
+  int otherGlobal = 0;
+}
+
 int f(int x_, int y_);
 
 int f(int x, int y) {
-  int z = x + y;
+  static int z = x + y;
   int arr[2] = {x, y};
   auto [a, b] = arr;
-  return z + a + b + MyGlobal;
+  return z + a + b + MyGlobal + n::otherGlobal;
 }
 
 struct S {

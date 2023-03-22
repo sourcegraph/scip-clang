@@ -396,6 +396,25 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
 }
 
 std::optional<std::string_view>
+SymbolFormatter::getFieldSymbol(const clang::FieldDecl &fieldDecl) {
+  if (fieldDecl.getDeclName().isEmpty()) {
+    return {};
+  }
+  return this->getSymbolCached(fieldDecl, [&]() -> std::optional<std::string> {
+    auto optContextSymbol = this->getContextSymbol(*fieldDecl.getDeclContext());
+    if (!optContextSymbol.has_value()) {
+      return {};
+    }
+    return SymbolBuilder::formatContextual(
+        optContextSymbol.value(),
+        DescriptorBuilder{
+            .name = llvm_ext::toStringView(fieldDecl.getName()),
+            .suffix = scip::Descriptor::Term,
+        });
+  });
+}
+
+std::optional<std::string_view>
 SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl &namedDecl) {
 #define HANDLE(kind_)                                                \
   if (auto *decl = llvm::dyn_cast<clang::kind_##Decl>(&namedDecl)) { \
@@ -459,6 +478,9 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
   if (varDecl.isLocalVarDeclOrParm()) {
     return this->getLocalVarOrParmSymbol(varDecl);
   }
+  if (varDecl.getDeclName().isEmpty()) {
+    return {};
+  }
   return this->getSymbolCached(varDecl, [&]() -> std::optional<std::string> {
     using Kind = clang::Decl::Kind;
     // Based on
@@ -470,12 +492,20 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
                      " they should be handled in TuIndexer");
     case Kind::ParmVar:
       ENFORCE(false, "already handled parameter case earlier");
-    // TODO: Add support for template specializations and OMP captured exprs.
     case Kind::VarTemplatePartialSpecialization:
     case Kind::VarTemplateSpecialization:
+    case Kind::Var: {
+      if (auto optContextSymbol =
+              this->getContextSymbol(*varDecl.getDeclContext())) {
+        auto descriptor = DescriptorBuilder{
+            .name = llvm_ext::toStringView(varDecl.getName()),
+            .suffix = scip::Descriptor::Term,
+        };
+        return SymbolBuilder::formatContextual(*optContextSymbol, descriptor);
+      }
+      return {};
+    }
     case Kind::OMPCapturedExpr:
-    case Kind::Var:
-      // TODO: Add support for static and non-static data members
       return {};
     default: {
       spdlog::warn("unhandled kind {} of VarDecl: {}",

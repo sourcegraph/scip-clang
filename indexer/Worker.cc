@@ -20,6 +20,7 @@
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
 
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -731,6 +732,34 @@ public:
     }
     return true;
   }
+
+#define TRY_TO(CALL_EXPR)              \
+  do {                                 \
+    if (!this->getDerived().CALL_EXPR) \
+      return false;                    \
+  } while (false)
+
+  /// Replace the default implementation of the Traverse* method as there
+  /// is no matching Visit* method, and the default implementation
+  /// does not visit member field references.
+  /// See https://github.com/llvm/llvm-project/issues/61602
+  bool TraverseConstructorInitializer(
+      const clang::CXXCtorInitializer *cxxCtorInitializer) {
+    if (clang::TypeSourceInfo *TInfo =
+            cxxCtorInitializer->getTypeSourceInfo()) {
+      TRY_TO(TraverseTypeLoc(TInfo->getTypeLoc()));
+    }
+    if (clang::FieldDecl *fieldDecl = cxxCtorInitializer->getAnyMember()) {
+      this->tuIndexer.saveFieldReference(
+          *fieldDecl, cxxCtorInitializer->getSourceLocation());
+    }
+    if (cxxCtorInitializer->isWritten()
+        || this->getDerived().shouldVisitImplicitCode()) {
+      TRY_TO(TraverseStmt(cxxCtorInitializer->getInit()));
+    }
+    return true;
+  }
+#undef TRY_TO
 
   void writeIndex(SymbolFormatter &&symbolFormatter, MacroIndexer &&macroIndex,
                   scip::Index &scipIndex) {

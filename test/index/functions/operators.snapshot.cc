@@ -20,10 +20,13 @@
   
   struct Int { int val; };
 //       ^^^ definition [..] Int#
+//                 ^^^ definition [..] Int#val.
   struct IntPair { Int x; Int y; };
 //       ^^^^^^^ definition [..] IntPair#
 //                 ^^^ reference [..] Int#
+//                     ^ definition [..] IntPair#x.
 //                        ^^^ reference [..] Int#
+//                            ^ definition [..] IntPair#y.
   
   IntPair operator,(Int x, Int y) {
 //^^^^^^^ reference [..] IntPair#
@@ -46,6 +49,7 @@
     return Int{i.val+1};
 //         ^^^ reference [..] Int#
 //             ^ reference local 4
+//               ^^^ reference [..] Int#val.
   }
   
   struct FnLike {
@@ -57,11 +61,13 @@
   struct Table {
 //       ^^^^^ definition [..] Table#
     int value;
+//      ^^^^^ definition [..] Table#value.
     int &operator[](int i, int j) { // since C++23
 //       ^^^^^^^^ definition [..] Table#`operator[]`(77cf9b7ed2f5124c).
 //                      ^ definition local 5
 //                             ^ definition local 6
       return this->value;
+//                 ^^^^^ reference [..] Table#value.
     }
   };
   
@@ -69,9 +75,11 @@
 //       ^^^^^^^^ definition [..] TablePtr#
     Table *t;
 //  ^^^^^ reference [..] Table#
+//         ^ definition [..] TablePtr#t.
     Table *operator->() { return t; }
 //  ^^^^^ reference [..] Table#
 //         ^^^^^^^^ definition [..] TablePtr#`operator->`(ed921902444779f1).
+//                               ^ reference [..] TablePtr#t.
   };
   
   void test_overloaded_operators() {
@@ -97,6 +105,7 @@
 //                  ^ reference local 9
     p.x++;
 //  ^ reference local 10
+//    ^ reference [..] IntPair#x.
 //     ^^ reference [..] operator++(be31e3af2b2ba0e).
   
     FnLike()();
@@ -108,6 +117,7 @@
     TablePtr{}->value;
 //  ^^^^^^^^ reference [..] TablePtr#
 //            ^^ reference [..] TablePtr#`operator->`(ed921902444779f1).
+//              ^^^^^ reference [..] Table#value.
   }
   
   // User-defined conversion function

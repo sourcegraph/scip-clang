@@ -297,6 +297,25 @@ void TuIndexer::saveEnumTypeLoc(const clang::EnumTypeLoc &enumTypeLoc) {
   this->saveTagTypeLoc(enumTypeLoc);
 }
 
+void TuIndexer::saveFieldDecl(const clang::FieldDecl &fieldDecl) {
+  auto optSymbol = this->symbolFormatter.getFieldSymbol(fieldDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  scip::SymbolInformation symbolInfo{};
+  for (auto &docComment : this->tryGetDocComment(fieldDecl)) {
+    *symbolInfo.add_documentation() = std::move(docComment.Text);
+  }
+  this->saveDefinition(optSymbol.value(), fieldDecl.getLocation(), symbolInfo);
+}
+
+void TuIndexer::saveFieldReference(const clang::FieldDecl &fieldDecl,
+                                   clang::SourceLocation loc) {
+  if (auto optSymbol = this->symbolFormatter.getFieldSymbol(fieldDecl)) {
+    this->saveReference(*optSymbol, loc);
+  }
+}
+
 void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
   auto optSymbol = this->symbolFormatter.getFunctionSymbol(functionDecl);
   if (!optSymbol.has_value()) {
@@ -518,7 +537,18 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
     this->saveDefinition(optSymbol.value(), varDecl.getLocation(),
                          std::nullopt);
   }
-  // TODO: Add support for static and non-static data members.
+  if (varDecl.isStaticDataMember() || varDecl.isFileVarDecl()) {
+    // Non-static data members are handled by saveFieldDecl
+    auto optSymbol = this->symbolFormatter.getVarSymbol(varDecl);
+    if (!optSymbol.has_value()) {
+      return;
+    }
+    scip::SymbolInformation symbolInfo{};
+    for (auto &docComment : this->tryGetDocComment(varDecl)) {
+      *symbolInfo.add_documentation() = std::move(docComment.Text);
+    }
+    this->saveDefinition(optSymbol.value(), varDecl.getLocation(), symbolInfo);
+  }
 }
 
 void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {

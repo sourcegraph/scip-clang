@@ -217,6 +217,7 @@ public:
   FOR_EACH_DECL_TO_BE_INDEXED(SAVE_DECL)
 #undef SAVE_DECL
 
+  void saveFieldReference(const clang::FieldDecl &, clang::SourceLocation);
   void saveTagDecl(const clang::TagDecl &);
   void saveTagTypeLoc(const clang::TagTypeLoc &);
 

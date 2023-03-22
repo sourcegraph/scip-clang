@@ -69,6 +69,7 @@
 //    | Everywhere a moo-moo 
 //         ^^ reference [..] has_anon_enum/E2.
     } f = F1;
+//    ^ definition [..] has_anon_enum/f.
 //        ^^ reference [..] has_anon_enum/F1.
   }
   
@@ -83,10 +84,12 @@
     enum { ANON1 } anon1;
 //  ^^^^ definition [..] F1#$anonymous_type_2#
 //         ^^^^^ definition [..] F1#ANON1.
+//                 ^^^^^ definition [..] F1#anon1.
     enum { ANON2 = ANON1 } anon2;
 //  ^^^^ definition [..] F1#$anonymous_type_3#
 //         ^^^^^ definition [..] F1#ANON2.
 //                 ^^^^^ reference [..] F1#ANON1.
+//                         ^^^^^ definition [..] F1#anon2.
   };
   
   class F0 {
@@ -212,6 +215,7 @@
   struct L {};
 //       ^ definition [..] L#
   auto trailing_return_type() -> L {
+//     ^^^^^^^^^^^^^^^^^^^^ definition [..] trailing_return_type(693bfa61ed1914d5).
 //                               ^ reference [..] L#
     // Explicit template param list on lambda needs C++20
     auto ignore_first = []<class T>(T, L l) -> L {

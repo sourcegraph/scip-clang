@@ -1,6 +1,13 @@
   // extra-args: -std=c++17
   
   int MyGlobal = 3;
+//    ^^^^^^^^ definition [..] MyGlobal.
+  
+  namespace n {
+//          ^ definition [..] n/
+    int otherGlobal = 0;
+//      ^^^^^^^^^^^ definition [..] n/otherGlobal.
+  }
   
   int f(int x_, int y_);
 //    ^ reference [..] f(9b79fb6aee4c0440).
@@ -11,10 +18,10 @@
 //    ^ definition [..] f(9b79fb6aee4c0440).
 //          ^ definition local 2
 //                 ^ definition local 3
-    int z = x + y;
-//      ^ definition local 4
-//          ^ reference local 2
-//              ^ reference local 3
+    static int z = x + y;
+//             ^ definition local 4
+//                 ^ reference local 2
+//                     ^ reference local 3
     int arr[2] = {x, y};
 //      ^^^ definition local 5
 //                ^ reference local 2
@@ -23,16 +30,21 @@
 //        ^ definition local 6
 //           ^ definition local 7
 //                ^^^ reference local 5
-    return z + a + b + MyGlobal;
+    return z + a + b + MyGlobal + n::otherGlobal;
 //         ^ reference local 4
 //             ^ reference local 6
 //                 ^ reference local 7
+//                     ^^^^^^^^ reference [..] MyGlobal.
+//                                ^ reference [..] n/
+//                                   ^^^^^^^^^^^ reference [..] n/otherGlobal.
   }
   
   struct S {
 //       ^ definition [..] S#
     int x;
+//      ^ definition [..] S#x.
     static int y;
+//             ^ definition [..] S#y.
   };
   
   int f(S s) {
@@ -41,10 +53,13 @@
 //        ^ definition local 8
     return s.x + S::y;
 //         ^ reference local 8
+//           ^ reference [..] S#x.
 //               ^ reference [..] S#
+//                  ^ reference [..] S#y.
   }
   
   void lambdas() {
+//     ^^^^^^^ definition [..] lambdas(49f6e7a06ebc5aa8).
     int x = 0;
 //      ^ definition local 9
     int y = 1;
