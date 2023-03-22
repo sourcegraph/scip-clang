@@ -297,6 +297,49 @@ void TuIndexer::saveEnumTypeLoc(const clang::EnumTypeLoc &enumTypeLoc) {
   this->saveTagTypeLoc(enumTypeLoc);
 }
 
+void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
+  auto optSymbol = this->symbolFormatter.getFunctionSymbol(functionDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  std::string_view symbol = optSymbol.value();
+
+  if (functionDecl.isPure() || functionDecl.isThisDeclarationADefinition()) {
+    scip::SymbolInformation symbolInfo{};
+    for (auto &docComment : this->tryGetDocComment(functionDecl)) {
+      *symbolInfo.add_documentation() = std::move(docComment.Text);
+    }
+    if (auto *cxxMethodDecl =
+            llvm::dyn_cast<clang::CXXMethodDecl>(&functionDecl)) {
+      for (auto &overridenMethodDecl : cxxMethodDecl->overridden_methods()) {
+        if (auto optOverridenSymbol =
+                this->symbolFormatter.getFunctionSymbol(*overridenMethodDecl)) {
+          scip::Relationship rel{};
+          rel.set_symbol(optOverridenSymbol->data(),
+                         optOverridenSymbol->size());
+          rel.set_is_implementation(true);
+          rel.set_is_reference(true);
+          *symbolInfo.add_relationships() = std::move(rel);
+        }
+      }
+    }
+    // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/123)
+    // Kythe uses DeclarationNameInfo::getSourceRange(), which seems like
+    // the right API for getting the right range for multi-token names like
+    // 'operator<<' etc., but when I tried using that here, it returned
+    // incorrect results for every kind of name.
+    //
+    // Specifically, for simple identifiers, it would return a blank range,
+    // and for 'operator<<', it would exclude the range of '<<'.
+    // So just rely on the single token implementation for now.
+    this->saveDefinition(symbol, functionDecl.getLocation(),
+                         std::move(symbolInfo));
+  } else {
+    // See TODO(ref: handle-forward-decls)
+    this->saveReference(symbol, functionDecl.getLocation());
+  }
+}
+
 void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   auto optSymbol = this->symbolFormatter.getNamespaceSymbol(namespaceDecl);
   if (!optSymbol.has_value()) {
@@ -420,9 +463,10 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
   auto symbol = optSymbol.value();
 
   if (!tagDecl.isThisDeclarationADefinition()) {
-    // Forward declarations should be marked as references. In the future,
-    // we should add an extra role to SCIP for forward declarations,
-    // once https://github.com/sourcegraph/scip/issues/131 is addressed.
+    // 1. We should emit an external symbol here in some situations
+    //    See TODO(ref: handle-forward-decls)
+    // 2. Pass in a forward declaration SymbolRole here
+    //    once https://github.com/sourcegraph/scip/issues/131 is fixed.
     this->saveReference(symbol, tagDecl.getLocation());
     return;
   }
@@ -494,6 +538,25 @@ void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   // ^ getExprLoc()
   this->saveOccurrence(optSymbol.value(), declRefExpr.getLocation());
   // ^ TODO: Add read-write access to the symbol role here
+}
+
+void TuIndexer::saveMemberExpr(const clang::MemberExpr &memberExpr) {
+  auto *namedDecl =
+      llvm::dyn_cast<clang::NamedDecl>(memberExpr.getMemberDecl());
+  if (!namedDecl) {
+    return;
+  }
+  auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/123)
+  // The ideal API here is probably getMemberNameInfo().getSourceRange(),
+  // similar to the operator case, but that doesn't give the expected result.
+  if (!memberExpr.getMemberNameInfo().getName().isIdentifier()) {
+    return;
+  }
+  this->saveReference(optSymbol.value(), memberExpr.getMemberLoc());
 }
 
 void TuIndexer::emitDocumentOccurrencesAndSymbols(

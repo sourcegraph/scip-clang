@@ -372,22 +372,37 @@ SymbolFormatter::getEnumSymbol(const clang::EnumDecl &enumDecl) {
 }
 
 std::optional<std::string_view>
+SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
+  return this->getSymbolCached(
+      functionDecl, [&]() -> std::optional<std::string> {
+        auto optContextSymbol =
+            this->getContextSymbol(*functionDecl.getDeclContext());
+        if (!optContextSymbol.has_value()) {
+          return {};
+        }
+        // See discussion in docs/Design.md for this choice of disambiguator.
+        auto typeString =
+            functionDecl.getType().getCanonicalType().getAsString();
+        auto name = functionDecl.getNameAsString();
+        return SymbolBuilder::formatContextual(
+            optContextSymbol.value(),
+            DescriptorBuilder{
+                .name = name,
+                .disambiguator = this->formatTemporary(
+                    "{:x}", HashValue::forText(typeString)),
+                .suffix = scip::Descriptor::Method,
+            });
+      });
+}
+
+std::optional<std::string_view>
 SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl &namedDecl) {
-  using Kind = clang::Decl::Kind;
-#define HANDLE(kind_)            \
-  case clang::Decl::Kind::kind_: \
-    return this->get##kind_##Symbol(llvm::cast<clang::kind_##Decl>(namedDecl));
-  switch (namedDecl.getKind()) {
-    FOR_EACH_DECL_TO_BE_INDEXED(HANDLE)
-  case Kind::VarTemplateSpecialization:
-  case Kind::VarTemplatePartialSpecialization:
-  case Kind::OMPCapturedExpr:
-  case Kind::Decomposition:
-  case Kind::ParmVar:
-    return this->getVarSymbol(*llvm::dyn_cast<clang::VarDecl>(&namedDecl));
-  default:
-    return {};
+#define HANDLE(kind_)                                                \
+  if (auto *decl = llvm::dyn_cast<clang::kind_##Decl>(&namedDecl)) { \
+    return this->get##kind_##Symbol(*decl);                          \
   }
+  FOR_EACH_DECL_TO_BE_INDEXED(HANDLE)
+  return {};
 }
 
 /// Returns nullopt for anonymous namespaces in files for which

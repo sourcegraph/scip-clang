@@ -81,6 +81,7 @@
   }
   
   void f(a::c_alias::E) {
+//     ^ definition [..] f(5734375c1c12cb14).
 //       ^ reference [..] a/
 //                   ^ reference [..] a/c/E#
     (void)a::c::E::E0;

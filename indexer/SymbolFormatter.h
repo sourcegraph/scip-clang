@@ -20,6 +20,7 @@
   F(Binding)                           \
   F(EnumConstant)                      \
   F(Enum)                              \
+  F(Function)                          \
   F(Namespace)                         \
   F(Record)                            \
   F(Var)

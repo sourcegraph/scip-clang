@@ -705,10 +705,14 @@ public:
   FOR_EACH_DECL_TO_BE_INDEXED(VISIT_DECL)
 #undef VISIT_DECL
 
-  bool VisitDeclRefExpr(clang::DeclRefExpr *declRefExpr) {
-    this->tuIndexer.saveDeclRefExpr(*declRefExpr);
-    return true;
+#define VISIT_EXPR(ExprName)                                     \
+  bool Visit##ExprName##Expr(clang::ExprName##Expr *expr) {      \
+    ENFORCE(expr, "expected " #ExprName "Expr to be null-null"); \
+    this->tuIndexer.save##ExprName##Expr(*expr);                 \
+    return true;                                                 \
   }
+  FOR_EACH_EXPR_TO_BE_INDEXED(VISIT_EXPR)
+#undef VISIT_EXPR
 
 #define VISIT_TYPE_LOC(TypeName)                                    \
   bool Visit##TypeName##TypeLoc(clang::TypeName##TypeLoc typeLoc) { \

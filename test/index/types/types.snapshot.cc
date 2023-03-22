@@ -95,10 +95,12 @@
 //               ^^ reference [..] F1#
   
     void f1(F1 *) { }
+//       ^^ definition [..] F0#f1(9e7252de2ffc92f6).
 //          ^^ reference [..] F1#
   };
   
   void f() {
+//     ^ definition [..] f(49f6e7a06ebc5aa8).
     class fC {
       void fCf() {
         class fCfC { };
@@ -138,6 +140,7 @@
 //               ^^ definition [..] E#E0.
   
   void f(GenericClass<E, int(E::E0)>) {
+//     ^ definition [..] f(a9a88f5fb6852c6b).
 //                    ^ reference [..] E#
 //                           ^ reference [..] E#
 //                              ^^ reference [..] E#E0.
@@ -178,6 +181,7 @@
   class CRTPBase {
 //      ^^^^^^^^ definition [..] CRTPBase#
     void castAndDoStuff() { static_cast<CRTPChild *>(this)->doStuff(); }
+//       ^^^^^^^^^^^^^^ definition [..] CRTPBase#castAndDoStuff(49f6e7a06ebc5aa8).
   };
   
   class CRTPChild: CRTPBase<CRTPChild> {
@@ -185,6 +189,7 @@
 //      relation implementation [..] CRTPBase#
 //                          ^^^^^^^^^ reference [..] CRTPChild#
     void doStuff() { }
+//       ^^^^^^^ definition [..] CRTPChild#doStuff(49f6e7a06ebc5aa8).
   };
   
   class DiamondBase {};

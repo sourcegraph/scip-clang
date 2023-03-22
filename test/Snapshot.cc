@@ -167,7 +167,9 @@ void formatSnapshot(const scip::Document &document,
       }
 
       ENFORCE(range.start.column < range.end.column,
-              "We shouldn't be emitting empty ranges 🙅");
+              "Found empty range for {} at {}:{}:{}", occ.symbol(),
+              sourceFilePath.asStringView(), range.start.line,
+              range.start.column);
 
       auto lineStart =
           absl::StrCat("//", std::string(range.start.column - 1, ' '));
@@ -293,13 +295,17 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
   absl::flat_hash_map<RootRelativePath, RootRelativePath> alreadyUsedFiles;
 
   for (auto &io : this->inputOutputs) {
-    auto &sourceFilePath = io.sourceFilePath.asStringRef();
-    if (!test::isTuMainFilePath(sourceFilePath)) {
+    auto &sourceFileRelPath = io.sourceFilePath.asStringRef();
+    if (!test::isTuMainFilePath(sourceFileRelPath)) {
       continue;
     }
-    std::vector<std::string> commandLine{"clang", "-I", ".", sourceFilePath};
+    std::vector<std::string> commandLine{"clang", "-I", ".", sourceFileRelPath};
     {
-      std::ifstream tuStream(sourceFilePath, std::ios::in | std::ios::binary);
+      auto sourceFileAbsPath =
+          this->rootPath.makeAbsolute(io.sourceFilePath.asRef());
+      ENFORCE(std::filesystem::exists(sourceFileAbsPath.asStringRef()));
+      std::ifstream tuStream(sourceFileAbsPath.asStringRef(),
+                             std::ios::in | std::ios::binary);
       std::string prefix = "// extra-args: ";
       for (std::string line; std::getline(tuStream, line);) {
         if (!line.starts_with(prefix)) {
@@ -314,8 +320,8 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
       }
     }
 
-    auto output =
-        compute(rootPath, io.sourceFilePath.asRef(), std::move(commandLine));
+    auto output = compute(this->rootPath, io.sourceFilePath.asRef(),
+                          std::move(commandLine));
 
     for (auto &[filePath, _] : output) {
       ENFORCE(!alreadyUsedFiles.contains(filePath),
