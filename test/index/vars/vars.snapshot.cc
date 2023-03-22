@@ -39,3 +39,22 @@
     return s.x + S::y;
 //         ^ reference local 8
   }
+  
+  void lambdas() {
+    int x = 0;
+//      ^ definition local 9
+    int y = 1;
+//      ^ definition local 10
+    auto add = [&x, y](int z) mutable {
+//       ^^^ definition local 11
+//               ^ reference local 9
+//                  ^ reference local 10
+//                         ^ definition local 12
+      y += z;
+//    ^ reference local 10
+//         ^ reference local 12
+      x += y;
+//    ^ reference local 9
+//         ^ reference local 10
+    };
+  }

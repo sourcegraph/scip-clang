@@ -1,3 +1,4 @@
+  // extra-args: -std=c++20
   // format-options: showDocs
   
   #include "types.h"
@@ -106,14 +107,14 @@
   }
   
   #define VISIT(_name) Visit##_name
-//        ^^^^^ definition [..] `types.cc:69:9`!
+//        ^^^^^ definition [..] `types.cc:70:9`!
   
   enum VISIT(Sightseeing) {
-//     ^^^^^ reference [..] `types.cc:69:9`!
+//     ^^^^^ reference [..] `types.cc:70:9`!
 //     ^^^^^ definition [..] VisitSightseeing#
     VISIT(Museum),
 //  ^^^^^ definition [..] VisitMuseum.
-//  ^^^^^ reference [..] `types.cc:69:9`!
+//  ^^^^^ reference [..] `types.cc:70:9`!
   };
   
   // Regression test for https://github.com/sourcegraph/scip-clang/issues/105
@@ -147,13 +148,13 @@
 //          ^ reference [..] E#
 //             ^^ reference [..] E#E0.
   #define QUALIFIED(enum_name, case_name) enum_name::case_name;
-//        ^^^^^^^^^ definition [..] `types.cc:90:9`!
+//        ^^^^^^^^^ definition [..] `types.cc:91:9`!
     (void)QUALIFIED(E, E0);
 //        ^^^^^^^^^ reference [..] E#
 //        ^^^^^^^^^ reference [..] E#E0.
-//        ^^^^^^^^^ reference [..] `types.cc:90:9`!
+//        ^^^^^^^^^ reference [..] `types.cc:91:9`!
   #undef QUALIFIED
-//       ^^^^^^^^^ reference [..] `types.cc:90:9`!
+//       ^^^^^^^^^ reference [..] `types.cc:91:9`!
   }
   
   /// Restating what's already implied by the name
@@ -202,3 +203,21 @@
 //      relation implementation [..] Derived2#
 //                    ^^^^^^^^ reference [..] Derived1#
 //                                     ^^^^^^^^ reference [..] Derived2#
+  
+  struct L {};
+//       ^ definition [..] L#
+  auto trailing_return_type() -> L {
+//                               ^ reference [..] L#
+    // Explicit template param list on lambda needs C++20
+    auto ignore_first = []<class T>(T, L l) -> L {
+//       ^^^^^^^^^^^^ definition local 0
+//                                     ^ reference [..] L#
+//                                       ^ definition local 1
+//                                             ^ reference [..] L#
+      return l;
+//           ^ reference local 1
+    };
+    return ignore_first("", L{});
+//         ^^^^^^^^^^^^ reference local 0
+//                          ^ reference [..] L#
+  }

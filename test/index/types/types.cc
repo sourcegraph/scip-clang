@@ -1,3 +1,4 @@
+// extra-args: -std=c++20
 // format-options: showDocs
 
 #include "types.h"
@@ -114,3 +115,12 @@ class DiamondBase {};
 class Derived1 : public virtual DiamondBase {};
 class Derived2 : public virtual DiamondBase {};
 class Join : public Derived1, public Derived2 {};
+
+struct L {};
+auto trailing_return_type() -> L {
+  // Explicit template param list on lambda needs C++20
+  auto ignore_first = []<class T>(T, L l) -> L {
+    return l;
+  };
+  return ignore_first("", L{});
+}
