@@ -537,7 +537,7 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
     this->saveDefinition(optSymbol.value(), varDecl.getLocation(),
                          std::nullopt);
   }
-  if (varDecl.isStaticDataMember()) {
+  if (varDecl.isStaticDataMember() || varDecl.isFileVarDecl()) {
     // Non-static data members are handled by saveFieldDecl
     auto optSymbol = this->symbolFormatter.getVarSymbol(varDecl);
     if (!optSymbol.has_value()) {

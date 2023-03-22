@@ -3,6 +3,7 @@
   #include "macros.h"
   
   int a = MY_MACRO + MY_MACRO_ALIAS;
+//    ^ definition [..] a.
 //        ^^^^^^^^ reference [..] `macros.h:1:9`!
 //                   ^^^^^^^^^^^^^^ reference [..] `macros.h:9:9`!
   
@@ -16,6 +17,7 @@
 //        ^^^^^^^^ definition [..] `macros.cc:12:9`!
   
   int b = MY_MACRO;
+//    ^ definition [..] b.
 //        ^^^^^^^^ reference [..] `macros.cc:12:9`!
   
   #if defined(MY_MACRO)
@@ -44,6 +46,7 @@
 //        ^^^^^^^^^^^^^^ definition [..] `macros.cc:32:9`!
   
   int c = IDENTITY_MACRO(10);
+//    ^ definition [..] c.
 //        ^^^^^^^^^^^^^^ reference [..] `macros.cc:32:9`!
   
   #define MACRO_USING_MACRO \
@@ -53,5 +56,6 @@
   
   // two uses of a macro that expands to another macro
   int d = MACRO_USING_MACRO + MACRO_USING_MACRO;
+//    ^ definition [..] d.
 //        ^^^^^^^^^^^^^^^^^ reference [..] `macros.cc:36:9`!
 //                            ^^^^^^^^^^^^^^^^^ reference [..] `macros.cc:36:9`!

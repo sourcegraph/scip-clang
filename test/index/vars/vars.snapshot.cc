@@ -1,6 +1,13 @@
   // extra-args: -std=c++17
   
   int MyGlobal = 3;
+//    ^^^^^^^^ definition [..] MyGlobal.
+  
+  namespace n {
+//          ^ definition [..] n/
+    int otherGlobal = 0;
+//      ^^^^^^^^^^^ definition [..] n/otherGlobal.
+  }
   
   int f(int x_, int y_);
 //    ^ reference [..] f(9b79fb6aee4c0440).
@@ -23,11 +30,13 @@
 //        ^ definition local 6
 //           ^ definition local 7
 //                ^^^ reference local 5
-    return z + a + b + MyGlobal;
+    return z + a + b + MyGlobal + n::otherGlobal;
 //         ^ reference local 4
 //             ^ reference local 6
 //                 ^ reference local 7
 //                     ^^^^^^^^ reference [..] MyGlobal.
+//                                ^ reference [..] n/
+//                                   ^^^^^^^^^^^ reference [..] n/otherGlobal.
   }
   
   struct S {

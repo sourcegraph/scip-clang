@@ -69,6 +69,7 @@
 //    | Everywhere a moo-moo 
 //         ^^ reference [..] has_anon_enum/E2.
     } f = F1;
+//    ^ definition [..] has_anon_enum/f.
 //        ^^ reference [..] has_anon_enum/F1.
   }
   
