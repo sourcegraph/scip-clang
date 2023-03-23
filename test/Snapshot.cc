@@ -25,6 +25,7 @@
 #include "indexer/AbslExtras.h"
 #include "indexer/Enforce.h"
 #include "indexer/FileSystem.h"
+#include "indexer/IpcMessages.h"
 #include "indexer/ScipExtras.h"
 
 #include "test/Snapshot.h"
@@ -283,17 +284,71 @@ MultiTuSnapshotTest::MultiTuSnapshotTest(
   }
 }
 
+clang::tooling::CompileCommand
+MultiTuSnapshotTest::CompdbEntryBuilder::build(const RootPath &rootInSandbox) {
+  return clang::tooling::CompileCommand{
+      rootInSandbox.asRef().asStringView(),
+      rootInSandbox.makeAbsolute(this->tuPathInSandbox).asStringRef(),
+      std::move(this->commandLine), ""};
+}
+
+llvm::json::Value
+MultiTuSnapshotTest::CompdbBuilder::toJSON(const RootPath &rootInSandbox) {
+  std::vector<llvm::json::Value> jsonEntries;
+  for (auto &builder : this->entries) {
+    jsonEntries.emplace_back(llvm::json::Value(builder.build(rootInSandbox)));
+  }
+  return llvm::json::Value(std::move(jsonEntries));
+}
+
 void MultiTuSnapshotTest::run(SnapshotMode mode,
                               RunCompileCommandCallback compute) {
+  auto inputToOutputMap = this->buildInputToOutputMap();
+  absl::flat_hash_map<RootRelativePath, RootRelativePath> alreadyUsedFiles;
+
+  this->iterateOverTus([&](CompdbEntryBuilder &&entryBuilder) -> void {
+    auto tuPath = RootRelativePath{entryBuilder.tuPathInSandbox};
+    auto output = compute(this->rootPath, std::move(entryBuilder));
+
+    for (auto &[filePath, _] : output) {
+      ENFORCE(!alreadyUsedFiles.contains(filePath),
+              "{} is (potentially indirectly) included by {} and {}; so "
+              "snapshot output will be overwritten",
+              filePath.asStringRef(), alreadyUsedFiles[filePath].asStringRef(),
+              tuPath.asStringRef());
+      alreadyUsedFiles.insert({filePath, tuPath});
+    }
+
+    this->checkOrUpdate(mode, std::move(output), inputToOutputMap);
+  });
+}
+
+void MultiTuSnapshotTest::runWithMerging(
+    SnapshotMode mode, RunMultiTuCompileCommandCallback compute) {
+  std::vector<CompdbEntryBuilder> compdbBuilders{};
+
+  this->iterateOverTus([&](CompdbEntryBuilder &&entryBuilder) {
+    compdbBuilders.emplace_back(std::move(entryBuilder));
+  });
+
+  auto output =
+      compute(this->rootPath, CompdbBuilder{std::move(compdbBuilders)});
+
+  this->checkOrUpdate(mode, std::move(output), this->buildInputToOutputMap());
+}
+
+MultiTuSnapshotTest::InputToOutputMap
+MultiTuSnapshotTest::buildInputToOutputMap() {
   absl::flat_hash_map<RootRelativePathRef, RootRelativePathRef>
       inputToOutputMap;
   for (auto &io : this->inputOutputs) {
     inputToOutputMap.insert(
         {io.sourceFilePath.asRef(), io.snapshotPath.asRef()});
   }
+  return inputToOutputMap;
+}
 
-  absl::flat_hash_map<RootRelativePath, RootRelativePath> alreadyUsedFiles;
-
+void MultiTuSnapshotTest::iterateOverTus(PerTuCallback perTuCallback) {
   for (auto &io : this->inputOutputs) {
     auto &sourceFileRelPath = io.sourceFilePath.asStringRef();
     if (!test::isTuMainFilePath(sourceFileRelPath)) {
@@ -319,30 +374,24 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
         }
       }
     }
-
-    auto output = compute(this->rootPath, io.sourceFilePath.asRef(),
-                          std::move(commandLine));
-
-    for (auto &[filePath, _] : output) {
-      ENFORCE(!alreadyUsedFiles.contains(filePath),
-              "{} is (potentially indirectly) included by {} and {}; so "
-              "snapshot output will be overwritten",
-              filePath.asStringRef(), alreadyUsedFiles[filePath].asStringRef(),
-              io.sourceFilePath.asStringRef());
-      alreadyUsedFiles.insert({filePath, io.sourceFilePath});
-    }
-
-    scip_clang::extractTransform(
-        std::move(output), /*deterministic*/ true,
-        absl::FunctionRef<void(RootRelativePath &&, std::string &&)>(
-            [&](auto &&inputPath, auto &&snapshotContent) -> void {
-              auto it = inputToOutputMap.find(inputPath.asRef());
-              ENFORCE(it != inputToOutputMap.end());
-              auto absPath = rootPath.makeAbsolute(it->second);
-              test::compareOrUpdateSingleFile(mode, snapshotContent,
-                                              absPath.asStringRef());
-            }));
+    perTuCallback(
+        CompdbEntryBuilder{io.sourceFilePath.asRef(), std::move(commandLine)});
   }
+}
+
+void MultiTuSnapshotTest::checkOrUpdate(
+    SnapshotMode mode, SnapshotContentsMap &&output,
+    const InputToOutputMap &inputToOutputMap) {
+  scip_clang::extractTransform(
+      std::move(output), /*deterministic*/ true,
+      absl::FunctionRef<void(RootRelativePath &&, std::string &&)>(
+          [&](auto &&inputPath, auto &&snapshotContent) -> void {
+            auto it = inputToOutputMap.find(inputPath.asRef());
+            ENFORCE(it != inputToOutputMap.end());
+            auto absPath = rootPath.makeAbsolute(it->second);
+            test::compareOrUpdateSingleFile(mode, snapshotContent,
+                                            absPath.asStringRef());
+          }));
 }
 
 } // namespace test
