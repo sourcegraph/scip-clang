@@ -12,3 +12,30 @@ F<B> fmap(A f(B), F<A> fa) {
 
 template <int N>
 void f(int arr[N]) {}
+
+template <typename... Bs, template <typename...> typename... As>
+void g(As<Bs...> ...) {}
+
+template <typename T>
+struct PointerType {
+  using type = T *;
+};
+
+template <typename T>
+struct PointerType<T &> {
+  using type = T *;
+};
+
+template <typename T>
+using RefPtr = typename PointerType<T &>::type;
+
+using IntRefPtr = RefPtr<int>;
+
+template <typename T>
+using PtrPtr = typename PointerType<T *>::type;
+
+template <typename T, typename S = typename PointerType<T>::type>
+void specialized(T) {}
+
+template <>
+void specialized<int, int>(int) {}
