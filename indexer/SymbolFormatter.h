@@ -24,6 +24,7 @@
   F(Function)                          \
   F(Namespace)                         \
   F(Record)                            \
+  F(TypedefName)                       \
   F(Var)
 
 namespace clang {

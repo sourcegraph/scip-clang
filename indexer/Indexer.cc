@@ -524,6 +524,20 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   }
 }
 
+void TuIndexer::saveTypedefNameDecl(
+    const clang::TypedefNameDecl &typedefNameDecl) {
+  auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(typedefNameDecl);
+  if (!optSymbol.has_value()) {
+    return;
+  }
+  scip::SymbolInformation symbolInfo{};
+  for (auto &docComment : this->tryGetDocComment(typedefNameDecl)) {
+    *symbolInfo.add_documentation() = std::move(docComment.Text);
+  }
+  this->saveDefinition(*optSymbol, typedefNameDecl.getLocation(),
+                       std::move(symbolInfo));
+}
+
 void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
   if (llvm::isa<clang::DecompositionDecl>(&varDecl)) {
     // Individual bindings will be visited by VisitBindingDecl

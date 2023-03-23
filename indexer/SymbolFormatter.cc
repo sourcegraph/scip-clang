@@ -473,6 +473,24 @@ SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl &varDecl) {
   return this->getNextLocalSymbol(varDecl);
 }
 
+std::optional<std::string_view> SymbolFormatter::getTypedefNameSymbol(
+    const clang::TypedefNameDecl &typedefNameDecl) {
+  return this->getSymbolCached(
+      typedefNameDecl, [&]() -> std::optional<std::string> {
+        auto optContextSymbol =
+            this->getContextSymbol(*typedefNameDecl.getDeclContext());
+        if (!optContextSymbol.has_value()) {
+          return {};
+        }
+        return SymbolBuilder::formatContextual(
+            *optContextSymbol,
+            DescriptorBuilder{
+                .name = llvm_ext::toStringView(typedefNameDecl.getName()),
+                .suffix = scip::Descriptor::Type,
+            });
+      });
+}
+
 std::optional<std::string_view>
 SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
   if (varDecl.isLocalVarDeclOrParm()) {
