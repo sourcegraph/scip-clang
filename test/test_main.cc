@@ -262,21 +262,19 @@ TEST_CASE("PREPROCESSING") {
       }};
   myTest.run(
       test::globalCliOptions.testMode,
-      [](const RootPath &rootInSandbox, RootRelativePathRef tuPath,
-         std::vector<std::string> &&commandLine)
+      [](const RootPath &rootInSandbox, auto &&compdbEntryBuilder)
           -> absl::flat_hash_map<RootRelativePath, std::string> {
         TempFile tmpYamlFile(
             fmt::format("{}.yaml", test::globalCliOptions.testName));
 
         RootRelativePath key{
             RootRelativePathRef{"test/preprocessor", RootKind::Project}};
+        auto tuPath = compdbEntryBuilder.tuPathInSandbox;
         auto rootInSourceDir =
             ::deriveRootInSourceDir(key.asRef(), rootInSandbox, tuPath);
 
-        clang::tooling::CompileCommand command{};
-        command.Filename = rootInSandbox.makeAbsolute(tuPath).asStringRef();
-        command.Directory = rootInSandbox.asRef().asStringView();
-        command.CommandLine = std::move(commandLine);
+        clang::tooling::CompileCommand command =
+            compdbEntryBuilder.build(rootInSandbox);
 
         CliOptions cliOptions{};
         cliOptions.workerMode = "testing";
@@ -387,10 +385,9 @@ TEST_CASE("INDEX") {
         newPath.replaceExtension(newExtension);
         return newPath;
       }};
-  myTest.run(
+  myTest.runWithMerging(
       test::globalCliOptions.testMode,
-      [](const RootPath &rootInSandbox, RootRelativePathRef tuPath,
-         std::vector<std::string> &&commandLine)
+      [](const RootPath &rootInSandbox, auto &&compdbBuilder)
           -> absl::flat_hash_map<RootRelativePath, std::string> {
         TempFile tmpCompdb{
             fmt::format("{}-compdb.json", test::globalCliOptions.testName)};
@@ -401,16 +398,14 @@ TEST_CASE("INDEX") {
                                       error};
           ENFORCE(!error, "failed to open temporary file for compdb at {}",
                   compdbPath.asStringRef());
-          compdb << llvm::json::Value({clang::tooling::CompileCommand{
-              rootInSandbox.asRef().asStringView(),
-              rootInSandbox.makeAbsolute(tuPath).asStringRef(),
-              std::move(commandLine), ""}});
+          compdb << compdbBuilder.toJSON(rootInSandbox);
         }
 
         RootRelativePath key{
             RootRelativePathRef{"test/index", RootKind::Project}};
         auto rootInSourceDir =
-            ::deriveRootInSourceDir(key.asRef(), rootInSandbox, tuPath);
+            ::deriveRootInSourceDir(key.asRef(), rootInSandbox,
+                                    compdbBuilder.entries[0].tuPathInSandbox);
 
         TempFile scipIndexFile{
             fmt::format("{}.scip", test::globalCliOptions.testName)};
