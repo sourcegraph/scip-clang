@@ -45,6 +45,7 @@
 #include "indexer/Path.h"
 #include "indexer/RAII.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/Timer.h"
 
 namespace boost_ip = boost::interprocess;
 
@@ -575,11 +576,22 @@ public:
   }
 
   void run() {
-    auto compdbGuard = this->openCompilationDatabase();
-    this->spawnWorkers(compdbGuard);
-    this->runJobsTillCompletionAndShutdownWorkers();
-    this->emitScipIndex();
-    spdlog::debug("indexing complete; driver shutting down now, kthxbai");
+    ManualTimer total, indexing, merging;
+    unsigned numTus;
+
+    TIME_IT(total, {
+      auto compdbGuard = this->openCompilationDatabase();
+      this->spawnWorkers(compdbGuard);
+      TIME_IT(indexing,
+              numTus = this->runJobsTillCompletionAndShutdownWorkers());
+      TIME_IT(merging, this->emitScipIndex());
+      spdlog::debug("indexing complete; driver shutting down now, kthxbai");
+    });
+    using secs = std::chrono::seconds;
+    fmt::print("Finished indexing {} translation units in {:.1f}s (indexing: "
+               "{:.1f}s, merging: {:.1f}s).\n",
+               numTus, total.value<secs>(), indexing.value<secs>(),
+               merging.value<secs>());
   }
 
 private:
@@ -710,15 +722,21 @@ private:
     return commands.size();
   }
 
-  void runJobsTillCompletionAndShutdownWorkers() {
+  /// Returns the number of TUs processed
+  unsigned runJobsTillCompletionAndShutdownWorkers() {
+    unsigned numJobs = 0;
     this->scheduler.runJobsTillCompletion(
-        [this]() -> void { this->processOneJobResult(); },
+        [this, &numJobs]() -> void {
+          this->processOneJobResult();
+          numJobs++;
+        },
         [this]() -> size_t { return this->refillJobs(); },
         [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> void {
           this->assignJobToWorker(std::move(workerId), jobId);
         });
     this->shutdownAllWorkers();
     this->scheduler.waitForAllWorkers();
+    return numJobs / 2; // Each TU has exactly 2 jobs.
   }
 
   FileGuard openCompilationDatabase() {

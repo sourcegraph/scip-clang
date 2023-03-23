@@ -4,6 +4,7 @@
 // NOTE(ref: based-on-sorbet): Based on Sorbet files:
 // - common/Counters.h
 // - common/Timer.h
+#include <chrono>
 
 #include "spdlog/logger.h"
 
@@ -52,6 +53,36 @@ public:
   ~Timer();
 };
 
+class ManualTimer {
+  std::chrono::steady_clock::time_point startInstant;
+  std::chrono::duration<std::chrono::steady_clock::rep,
+                        std::chrono::steady_clock::period>
+      duration;
+
+public:
+  ManualTimer() : startInstant(), duration(0) {}
+
+  void start() {
+    this->startInstant = std::chrono::steady_clock::now();
+  }
+
+  void stop() {
+    this->duration = std::chrono::steady_clock::now() - startInstant;
+  }
+
+  template <typename D> double value() const {
+    return std::chrono::duration<double, typename D::period>(this->duration)
+        .count();
+  }
+};
+
 } // namespace scip_clang
+
+#define TIME_IT(timer_, op_) \
+  do {                       \
+    timer_.start();          \
+    op_;                     \
+    timer_.stop();           \
+  } while (0)
 
 #endif // SCIP_CLANG_TIMER_H
