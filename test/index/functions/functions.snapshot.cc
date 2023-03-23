@@ -35,6 +35,7 @@
   
   // check that the same canonical type produces the same hash
   using IntAlias = int;
+//      ^^^^^^^^ definition [..] IntAlias#
   void int_to_void_fn(int) {}
 //     ^^^^^^^^^^^^^^ definition [..] int_to_void_fn(d4f767463ce0a6b3).
   void same_hash_as_previous(IntAlias) {}

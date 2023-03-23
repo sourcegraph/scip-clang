@@ -43,6 +43,7 @@
   }
   
   using C = c::C;
+//      ^ definition [..] C#
 //          ^ reference [..] c/
 //             ^ reference [..] c/C#
   

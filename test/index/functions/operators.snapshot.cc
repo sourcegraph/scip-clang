@@ -130,6 +130,7 @@
     explicit operator const char*() const { return "aaa"; }
 //           ^^^^^^^^ definition [..] IntConvertible#`operator const char *`(a9f41ea0e82d88cf).
     using arr_t = int[3];
+//        ^^^^^ definition [..] IntConvertible#arr_t#
     operator arr_t*() const { return nullptr; }
 //  ^^^^^^^^ definition [..] IntConvertible#`operator int (*)[3]`(a00bb5473f10e296).
   };
@@ -157,6 +158,7 @@
   using size_t = unsigned long long;
   #else
   using size_t = unsigned long;
+//      ^^^^^^ definition [..] size_t#
   #endif
   
   // Override global stuff

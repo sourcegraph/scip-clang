@@ -2,10 +2,13 @@
   
   template<class T> struct remove_ref      { typedef T type; };
 //                         ^^^^^^^^^^ definition [..] remove_ref#
+//                                                     ^^^^ definition [..] remove_ref#type#
   template<class T> struct remove_ref<T&>  { typedef T type; };
 //                         ^^^^^^^^^^ definition [..] remove_ref#
+//                                                     ^^^^ definition [..] remove_ref#type#
   template<class T> struct remove_ref<T&&> { typedef T type; };
 //                         ^^^^^^^^^^ definition [..] remove_ref#
+//                                                     ^^^^ definition [..] remove_ref#type#
   
   template <typename T>
   typename remove_ref<T>::type&& move(T&& arg) {
