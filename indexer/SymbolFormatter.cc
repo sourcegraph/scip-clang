@@ -9,6 +9,7 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
@@ -331,7 +332,10 @@ SymbolFormatter::getBindingSymbol(const clang::BindingDecl &bindingDecl) {
 }
 
 std::optional<std::string_view>
-SymbolFormatter::getNextLocalSymbol(const clang::ValueDecl &decl) {
+SymbolFormatter::getNextLocalSymbol(const clang::NamedDecl &decl) {
+  if (decl.getDeclName().isEmpty()) {
+    return {};
+  }
   return this->getSymbolCached(decl, [&]() -> std::optional<std::string> {
     auto loc = this->sourceManager.getExpansionLoc(decl.getLocation());
     auto defFileId = this->sourceManager.getFileID(loc);
@@ -467,11 +471,16 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl &namespaceDecl) {
 std::optional<std::string_view>
 SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl &varDecl) {
   ENFORCE(varDecl.isLocalVarDeclOrParm());
-  if (varDecl.getName().empty()) {
-    return {};
-  }
   return this->getNextLocalSymbol(varDecl);
 }
+
+#define GET_AS_LOCAL(name_)                                            \
+  std::optional<std::string_view> SymbolFormatter::get##name_##Symbol( \
+      const clang::name_##Decl &decl) {                                \
+    return this->getNextLocalSymbol(decl);                             \
+  }
+FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(GET_AS_LOCAL)
+#undef GET_AS_LOCAL
 
 std::optional<std::string_view> SymbolFormatter::getTypedefNameSymbol(
     const clang::TypedefNameDecl &typedefNameDecl) {

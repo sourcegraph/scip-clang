@@ -12,6 +12,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/AST/TypeLoc.h"
@@ -28,6 +29,7 @@
 #include "indexer/Indexer.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/SymbolFormatter.h"
 
 namespace scip_clang {
 
@@ -521,6 +523,52 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   if (auto optSymbol =
           this->symbolFormatter.getTagSymbol(*tagTypeLoc.getDecl())) {
     this->saveReference(optSymbol.value(), tagTypeLoc.getNameLoc());
+  }
+}
+
+#define SAVE_TEMPLATE_PARM(name_)                                          \
+  void TuIndexer::save##name_##Decl(const clang::name_##Decl &decl) {      \
+    if (auto optSymbol = this->symbolFormatter.get##name_##Symbol(decl)) { \
+      this->saveDefinition(*optSymbol, decl.getLocation(), std::nullopt);  \
+    }                                                                      \
+  }
+FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(SAVE_TEMPLATE_PARM)
+#undef SAVE_TEMPLATE_PARM
+
+void TuIndexer::saveTemplateTypeParmTypeLoc(
+    const clang::TemplateTypeParmTypeLoc &templateTypeParmTypeLoc) {
+  if (auto optSymbol = this->symbolFormatter.getTemplateTypeParmSymbol(
+          *templateTypeParmTypeLoc.getDecl())) {
+    this->saveReference(*optSymbol, templateTypeParmTypeLoc.getNameLoc());
+  }
+}
+
+void TuIndexer::saveTemplateSpecializationTypeLoc(
+    const clang::TemplateSpecializationTypeLoc &templateSpecializationTypeLoc) {
+  auto *templateSpecializationType = templateSpecializationTypeLoc.getTypePtr();
+  auto templateName = templateSpecializationType->getTemplateName();
+  using Kind = clang::TemplateName::NameKind;
+  switch (templateName.getKind()) {
+  case Kind::Template: {
+    if (auto *templateTemplateParmDecl =
+            llvm::dyn_cast<clang::TemplateTemplateParmDecl>(
+                templateName.getAsTemplateDecl())) {
+      if (auto optSymbol = this->symbolFormatter.getTemplateTemplateParmSymbol(
+              *templateTemplateParmDecl)) {
+        this->saveReference(*optSymbol,
+                            templateSpecializationTypeLoc.getTemplateNameLoc());
+      }
+    }
+    break;
+  }
+  case Kind::OverloadedTemplate:
+  case Kind::AssumedTemplate:
+  case Kind::QualifiedTemplate:
+  case Kind::DependentTemplate:
+  case Kind::SubstTemplateTemplateParm:
+  case Kind::SubstTemplateTemplateParmPack:
+  case Kind::UsingTemplate:
+    break;
   }
 }
 

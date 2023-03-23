@@ -1,21 +1,31 @@
   // extra-args: -std=c++20
   
   template<class T> struct remove_ref      { typedef T type; };
+//               ^ definition local 0
 //                         ^^^^^^^^^^ definition [..] remove_ref#
+//                                                   ^ reference local 0
 //                                                     ^^^^ definition [..] remove_ref#type#
   template<class T> struct remove_ref<T&>  { typedef T type; };
+//               ^ definition local 1
 //                         ^^^^^^^^^^ definition [..] remove_ref#
+//                                    ^ reference local 1
+//                                                   ^ reference local 1
 //                                                     ^^^^ definition [..] remove_ref#type#
   template<class T> struct remove_ref<T&&> { typedef T type; };
+//               ^ definition local 2
 //                         ^^^^^^^^^^ definition [..] remove_ref#
+//                                    ^ reference local 2
+//                                                   ^ reference local 2
 //                                                     ^^^^ definition [..] remove_ref#type#
   
   template <typename T>
+//                   ^ definition local 3
   typename remove_ref<T>::type&& move(T&& arg) {
 //                               ^^^^ definition [..] move(721d19cf58c53974).
-//                                        ^^^ definition local 0
+//                                    ^ reference local 3
+//                                        ^^^ definition local 4
     return static_cast<typename remove_ref<T>::type&&>(arg);
-//                                                     ^^^ reference local 0
+//                                                     ^^^ reference local 4
   }
   
   struct C {
@@ -55,68 +65,68 @@
 //     ^^^^^^^^^^ definition [..] test_ctors(49f6e7a06ebc5aa8).
     C c0;
 //  ^ reference [..] C#
-//    ^^ definition local 1
+//    ^^ definition local 5
     D d0;
 //  ^ reference [..] D#
-//    ^^ definition local 2
+//    ^^ definition local 6
     C c1{};
 //  ^ reference [..] C#
-//    ^^ definition local 3
+//    ^^ definition local 7
     D d1{};
 //  ^ reference [..] D#
-//    ^^ definition local 4
+//    ^^ definition local 8
     C c2{0, 1};
 //  ^ reference [..] C#
-//    ^^ definition local 5
+//    ^^ definition local 9
     // TODO: Figure out a minimal stub for std::initializer_list,
     // which we can use here, without running into Clang's
     // "cannot compile this weird std::initializer_list yet" error
     // D d2{0, 1};
     C c3{move(c1)};
 //  ^ reference [..] C#
-//    ^^ definition local 6
-//            ^^ reference local 3
+//    ^^ definition local 10
+//            ^^ reference local 7
     D d3{move(d1)};
 //  ^ reference [..] D#
-//    ^^ definition local 7
-//            ^^ reference local 4
+//    ^^ definition local 11
+//            ^^ reference local 8
   
     C c4 = {};
 //  ^ reference [..] C#
-//    ^^ definition local 8
+//    ^^ definition local 12
     D d4 = {};
 //  ^ reference [..] D#
-//    ^^ definition local 9
+//    ^^ definition local 13
     C c5 = C();
 //  ^ reference [..] C#
-//    ^^ definition local 10
+//    ^^ definition local 14
 //         ^ reference [..] C#
     D d5 = D();
 //  ^ reference [..] D#
-//    ^^ definition local 11
+//    ^^ definition local 15
 //         ^ reference [..] D#
     C c6 = {0, 1};
 //  ^ reference [..] C#
-//    ^^ definition local 12
+//    ^^ definition local 16
     // Uncomment after adding initializer_list
     // D d6 = {0, 1};
   
     C c7 = {.x = 0};
 //  ^ reference [..] C#
-//    ^^ definition local 13
+//    ^^ definition local 17
     C c8 = {.x = 0, .y = 1};
 //  ^ reference [..] C#
-//    ^^ definition local 14
+//    ^^ definition local 18
     C c9 = C{0, 1};
 //  ^ reference [..] C#
-//    ^^ definition local 15
+//    ^^ definition local 19
 //         ^ reference [..] C#
     C c10 = move(c1);
 //  ^ reference [..] C#
-//    ^^^ definition local 16
-//               ^^ reference local 3
+//    ^^^ definition local 20
+//               ^^ reference local 7
     D d10 = move(d1);
 //  ^ reference [..] D#
-//    ^^^ definition local 17
-//               ^^ reference local 4
+//    ^^^ definition local 21
+//               ^^ reference local 8
   }
