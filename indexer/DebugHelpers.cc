@@ -1,6 +1,7 @@
 #include "spdlog/fmt/fmt.h"
 
 #include "clang/AST/Decl.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/PPCallbacks.h"
@@ -154,6 +155,34 @@ std::string formatDecl(const clang::Decl *decl) {
   } else {
     decl->print(out);
   }
+  return buf;
+}
+
+std::string formatTemplateNameKind(const clang::TemplateName::NameKind kind) {
+#define HANDLE_KIND(kind_)                   \
+  case clang::TemplateName::NameKind::kind_: \
+    return #kind_;
+  switch (kind) {
+    HANDLE_KIND(Template)
+    HANDLE_KIND(OverloadedTemplate)
+    HANDLE_KIND(AssumedTemplate)
+    HANDLE_KIND(QualifiedTemplate)
+    HANDLE_KIND(DependentTemplate)
+    HANDLE_KIND(SubstTemplateTemplateParm)
+    HANDLE_KIND(SubstTemplateTemplateParmPack)
+    HANDLE_KIND(UsingTemplate)
+  }
+#undef HANDLE_KIND
+}
+
+std::string formatTypeInternals(const clang::QualType &qualType,
+                                const clang::ASTContext &astContext) {
+  if (qualType.isNull()) {
+    return "<null>";
+  }
+  std::string buf;
+  llvm::raw_string_ostream os(buf);
+  qualType.dump(os, astContext);
   return buf;
 }
 

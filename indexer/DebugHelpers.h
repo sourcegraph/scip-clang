@@ -3,14 +3,17 @@
 
 #include <string>
 
+#include "clang/AST/TemplateName.h"
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/StringRef.h"
 
 namespace clang {
+class ASTContext;
 class Decl;
-}
+class QualType;
+} // namespace clang
 
 namespace scip_clang {
 namespace debug {
@@ -30,6 +33,11 @@ std::string formatRange(const clang::SourceManager &,
                         clang::SourceLocation start, clang::SourceLocation end);
 
 std::string formatDecl(const clang::Decl *);
+
+std::string formatTemplateNameKind(clang::TemplateName::NameKind);
+
+std::string formatTypeInternals(const clang::QualType &,
+                                const clang::ASTContext &);
 
 } // namespace debug
 } // namespace scip_clang
