@@ -284,8 +284,8 @@ void TuIndexer::saveEnumConstantDecl(
   auto symbol = optSymbol.value();
 
   scip::SymbolInformation symbolInfo;
-  for (auto &docComment : this->tryGetDocComment(enumConstantDecl)) {
-    *symbolInfo.add_documentation() = std::move(docComment.Text);
+  for (auto &docComment : this->tryGetDocComment(enumConstantDecl).lines) {
+    *symbolInfo.add_documentation() = std::move(docComment);
   }
 
   ENFORCE(enumConstantDecl.getBeginLoc() == enumConstantDecl.getLocation());
@@ -307,8 +307,8 @@ void TuIndexer::saveFieldDecl(const clang::FieldDecl &fieldDecl) {
     return;
   }
   scip::SymbolInformation symbolInfo{};
-  for (auto &docComment : this->tryGetDocComment(fieldDecl)) {
-    *symbolInfo.add_documentation() = std::move(docComment.Text);
+  for (auto &docComment : this->tryGetDocComment(fieldDecl).lines) {
+    *symbolInfo.add_documentation() = std::move(docComment);
   }
   this->saveDefinition(optSymbol.value(), fieldDecl.getLocation(), symbolInfo);
 }
@@ -329,8 +329,8 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
 
   if (functionDecl.isPure() || functionDecl.isThisDeclarationADefinition()) {
     scip::SymbolInformation symbolInfo{};
-    for (auto &docComment : this->tryGetDocComment(functionDecl)) {
-      *symbolInfo.add_documentation() = std::move(docComment.Text);
+    for (auto &docComment : this->tryGetDocComment(functionDecl).lines) {
+      *symbolInfo.add_documentation() = std::move(docComment);
     }
     if (auto *cxxMethodDecl =
             llvm::dyn_cast<clang::CXXMethodDecl>(&functionDecl)) {
@@ -493,8 +493,8 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
   }
 
   scip::SymbolInformation symbolInfo;
-  for (auto &docComment : this->tryGetDocComment(tagDecl)) {
-    *symbolInfo.add_documentation() = std::move(docComment.Text);
+  for (auto &docComment : this->tryGetDocComment(tagDecl).lines) {
+    *symbolInfo.add_documentation() = std::move(docComment);
   }
 
   if (auto *cxxRecordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(&tagDecl)) {
@@ -579,8 +579,8 @@ void TuIndexer::saveTypedefNameDecl(
     return;
   }
   scip::SymbolInformation symbolInfo{};
-  for (auto &docComment : this->tryGetDocComment(typedefNameDecl)) {
-    *symbolInfo.add_documentation() = std::move(docComment.Text);
+  for (auto &docComment : this->tryGetDocComment(typedefNameDecl).lines) {
+    *symbolInfo.add_documentation() = std::move(docComment);
   }
   this->saveDefinition(*optSymbol, typedefNameDecl.getLocation(),
                        std::move(symbolInfo));
@@ -606,8 +606,8 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
       return;
     }
     scip::SymbolInformation symbolInfo{};
-    for (auto &docComment : this->tryGetDocComment(varDecl)) {
-      *symbolInfo.add_documentation() = std::move(docComment.Text);
+    for (auto &docComment : this->tryGetDocComment(varDecl).lines) {
+      *symbolInfo.add_documentation() = std::move(docComment);
     }
     this->saveDefinition(optSymbol.value(), varDecl.getLocation(), symbolInfo);
   }
@@ -763,8 +763,7 @@ checkIfCommentBelongsToPreviousEnumCase(const clang::Decl &decl,
 
 namespace scip_clang {
 
-std::vector<clang::RawComment::CommentLine>
-TuIndexer::tryGetDocComment(const clang::Decl &decl) const {
+DocComment TuIndexer::tryGetDocComment(const clang::Decl &decl) const {
   auto &astContext = decl.getASTContext();
   // FIXME(def: hovers, issue:
   // https://github.com/sourcegraph/scip-clang/issues/96)
@@ -772,8 +771,12 @@ TuIndexer::tryGetDocComment(const clang::Decl &decl) const {
     if (::checkIfCommentBelongsToPreviousEnumCase(decl, *rawComment)) {
       return {};
     }
-    return rawComment->getFormattedLines(this->sourceManager,
-                                         astContext.getDiagnostics());
+    DocComment out{};
+    for (auto &line : rawComment->getFormattedLines(
+             this->sourceManager, astContext.getDiagnostics())) {
+      out.lines.emplace_back(std::move(line.Text));
+    }
+    return out;
   }
   return {};
 }
