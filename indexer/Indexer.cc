@@ -404,14 +404,12 @@ void TuIndexer::saveNestedNameSpecifierLoc(
 
   auto tryEmit = [this](clang::NestedNameSpecifierLoc nameSpecLoc,
                         const clang::NamedDecl &namedDecl) {
-    auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(namedDecl);
-    if (!optSymbol.has_value()) {
-      return;
+    if (auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(namedDecl)) {
+      // Don't use nameSpecLoc.getLocalSourceRange() as that may give
+      // two MacroID SourceLocations, in case the NestedNameSpecifier
+      // arises from a macro expansion.
+      this->saveReference(*optSymbol, nameSpecLoc.getLocalBeginLoc());
     }
-    // Don't use nameSpecLoc.getLocalSourceRange() as that may give
-    // two MacroID SourceLocations, in case the NestedNameSpecifier
-    // arises from a macro expansion.
-    this->saveOccurrence(optSymbol.value(), nameSpecLoc.getLocalBeginLoc());
   };
 
   while (nameSpecLoc.hasQualifier()) {
@@ -628,7 +626,7 @@ void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   //       ^ getLocation()
   // ^^^^^^ getSourceRange()
   // ^ getExprLoc()
-  this->saveOccurrence(optSymbol.value(), declRefExpr.getLocation());
+  this->saveReference(optSymbol.value(), declRefExpr.getLocation());
   // ^ TODO: Add read-write access to the symbol role here
 }
 
