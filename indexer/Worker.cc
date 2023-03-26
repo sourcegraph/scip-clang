@@ -933,7 +933,8 @@ public:
     };
     SymbolFormatter symbolFormatter{sourceManager, getStableFileId};
     TuIndexer tuIndexer{sourceManager, this->sema->getLangOpts(),
-                        this->sema->getASTContext(), symbolFormatter};
+                        this->sema->getASTContext(), symbolFormatter,
+                        getStableFileId};
 
     IndexerAstVisitor visitor{stableFileIdMap, std::move(toBeIndexed),
                               this->options.deterministic, tuIndexer};

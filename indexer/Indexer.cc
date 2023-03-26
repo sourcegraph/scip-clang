@@ -259,9 +259,11 @@ void MacroIndexer::emitExternalSymbols(bool deterministic,
 TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      const clang::LangOptions &langOptions,
                      const clang::ASTContext &astContext,
-                     SymbolFormatter &symbolFormatter)
+                     SymbolFormatter &symbolFormatter,
+                     GetStableFileId getStableFileId)
     : sourceManager(sourceManager), langOptions(langOptions),
-      astContext(astContext), symbolFormatter(symbolFormatter), documentMap() {}
+      astContext(astContext), symbolFormatter(symbolFormatter), documentMap(),
+      getStableFileId(getStableFileId) {}
 
 void TuIndexer::saveBindingDecl(const clang::BindingDecl &bindingDecl) {
   auto optSymbol = this->symbolFormatter.getBindingSymbol(bindingDecl);
@@ -669,38 +671,52 @@ void TuIndexer::emitDocumentOccurrencesAndSymbols(
 }
 
 std::pair<FileLocalSourceRange, clang::FileID>
-TuIndexer::getTokenExpansionRange(clang::SourceLocation startLoc) const {
-  startLoc = this->sourceManager.getExpansionLoc(startLoc);
+TuIndexer::getTokenExpansionRange(
+    clang::SourceLocation startExpansionLoc) const {
   auto tokenLength = clang::Lexer::MeasureTokenLength(
-      startLoc, this->sourceManager, this->langOptions);
+      startExpansionLoc, this->sourceManager, this->langOptions);
   ENFORCE(tokenLength > 0);
-  auto endLoc = startLoc.getLocWithOffset(tokenLength);
+  auto endLoc = startExpansionLoc.getLocWithOffset(tokenLength);
   return FileLocalSourceRange::fromNonEmpty(this->sourceManager,
-                                            {startLoc, endLoc});
+                                            {startExpansionLoc, endLoc});
 }
 
 void TuIndexer::saveReference(std::string_view symbol,
                               clang::SourceLocation loc, int32_t extraRoles) {
+  auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
+  auto fileId = this->sourceManager.getFileID(expansionLoc);
+  auto optStableFileId = this->getStableFileId(fileId);
+  if (!optStableFileId.has_value() || !optStableFileId->isInProject) {
+    return;
+  }
   ENFORCE((extraRoles & scip::SymbolRole::Definition) == 0,
           "use saveDefinition instead");
-  (void)this->saveOccurrence(symbol, loc, extraRoles);
+  (void)this->saveOccurrence(symbol, expansionLoc, extraRoles);
 }
 
 void TuIndexer::saveDefinition(
     std::string_view symbol, clang::SourceLocation loc,
     std::optional<scip::SymbolInformation> &&optSymbolInfo,
     int32_t extraRoles) {
-  auto &doc = this->saveOccurrence(symbol, loc,
-                                   extraRoles | scip::SymbolRole::Definition);
-  if (optSymbolInfo.has_value()) {
-    doc.symbolInfos.emplace(symbol, std::move(optSymbolInfo.value()));
+  auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
+  auto fileId = this->sourceManager.getFileID(expansionLoc);
+  auto optStableFileId = this->getStableFileId(fileId);
+  if (!optStableFileId.has_value()) {
+    return;
+  }
+  if (optStableFileId->isInProject) {
+    auto &doc = this->saveOccurrence(symbol, expansionLoc,
+                                     extraRoles | scip::SymbolRole::Definition);
+    if (optSymbolInfo.has_value()) {
+      doc.symbolInfos.emplace(symbol, std::move(optSymbolInfo.value()));
+    }
   }
 }
 
 PartialDocument &TuIndexer::saveOccurrence(std::string_view symbol,
-                                           clang::SourceLocation loc,
+                                           clang::SourceLocation expansionLoc,
                                            int32_t allRoles) {
-  auto [range, fileId] = this->getTokenExpansionRange(loc);
+  auto [range, fileId] = this->getTokenExpansionRange(expansionLoc);
   scip::Occurrence occ;
   range.addToOccurrence(occ);
   occ.set_symbol(symbol.data(), symbol.size());
