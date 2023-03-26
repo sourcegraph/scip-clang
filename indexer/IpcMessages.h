@@ -84,8 +84,26 @@ SERIALIZABLE(clang::tooling::CompileCommand) // Not implemented upstream 😕
 
 namespace scip_clang {
 
+struct PreprocessedFileInfo {
+  AbsolutePath path;
+  HashValue hashValue;
+
+  friend std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs,
+                                          const PreprocessedFileInfo &rhs);
+};
+SERIALIZABLE(PreprocessedFileInfo)
+
+struct PreprocessedFileInfoMulti {
+  AbsolutePath path;
+  std::vector<HashValue> hashValues;
+
+  friend std::strong_ordering operator<=>(const PreprocessedFileInfoMulti &lhs,
+                                          const PreprocessedFileInfoMulti &rhs);
+};
+SERIALIZABLE(PreprocessedFileInfoMulti)
+
 struct EmitIndexJobDetails {
-  std::vector<AbsolutePath> filesToBeIndexed;
+  std::vector<PreprocessedFileInfo> filesToBeIndexed;
 };
 SERIALIZABLE(EmitIndexJobDetails)
 
@@ -115,24 +133,6 @@ struct IndexJobRequest {
 SERIALIZABLE(IndexJobRequest)
 
 SERIALIZABLE(HashValue)
-
-struct PreprocessedFileInfo {
-  AbsolutePath path;
-  HashValue hashValue;
-
-  friend std::strong_ordering operator<=>(const PreprocessedFileInfo &lhs,
-                                          const PreprocessedFileInfo &rhs);
-};
-SERIALIZABLE(PreprocessedFileInfo)
-
-struct PreprocessedFileInfoMulti {
-  AbsolutePath path;
-  std::vector<HashValue> hashValues;
-
-  friend std::strong_ordering operator<=>(const PreprocessedFileInfoMulti &lhs,
-                                          const PreprocessedFileInfoMulti &rhs);
-};
-SERIALIZABLE(PreprocessedFileInfoMulti)
 
 struct SemanticAnalysisJobResult {
   std::vector<PreprocessedFileInfo> wellBehavedFiles;

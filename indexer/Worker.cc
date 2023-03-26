@@ -224,7 +224,37 @@ struct PreprocessorDebugContext {
   std::string tuMainFilePath;
 };
 
-using PathToIdMap = absl::flat_hash_map<AbsolutePathRef, clang::FileID>;
+/// Similar to \c PreprocessedFileInfo but storing a PathRef instead.
+struct PreprocessedFileInfoRef {
+  HashValue hash;
+  AbsolutePathRef path;
+
+  template <typename H>
+  friend H AbslHashValue(H h, const PreprocessedFileInfoRef &p) {
+    return H::combine(std::move(h), p.hash.rawValue, p.path);
+  }
+
+  DERIVE_EQ_ALL(PreprocessedFileInfoRef)
+};
+
+/// Type to retrieve information about the \c clang::FileID corresponding
+/// to a (HashValue, Path) pair.
+///
+/// The worker and driver communicate using (HashValue, Path) pairs,
+/// since those are stable across different workers running in parallel.
+///
+/// However, inside a worker, we'd like to use \c clang::FileID keys if
+/// possible (e.g. storing Documents before indexing), since they are
+/// 32-bit integer values. This map translates driver->worker info
+/// in (HashValue, Path) terms to FileIDs.
+///
+/// In general, it may be the case that multiple FileIDs correspond to
+/// the same (HashValue, Path) pair (this happens for well-behaved
+/// headers, c.f. \c FileIndexingPlanner); the representative FileID
+/// is chosen arbitrarily.
+using ClangIdLookupMap = absl::flat_hash_map<
+    PreprocessedFileInfoRef,
+    absl::flat_hash_set<llvm_ext::AbslHashAdapter<clang::FileID>>>;
 
 class IndexerPreprocessorWrapper final : public clang::PPCallbacks {
   const IndexerPreprocessorOptions &options;
@@ -259,7 +289,8 @@ public:
         finishedProcessing(), finishedProcessingMulti(),
         macroIndexer(sourceManager), debugContext(std::move(debugContext)) {}
 
-  void flushState(SemanticAnalysisJobResult &result, PathToIdMap &pathToIdMap,
+  void flushState(SemanticAnalysisJobResult &result,
+                  ClangIdLookupMap &clangIdLookupMap,
                   MacroIndexer &macroIndexerOutput) {
     // HACK: It seems like EnterInclude and ExitInclude events are not
     // perfectly balanced in Clang. Work around that.
@@ -321,7 +352,8 @@ public:
           auto absPathRef = optPath.value();
           result.wellBehavedFiles.emplace_back(
               PreprocessedFileInfo{AbsolutePath{absPathRef}, hashValue});
-          pathToIdMap.insert({absPathRef, fileId});
+          clangIdLookupMap[PreprocessedFileInfoRef{hashValue, absPathRef}]
+              .insert({fileId});
         }
       }
       if (this->options.deterministic) {
@@ -343,7 +375,10 @@ public:
           }
           result.illBehavedFiles.emplace_back(PreprocessedFileInfoMulti{
               AbsolutePath{absPathRef}, std::move(hashes)});
-          pathToIdMap.insert({absPathRef, fileId});
+          for (auto &hash : hashes) {
+            clangIdLookupMap[PreprocessedFileInfoRef{hash, absPathRef}].insert(
+                {fileId});
+          }
         }
       }
       if (this->options.deterministic) {
@@ -568,7 +603,7 @@ class IndexerAstVisitor;
 /// Not every file that is part of this project will be part of this map.
 /// For example, if a file+hash was already indexed by another worker,
 /// then one shouldn't call insert(..) for that file.
-using FilesToBeIndexedSet =
+using FileIdsToBeIndexedSet =
     absl::flat_hash_set<llvm_ext::AbslHashAdapter<clang::FileID>>;
 
 /// Type to track canonical relative paths for FileIDs.
@@ -600,24 +635,32 @@ public:
   CanonicalPathMap(const CanonicalPathMap &) = delete;
   CanonicalPathMap &operator=(const CanonicalPathMap &) = delete;
 
-  void populate(const PathToIdMap &pathToIdMap) {
-    this->map.reserve(pathToIdMap.size());
-    for (auto [absPathRef, fileId] : pathToIdMap) {
-      this->insert(fileId, absPathRef);
+  void populate(const ClangIdLookupMap &clangIdLookupMap) {
+    this->map.reserve(clangIdLookupMap.size());
+    for (auto [fileInfo, fileIdSet] : clangIdLookupMap) {
+      ENFORCE(!fileIdSet.empty());
+      for (auto wrappedFileId : fileIdSet) {
+        bool inserted = this->insert(wrappedFileId.data, fileInfo.path);
+        ENFORCE(
+            inserted,
+            "there is a 1-1 mapping from FileID -> (path, hash)"
+            "so it's unexpected that the FileID {} was inserted for {} already",
+            wrappedFileId.data.getHashValue(), fileInfo.path.asStringView());
+      }
     }
   }
 
   /// Returns true iff a new entry was inserted.
-  void insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
+  bool insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
     ENFORCE(fileId.isValid(),
             "invalid FileIDs should be filtered out after preprocessing");
     ENFORCE(!absPathRef.asStringView().empty(),
             "inserting file with empty absolute path");
 
-    auto insertRelPath = [&](RootRelativePathRef projectRootRelPath) -> void {
+    auto insertRelPath = [&](RootRelativePathRef projectRootRelPath) -> bool {
       ENFORCE(!projectRootRelPath.asStringView().empty(),
               "file path is unexpectedly equal to project root");
-      this->map.insert({{fileId}, projectRootRelPath});
+      return this->map.insert({{fileId}, projectRootRelPath}).second;
     };
 
     // In practice, CMake ends up passing paths to project files as well
@@ -640,7 +683,7 @@ public:
                    this->projectRootPath.tryMakeRelative(absPathRef)) {
       return insertRelPath(optProjectRootRelPath.value());
     }
-    this->map.insert({{fileId}, absPathRef});
+    return this->map.insert({{fileId}, absPathRef}).second;
   }
 
   bool contains(clang::FileID fileId) const {
@@ -684,14 +727,15 @@ class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
   using Base = RecursiveASTVisitor;
 
   const CanonicalPathMap &pathMap;
-  FilesToBeIndexedSet toBeIndexed;
+  FileIdsToBeIndexedSet toBeIndexed;
   bool deterministic;
 
   TuIndexer &tuIndexer;
 
 public:
-  IndexerAstVisitor(const CanonicalPathMap &pathMap, FilesToBeIndexedSet &&map,
-                    bool deterministic, TuIndexer &tuIndexer)
+  IndexerAstVisitor(const CanonicalPathMap &pathMap,
+                    FileIdsToBeIndexedSet &&map, bool deterministic,
+                    TuIndexer &tuIndexer)
       : pathMap(pathMap), toBeIndexed(std::move(map)),
         deterministic(deterministic), tuIndexer(tuIndexer) {}
 
@@ -841,10 +885,10 @@ public:
     // it during the traversal (instead of say flushing state in the dtor
     // would arguably be more idiomatic).
     SemanticAnalysisJobResult semaResult{};
-    PathToIdMap pathToIdMap{};
+    ClangIdLookupMap clangIdLookupMap{};
     auto &sourceManager = astContext.getSourceManager();
     MacroIndexer macroIndexer{sourceManager};
-    this->preprocessorWrapper->flushState(semaResult, pathToIdMap,
+    this->preprocessorWrapper->flushState(semaResult, clangIdLookupMap,
                                           macroIndexer);
 
     EmitIndexJobDetails emitIndexDetails{};
@@ -856,9 +900,10 @@ public:
 
     CanonicalPathMap canonicalPathMap{this->options.projectRootPath,
                                       this->options.buildRootPath};
-    FilesToBeIndexedSet toBeIndexed{};
-    this->computePathsToBeIndexed(astContext, emitIndexDetails, pathToIdMap,
-                                  canonicalPathMap, toBeIndexed);
+    FileIdsToBeIndexedSet toBeIndexed{};
+    this->computeFileIdsToBeIndexed(astContext, emitIndexDetails,
+                                    clangIdLookupMap, canonicalPathMap,
+                                    toBeIndexed);
 
     auto getRelativePath =
         [&](clang::FileID fileId) -> std::optional<RootRelativePathRef> {
@@ -885,15 +930,15 @@ public:
   }
 
 private:
-  void computePathsToBeIndexed(const clang::ASTContext &astContext,
-                               const EmitIndexJobDetails &emitIndexDetails,
-                               const PathToIdMap &pathToIdMap,
-                               CanonicalPathMap &canonicalPathMap,
-                               FilesToBeIndexedSet &toBeIndexed) {
+  void computeFileIdsToBeIndexed(const clang::ASTContext &astContext,
+                                 const EmitIndexJobDetails &emitIndexDetails,
+                                 const ClangIdLookupMap &clangIdLookupMap,
+                                 CanonicalPathMap &canonicalPathMap,
+                                 FileIdsToBeIndexedSet &toBeIndexed) {
     auto &sourceManager = astContext.getSourceManager();
     auto mainFileId = sourceManager.getMainFileID();
 
-    canonicalPathMap.populate(pathToIdMap);
+    canonicalPathMap.populate(clangIdLookupMap);
     if (auto *mainFileEntry = sourceManager.getFileEntryForID(mainFileId)) {
       if (auto optMainFileAbsPath =
               AbsolutePathRef::tryFrom(mainFileEntry->tryGetRealPathName())) {
@@ -906,18 +951,34 @@ private:
       }
     }
 
-    for (auto &absPath : emitIndexDetails.filesToBeIndexed) {
-      auto absPathRef = absPath.asRef();
-      auto it = pathToIdMap.find(absPathRef);
-      if (it == pathToIdMap.end()) {
+    for (auto &fileInfo : emitIndexDetails.filesToBeIndexed) {
+      auto absPathRef = fileInfo.path.asRef();
+      auto it = clangIdLookupMap.find({fileInfo.hashValue, absPathRef});
+      if (it == clangIdLookupMap.end()) {
         spdlog::debug(
             "failed to find clang::FileID for path '{}' received from Driver",
             absPathRef.asStringView());
         continue;
       }
-      toBeIndexed.insert({it->second});
-      ENFORCE(canonicalPathMap.contains(it->second),
-              "missing entry for path: {}", absPath.asStringRef());
+      auto &fileIdSet = it->second;
+      ENFORCE(!fileIdSet.empty());
+      for (auto wrappedFileId : fileIdSet) {
+        toBeIndexed.insert(wrappedFileId);
+        // Pick the representative FileID arbitrarily; it doesn't
+        // matter since the hashes are all the same.
+        break;
+      }
+      std::string message;
+      auto check = [&](auto wrappedFileId) -> bool {
+        auto fileId = wrappedFileId.data;
+        if (canonicalPathMap.contains(fileId)) {
+          return true;
+        }
+        message = fmt::format("missing fileId {} for path: {}",
+                              fileId.getHashValue(), absPathRef.asStringView());
+        return false;
+      };
+      ENFORCE(absl::c_all_of(fileIdSet, check), "{}", message);
     }
   }
 };
@@ -1151,11 +1212,14 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
                          EmitIndexJobDetails &emitIndexDetails) -> bool {
     callbackInvoked++;
     if (this->options.mode == WorkerMode::Compdb) {
-      for (auto &p : semaResult.wellBehavedFiles) {
-        emitIndexDetails.filesToBeIndexed.emplace_back(std::move(p.path));
+      for (auto &fileInfo : semaResult.wellBehavedFiles) {
+        emitIndexDetails.filesToBeIndexed.emplace_back(std::move(fileInfo));
       }
-      for (auto &p : semaResult.illBehavedFiles) {
-        emitIndexDetails.filesToBeIndexed.emplace_back(std::move(p.path));
+      for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
+        for (auto &hashValue : fileInfoMulti.hashValues) {
+          emitIndexDetails.filesToBeIndexed.emplace_back(
+              PreprocessedFileInfo{fileInfoMulti.path, hashValue});
+        }
       }
       return true;
     }

@@ -257,18 +257,16 @@ public:
   FileIndexingPlanner(const FileIndexingPlanner &) = delete;
 
   void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
-                      std::vector<AbsolutePath> &filesToBeIndexed) {
+                      std::vector<PreprocessedFileInfo> &filesToBeIndexed) {
     absl::flat_hash_set<HashValue> emptyHashSet{};
     for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
       auto [it, _] = hashesSoFar.insert(
           {AbsolutePath(std::move(fileInfoMulti.path)), emptyHashSet});
       auto &[path, hashes] = *it;
-      bool addedFile = false;
       for (auto hashValue : fileInfoMulti.hashValues) {
         auto [_, inserted] = hashes.insert(hashValue);
-        if (inserted && !addedFile) {
-          filesToBeIndexed.push_back(path); // deliberate copy
-          addedFile = true;
+        if (inserted) {
+          filesToBeIndexed.push_back({path, hashValue}); // deliberate copy
         }
       }
     }
@@ -278,7 +276,8 @@ public:
       auto &[path, hashes] = *it;
       auto [__, inserted] = hashes.insert(fileInfo.hashValue);
       if (inserted) {
-        filesToBeIndexed.push_back(path); // deliberate copy
+        filesToBeIndexed.push_back(
+            {path, fileInfo.hashValue}); // deliberate copy
       }
     }
   }
@@ -359,15 +358,16 @@ public:
         return fmt::format("running semantic analysis for '{}'",
                            it->second.semanticAnalysis.command.Filename);
       case IndexJob::Kind::EmitIndex:
-        auto &paths = it->second.emitIndex.filesToBeIndexed;
-        auto pathIt = absl::c_find_if(paths, [](const AbsolutePath &p) -> bool {
-          auto &sv = p.asStringRef();
-          return sv.ends_with(".c") || sv.ends_with(".cc")
-                 || sv.ends_with(".cxx") || sv.ends_with(".cpp");
-        });
-        if (pathIt != paths.end()) {
+        auto &fileInfos = it->second.emitIndex.filesToBeIndexed;
+        auto fileInfoIt = absl::c_find_if(
+            fileInfos, [](const PreprocessedFileInfo &fileInfo) -> bool {
+              auto &sv = fileInfo.path.asStringRef();
+              return sv.ends_with(".c") || sv.ends_with(".cc")
+                     || sv.ends_with(".cxx") || sv.ends_with(".cpp");
+            });
+        if (fileInfoIt != fileInfos.end()) {
           return fmt::format("emitting an index for '{}'",
-                             pathIt->asStringRef());
+                             fileInfoIt->path.asStringRef());
         }
         return "emitting a partial index";
       }
@@ -791,7 +791,7 @@ private:
     switch (response.result.kind) {
     case IndexJob::Kind::SemanticAnalysis: {
       auto &semaResult = response.result.semanticAnalysis;
-      std::vector<AbsolutePath> filesToBeIndexed{};
+      std::vector<PreprocessedFileInfo> filesToBeIndexed{};
       this->planner.saveSemaResult(std::move(semaResult), filesToBeIndexed);
       auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
       queue.send(this->scheduler.createSubtaskAndScheduleOnWorker(
