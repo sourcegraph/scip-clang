@@ -244,7 +244,7 @@ public:
 
 private:
   std::pair<FileLocalSourceRange, clang::FileID>
-  getTokenExpansionRange(clang::SourceLocation startLoc) const;
+  getTokenExpansionRange(clang::SourceLocation startExpansionLoc) const;
 
   void saveReference(std::string_view symbol, clang::SourceLocation loc,
                      int32_t extraRoles = 0);
@@ -264,6 +264,9 @@ private:
   /// Returns a \c PartialDocument reference so that \c scip::SymbolInformation
   /// can be added into the document for definitions. Prefer using
   /// \c saveDefinition or \c saveReference over this method.
+  ///
+  /// This method should not be called for occurrences in external files,
+  /// since SCIP only tracks SymbolInformation values in external code.
   PartialDocument &saveOccurrence(std::string_view symbol,
                                   clang::SourceLocation loc,
                                   int32_t allRoles = 0);
