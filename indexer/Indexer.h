@@ -208,10 +208,11 @@ class TuIndexer final {
   SymbolFormatter &symbolFormatter;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, PartialDocument>
       documentMap;
+  GetStableFileId getStableFileId;
 
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
-            const clang::ASTContext &, SymbolFormatter &);
+            const clang::ASTContext &, SymbolFormatter &, GetStableFileId);
 
   // See NOTE(ref: emit-vs-save) for naming conventions.
 #define SAVE_DECL(DeclName) \
