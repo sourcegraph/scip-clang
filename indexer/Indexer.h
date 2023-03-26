@@ -201,6 +201,10 @@ struct PartialDocument {
   absl::flat_hash_map<std::string_view, scip::SymbolInformation> symbolInfos;
 };
 
+struct DocComment {
+  std::vector<std::string> lines;
+};
+
 class TuIndexer final {
   const clang::SourceManager &sourceManager;
   const clang::LangOptions &langOptions;
@@ -264,8 +268,7 @@ private:
                                   clang::SourceLocation loc,
                                   int32_t allRoles = 0);
 
-  std::vector<clang::RawComment::CommentLine>
-  tryGetDocComment(const clang::Decl &) const;
+  DocComment tryGetDocComment(const clang::Decl &) const;
 };
 
 } // namespace scip_clang
