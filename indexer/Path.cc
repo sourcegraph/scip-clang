@@ -43,6 +43,15 @@ AbsolutePathRef::makeRelative(AbsolutePathRef longerPath) {
   return {};
 }
 
+std::optional<std::string_view> AbsolutePathRef::fileName() const {
+  auto sview = this->asStringView();
+  auto i = sview.find_last_of(std::filesystem::path::preferred_separator);
+  if (i == std::string::npos || i == sview.size() - 1) {
+    return {};
+  }
+  return sview.substr(i + 1);
+}
+
 AbsolutePathRef AbsolutePath::asRef() const {
   auto sv = std::string_view(this->value.data(), this->value.size());
   auto optRef = AbsolutePathRef::tryFrom(sv);
@@ -87,6 +96,14 @@ std::strong_ordering operator<=>(const RootRelativePathRef &lhs,
 
 RootRelativePath::RootRelativePath(RootRelativePathRef ref)
     : value(ref.asStringView()), _kind(ref.kind()) {
+  if (this->value.empty()) {
+    return;
+  }
+  ENFORCE(llvm::sys::path::is_relative(this->value));
+}
+
+RootRelativePath::RootRelativePath(std::string &&path, RootKind kind)
+    : value(std::move(path)), _kind(kind) {
   if (this->value.empty()) {
     return;
   }

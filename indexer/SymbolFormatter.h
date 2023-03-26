@@ -53,9 +53,6 @@ class raw_ostream;
 
 namespace scip_clang {
 
-using GetCanonicalPath =
-    absl::FunctionRef<std::optional<RootRelativePathRef>(clang::FileID)>;
-
 /// Type similar to \c scip::Descriptor but carrying \c string_view fields
 /// instead to avoid redundant intermediate allocations.
 struct DescriptorBuilder {
@@ -93,9 +90,36 @@ struct SymbolBuilder {
                                       const DescriptorBuilder &descriptor);
 };
 
+/// An identifier for a file that is stable across indexing runs,
+/// represented as a path.
+///
+/// There are 4 kinds of files:
+/// 1. In-project files.
+/// 2. Generated files: These are present in the build root,
+///    but not in the project root.
+/// 3. External files: From libraries (stdlib, SDKs etc.)
+/// 4. Magic files: Corresponding to the builtin header,
+///    and command-line arguments.
+///
+/// For 2, 3 and 4, we make up fake paths that are likely to be
+/// distinct from actual in-project paths.
+///
+/// In the future, for cross-repo, a directory layout<->project mapping
+/// may be supplied or inferred, which would enable us to use non-synthetic
+/// paths for external files.
+struct StableFileId {
+  RootRelativePathRef path;
+  bool isInProject;
+  /// Track this for debugging.
+  bool isSynthetic;
+};
+
+using GetStableFileId =
+    absl::FunctionRef<std::optional<StableFileId>(clang::FileID)>;
+
 class SymbolFormatter final {
   const clang::SourceManager &sourceManager;
-  GetCanonicalPath getCanonicalPath;
+  GetStableFileId getStableFileId;
 
   // Q: Should we allocate into an arena instead of having standalone
   // std::string values here?
@@ -112,8 +136,8 @@ class SymbolFormatter final {
 
 public:
   SymbolFormatter(const clang::SourceManager &sourceManager,
-                  GetCanonicalPath getCanonicalPath)
-      : sourceManager(sourceManager), getCanonicalPath(getCanonicalPath),
+                  GetStableFileId getStableFileId)
+      : sourceManager(sourceManager), getStableFileId(getStableFileId),
         locationBasedCache(), declBasedCache(), scratchBuffer() {}
   SymbolFormatter(const SymbolFormatter &) = delete;
   SymbolFormatter &operator=(const SymbolFormatter &) = delete;
