@@ -40,6 +40,10 @@ public:
 
   // Basic prefix-based implementation; does not handle lexical normalization.
   std::optional<std::string_view> makeRelative(AbsolutePathRef longerPath);
+
+  /// Try to get the file name by slicing off the prefix till the last
+  /// path separator.
+  std::optional<std::string_view> fileName() const;
 };
 
 /// Typically used when referring to paths for files which may or may not
@@ -123,6 +127,8 @@ public:
   RootRelativePath &operator=(const RootRelativePath &) = default;
 
   explicit RootRelativePath(RootRelativePathRef ref);
+
+  RootRelativePath(std::string &&, RootKind);
 
   const std::string &asStringRef() const {
     return this->value;

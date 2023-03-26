@@ -136,16 +136,16 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   auto defPLoc =
       this->sourceManager.getPresumedLoc(defLoc, /*UseLineDirectives*/ false);
   ENFORCE(defPLoc.isValid());
-  std::string_view filename;
-  if (auto optRelPath = this->getCanonicalPath(defPLoc.getFileID())) {
-    filename = optRelPath->asStringView();
+  std::string_view filepath;
+  if (auto optStableFileId = this->getStableFileId(defPLoc.getFileID())) {
+    filepath = optStableFileId->path.asStringView();
   } else {
-    filename = std::string_view(defPLoc.getFilename());
+    filepath = std::string_view(defPLoc.getFilename());
   }
 
   // Technically, ':' is used by SCIP for <meta>, but using ':'
   // here lines up with other situations like compiler errors.
-  auto name = this->formatTemporary("{}:{}:{}", filename, defPLoc.getLine(),
+  auto name = this->formatTemporary("{}:{}:{}", filepath, defPLoc.getLine(),
                                     defPLoc.getColumn());
   std::string out{};
   SymbolBuilder{.packageName = "todo-pkg",
@@ -313,10 +313,10 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
       //
       // If we don't include the hash, the anonymous structs will end up with
       // the same symbol name.
-      if (auto optRelativePath = this->getCanonicalPath(defFileId)) {
+      if (auto optStableFileId = this->getStableFileId(defFileId)) {
         descriptor.name = this->formatTemporary(
             "$anonymous_type_{:x}_{}",
-            HashValue::forText(optRelativePath->asStringView()), counter);
+            HashValue::forText(optStableFileId->path.asStringView()), counter);
       }
     }
     if (descriptor.name.empty()) {
@@ -444,23 +444,12 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl &namespaceDecl) {
         if (namespaceDecl.isAnonymousNamespace()) {
           auto mainFileId = this->sourceManager.getMainFileID();
           ENFORCE(mainFileId.isValid());
-          auto path = this->getCanonicalPath(mainFileId);
-          if (!path.has_value()) {
-            // Strictly speaking, this will be suboptimal in the following case:
-            // - header 1: in source tree (has canonical path), uses
-            //     namespace {..}
-            // - header 2: in source tree (has canonical path), uses
-            //     namespace {..}
-            // - generated C++ file: in build tree only (no canonical path), and
-            //   includes header 1 and 2.
-            // We will not emit a symbol that connects the anonymous namespace
-            // in header 1 and header 2. However, that is OK, because it is
-            // unclear how to handle this case anyways, and anonymous namespaces
-            // are rarely (if ever) used in headers.
-            return {};
-          }
+          auto optStableFileId = this->getStableFileId(mainFileId);
+          ENFORCE(optStableFileId.has_value(),
+                  "main file always has a valid StableFileId");
+          auto path = optStableFileId->path;
           descriptor.name = this->formatTemporary("$anonymous_namespace_{}",
-                                                  path->asStringView());
+                                                  path.asStringView());
         } else {
           descriptor.name = this->formatTemporary(namespaceDecl);
         }

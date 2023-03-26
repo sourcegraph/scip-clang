@@ -616,9 +616,17 @@ using FileIdsToBeIndexedSet =
 /// In the future, for cross-repo, a directory layout<->project mapping
 /// may be supplied or inferred, which would provide canonical relative
 /// paths for more files.
-class CanonicalPathMap final {
+class StableFileIdMap final {
+  std::vector<RootRelativePath> storage;
+
+  struct ExternalFileEntry {
+    AbsolutePathRef absPath;
+    // Points to storage
+    RootRelativePathRef fakeRelativePath;
+  };
+
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>,
-                      std::variant<RootRelativePathRef, AbsolutePathRef>>
+                      std::variant<RootRelativePathRef, ExternalFileEntry>>
       map;
 
   const RootPath &projectRootPath;
@@ -626,14 +634,14 @@ class CanonicalPathMap final {
   const RootPath &buildRootPath;
 
 public:
-  CanonicalPathMap() = delete;
-  CanonicalPathMap(const RootPath &projectRootPath,
-                   const RootPath &buildRootPath)
+  StableFileIdMap() = delete;
+  StableFileIdMap(const RootPath &projectRootPath,
+                  const RootPath &buildRootPath)
       : map(), projectRootPath(projectRootPath), buildRootPath(buildRootPath) {}
-  CanonicalPathMap(CanonicalPathMap &&other) = default;
-  CanonicalPathMap &operator=(CanonicalPathMap &&) = delete;
-  CanonicalPathMap(const CanonicalPathMap &) = delete;
-  CanonicalPathMap &operator=(const CanonicalPathMap &) = delete;
+  StableFileIdMap(StableFileIdMap &&other) = default;
+  StableFileIdMap &operator=(StableFileIdMap &&) = delete;
+  StableFileIdMap(const StableFileIdMap &) = delete;
+  StableFileIdMap &operator=(const StableFileIdMap &) = delete;
 
   void populate(const ClangIdLookupMap &clangIdLookupMap) {
     this->map.reserve(clangIdLookupMap.size());
@@ -683,28 +691,40 @@ public:
                    this->projectRootPath.tryMakeRelative(absPathRef)) {
       return insertRelPath(optProjectRootRelPath.value());
     }
-    return this->map.insert({{fileId}, absPathRef}).second;
+    auto optFileName = absPathRef.fileName();
+    ENFORCE(optFileName.has_value(),
+            "Clang returned file path {} without a file name",
+            absPathRef.asStringView());
+    this->storage.emplace_back(
+        fmt::format("<external>/{}/{}",
+                    HashValue::forText(absPathRef.asStringView()),
+                    *optFileName),
+        RootKind::Build); // fake value to satisfy the RootRelativePathRef API
+    return this->map
+        .insert({{fileId},
+                 ExternalFileEntry{absPathRef, this->storage.back().asRef()}})
+        .second;
   }
 
   bool contains(clang::FileID fileId) const {
     return this->map.contains({fileId});
   }
 
-  /// See the doc comment on \c CanonicalPathMap
-  std::optional<RootRelativePathRef>
-  tryGetCanonicalPath(clang::FileID fileId) const {
+  /// See the doc comment on \c StableFileIdMap
+  std::optional<StableFileId> getStableFileId(clang::FileID fileId) const {
     auto it = this->map.find({fileId});
-    // TODO: Some headers like <built-in> and those in the Xcode SDK
-    // are not getting populated here. That's fine, because they are
-    // out-of-project anyways, but it seems weird that the populate(...)
-    // call isn't adding them.
     if (it == this->map.end()) {
       return {};
     }
     if (std::holds_alternative<RootRelativePathRef>(it->second)) {
-      return std::get<RootRelativePathRef>(it->second);
+      return StableFileId{.path = std::get<RootRelativePathRef>(it->second),
+                          .isInProject = true,
+                          .isSynthetic = false};
     }
-    return {};
+    return StableFileId{
+        .path = std::get<ExternalFileEntry>(it->second).fakeRelativePath,
+        .isInProject = false,
+        .isSynthetic = true};
   }
 };
 
@@ -726,17 +746,17 @@ struct PartialScipIndex {
 class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
   using Base = RecursiveASTVisitor;
 
-  const CanonicalPathMap &pathMap;
+  const StableFileIdMap &stableFileIdMap;
   FileIdsToBeIndexedSet toBeIndexed;
   bool deterministic;
 
   TuIndexer &tuIndexer;
 
 public:
-  IndexerAstVisitor(const CanonicalPathMap &pathMap,
-                    FileIdsToBeIndexedSet &&map, bool deterministic,
+  IndexerAstVisitor(const StableFileIdMap &pathMap,
+                    FileIdsToBeIndexedSet &&toBeIndexed, bool deterministic,
                     TuIndexer &tuIndexer)
-      : pathMap(pathMap), toBeIndexed(std::move(map)),
+      : stableFileIdMap(pathMap), toBeIndexed(std::move(toBeIndexed)),
         deterministic(deterministic), tuIndexer(tuIndexer) {}
 
   // See clang/include/clang/Basic/DeclNodes.td for list of declarations.
@@ -807,13 +827,15 @@ public:
 
   void writeIndex(SymbolFormatter &&symbolFormatter, MacroIndexer &&macroIndex,
                   scip::Index &scipIndex) {
-    std::vector<std::pair<RootRelativePathRef, clang::FileID>> relativePaths;
-    for (auto wrappedFileId : toBeIndexed) {
-      // We may have been asked to index files outside the project,
-      // which lack canonical paths.
-      if (auto optRelPathRef =
-              pathMap.tryGetCanonicalPath(wrappedFileId.data)) {
-        relativePaths.push_back({optRelPathRef.value(), wrappedFileId.data});
+    std::vector<std::pair<RootRelativePathRef, clang::FileID>>
+        indexedProjectFiles;
+    for (auto wrappedFileId : this->toBeIndexed) {
+      if (auto optStableFileId =
+              this->stableFileIdMap.getStableFileId(wrappedFileId.data)) {
+        if (optStableFileId->isInProject) {
+          indexedProjectFiles.emplace_back(optStableFileId->path,
+                                           wrappedFileId.data);
+        }
       }
     }
     if (this->deterministic) {
@@ -824,10 +846,10 @@ public:
                 p1.first.asStringView());
         return cmp == std::strong_ordering::less;
       };
-      absl::c_sort(relativePaths, comparePaths);
+      absl::c_sort(indexedProjectFiles, comparePaths);
     }
 
-    for (auto [relPathRef, fileId] : relativePaths) {
+    for (auto [relPathRef, fileId] : indexedProjectFiles) {
       scip::Document document;
       auto relPath = relPathRef.asStringView();
       document.set_relative_path(relPath.data(), relPath.size());
@@ -898,22 +920,22 @@ public:
       return;
     }
 
-    CanonicalPathMap canonicalPathMap{this->options.projectRootPath,
-                                      this->options.buildRootPath};
+    StableFileIdMap stableFileIdMap{this->options.projectRootPath,
+                                    this->options.buildRootPath};
     FileIdsToBeIndexedSet toBeIndexed{};
     this->computeFileIdsToBeIndexed(astContext, emitIndexDetails,
-                                    clangIdLookupMap, canonicalPathMap,
+                                    clangIdLookupMap, stableFileIdMap,
                                     toBeIndexed);
 
-    auto getRelativePath =
-        [&](clang::FileID fileId) -> std::optional<RootRelativePathRef> {
-      return canonicalPathMap.tryGetCanonicalPath(fileId);
+    auto getStableFileId =
+        [&](clang::FileID fileId) -> std::optional<StableFileId> {
+      return stableFileIdMap.getStableFileId(fileId);
     };
-    SymbolFormatter symbolFormatter{sourceManager, getRelativePath};
+    SymbolFormatter symbolFormatter{sourceManager, getStableFileId};
     TuIndexer tuIndexer{sourceManager, this->sema->getLangOpts(),
                         this->sema->getASTContext(), symbolFormatter};
 
-    IndexerAstVisitor visitor{canonicalPathMap, std::move(toBeIndexed),
+    IndexerAstVisitor visitor{stableFileIdMap, std::move(toBeIndexed),
                               this->options.deterministic, tuIndexer};
     visitor.TraverseAST(astContext);
 
@@ -933,16 +955,16 @@ private:
   void computeFileIdsToBeIndexed(const clang::ASTContext &astContext,
                                  const EmitIndexJobDetails &emitIndexDetails,
                                  const ClangIdLookupMap &clangIdLookupMap,
-                                 CanonicalPathMap &canonicalPathMap,
+                                 StableFileIdMap &stableFileIdMap,
                                  FileIdsToBeIndexedSet &toBeIndexed) {
     auto &sourceManager = astContext.getSourceManager();
     auto mainFileId = sourceManager.getMainFileID();
 
-    canonicalPathMap.populate(clangIdLookupMap);
+    stableFileIdMap.populate(clangIdLookupMap);
     if (auto *mainFileEntry = sourceManager.getFileEntryForID(mainFileId)) {
       if (auto optMainFileAbsPath =
               AbsolutePathRef::tryFrom(mainFileEntry->tryGetRealPathName())) {
-        canonicalPathMap.insert(mainFileId, optMainFileAbsPath.value());
+        stableFileIdMap.insert(mainFileId, optMainFileAbsPath.value());
         toBeIndexed.insert({mainFileId});
       } else {
         spdlog::debug(
@@ -971,7 +993,7 @@ private:
       std::string message;
       auto check = [&](auto wrappedFileId) -> bool {
         auto fileId = wrappedFileId.data;
-        if (canonicalPathMap.contains(fileId)) {
+        if (stableFileIdMap.contains(fileId)) {
           return true;
         }
         message = fmt::format("missing fileId {} for path: {}",
