@@ -729,21 +729,6 @@ public:
   }
 };
 
-struct PartialScipIndex {
-  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, scip::Document>
-      documents;
-  std::vector<scip::SymbolInformation> externalSymbols;
-
-  void insert(clang::FileID fileId, scip::Occurrence &&occ) {
-    auto &doc = this->documents[{fileId}];
-    *doc.add_occurrences() = std::move(occ);
-  }
-  void insert(clang::FileID fileId, scip::SymbolInformation &&symbolInfo) {
-    auto &doc = this->documents[{fileId}];
-    *doc.add_symbols() = std::move(symbolInfo);
-  }
-};
-
 class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
   using Base = RecursiveASTVisitor;
 
@@ -827,7 +812,7 @@ public:
 #undef TRY_TO
 
   void writeIndex(SymbolFormatter &&symbolFormatter, MacroIndexer &&macroIndex,
-                  scip::Index &scipIndex) {
+                  TuIndexingOutput &tuIndexingOutput) {
     std::vector<std::pair<RootRelativePathRef, clang::FileID>>
         indexedProjectFiles;
     for (auto wrappedFileId : this->toBeIndexed) {
@@ -865,10 +850,14 @@ public:
           this->deterministic, symbolFormatter, fileId, document);
       this->tuIndexer.emitDocumentOccurrencesAndSymbols(this->deterministic,
                                                         fileId, document);
-      *scipIndex.add_documents() = std::move(document);
+      *tuIndexingOutput.docsAndExternals.add_documents() = std::move(document);
     }
+    this->tuIndexer.emitExternalSymbols(deterministic,
+                                        tuIndexingOutput.docsAndExternals);
+    this->tuIndexer.emitForwardDeclarations(deterministic,
+                                            tuIndexingOutput.forwardDecls);
     macroIndex.emitExternalSymbols(this->deterministic, symbolFormatter,
-                                   scipIndex);
+                                   tuIndexingOutput.docsAndExternals);
   }
 
   // For the various hierarchies, see clang/Basic/.*.td files
@@ -886,16 +875,15 @@ class IndexerAstConsumer : public clang::SemaConsumer {
   const IndexerAstConsumerOptions &options;
   IndexerPreprocessorWrapper *preprocessorWrapper;
   clang::Sema *sema;
-  scip::Index &scipIndex;
-  PartialScipIndex partialIndex;
+  TuIndexingOutput &tuIndexingOutput;
 
 public:
   IndexerAstConsumer(clang::CompilerInstance &, llvm::StringRef /*filepath*/,
                      const IndexerAstConsumerOptions &options,
                      IndexerPreprocessorWrapper *preprocessorWrapper,
-                     scip::Index &scipIndex)
+                     TuIndexingOutput &tuIndexingOutput)
       : options(options), preprocessorWrapper(preprocessorWrapper),
-        sema(nullptr), scipIndex(scipIndex), partialIndex() {}
+        sema(nullptr), tuIndexingOutput(tuIndexingOutput) {}
 
   void HandleTranslationUnit(clang::ASTContext &astContext) override {
     // NOTE(ref: preprocessor-traversal-ordering): The call order is
@@ -942,7 +930,7 @@ public:
     visitor.TraverseAST(astContext);
 
     visitor.writeIndex(std::move(symbolFormatter), std::move(macroIndexer),
-                       scipIndex);
+                       this->tuIndexingOutput);
   }
 
   void InitializeSema(clang::Sema &S) override {
@@ -1010,14 +998,15 @@ private:
 class IndexerFrontendAction : public clang::ASTFrontendAction {
   const IndexerPreprocessorOptions &preprocessorOptions;
   const IndexerAstConsumerOptions &astConsumerOptions;
-  scip::Index &scipIndex;
+  TuIndexingOutput &tuIndexingOutput;
 
 public:
   IndexerFrontendAction(const IndexerPreprocessorOptions &preprocessorOptions,
                         const IndexerAstConsumerOptions &astConsumerOptions,
-                        scip::Index &scipIndex)
+                        TuIndexingOutput &tuIndexingOutput)
       : preprocessorOptions(preprocessorOptions),
-        astConsumerOptions(astConsumerOptions), scipIndex(scipIndex) {}
+        astConsumerOptions(astConsumerOptions),
+        tuIndexingOutput(tuIndexingOutput) {}
 
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &compilerInstance,
@@ -1032,7 +1021,7 @@ public:
     preprocessor.addPPCallbacks(std::move(callbacks));
     return std::make_unique<IndexerAstConsumer>(
         compilerInstance, filepath, this->astConsumerOptions,
-        preprocessorWrapper, this->scipIndex);
+        preprocessorWrapper, this->tuIndexingOutput);
   }
 };
 
@@ -1040,19 +1029,21 @@ class IndexerFrontendActionFactory
     : public clang::tooling::FrontendActionFactory {
   const IndexerPreprocessorOptions &preprocessorOptions;
   const IndexerAstConsumerOptions &astConsumerOptions;
-  scip::Index &scipIndex;
+  TuIndexingOutput &tuIndexingOutput;
 
 public:
   IndexerFrontendActionFactory(
       const IndexerPreprocessorOptions &preprocessorOptions,
       const IndexerAstConsumerOptions &astConsumerOptions,
-      scip::Index &scipIndex)
+      TuIndexingOutput &tuIndexingOutput)
       : preprocessorOptions(preprocessorOptions),
-        astConsumerOptions(astConsumerOptions), scipIndex(scipIndex) {}
+        astConsumerOptions(astConsumerOptions),
+        tuIndexingOutput(tuIndexingOutput) {}
 
   virtual std::unique_ptr<clang::FrontendAction> create() override {
-    return std::make_unique<IndexerFrontendAction>(
-        this->preprocessorOptions, this->astConsumerOptions, this->scipIndex);
+    return std::make_unique<IndexerFrontendAction>(this->preprocessorOptions,
+                                                   this->astConsumerOptions,
+                                                   this->tuIndexingOutput);
   }
 };
 
@@ -1164,7 +1155,7 @@ const IpcOptions &Worker::ipcOptions() const {
 
 void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
                                     WorkerCallback workerCallback,
-                                    scip::Index &scipIndex) {
+                                    TuIndexingOutput &tuIndexingOutput) {
   auto optPathRef =
       AbsolutePathRef::tryFrom(std::string_view(job.command.Directory));
   ENFORCE(optPathRef.has_value()); // See NOTE(ref: directory-field-is-absolute)
@@ -1192,7 +1183,7 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
       this->options.projectRootPath, buildRootPath, std::move(workerCallback),
       this->options.deterministic};
   auto frontendActionFactory = IndexerFrontendActionFactory(
-      preprocessorOptions, astConsumerOptions, scipIndex);
+      preprocessorOptions, astConsumerOptions, tuIndexingOutput);
 
   clang::tooling::ToolInvocation invocation(
       std::move(args), &frontendActionFactory, fileManager.get(),
@@ -1215,7 +1206,7 @@ void Worker::emitIndex(scip::Index &&scipIndex, const StdPath &outputPath) {
                                              | std::ios_base::binary
                                              | std::ios_base::trunc);
   if (outputStream.fail()) {
-    spdlog::warn("failed to open file to write partial index at '{}' ({})",
+    spdlog::warn("failed to open file to write shard at '{}' ({})",
                  outputPath.c_str(), std::strerror(errno));
     std::exit(EXIT_FAILURE);
   }
@@ -1271,12 +1262,13 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     emitIndexRequestId = emitIndexRequest.id;
     return true;
   };
-  scip::Index scipIndex{};
+  TuIndexingOutput tuIndexingOutput{};
   auto &semaDetails = semanticAnalysisRequest.job.semanticAnalysis;
 
   scip_clang::exceptionContext =
       fmt::format("processing {}", semaDetails.command.Filename);
-  this->processTranslationUnit(std::move(semaDetails), callback, scipIndex);
+  this->processTranslationUnit(std::move(semaDetails), callback,
+                               tuIndexingOutput);
   scip_clang::exceptionContext = "";
 
   ENFORCE(callbackInvoked == 1,
@@ -1286,19 +1278,16 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     return innerStatus;
   }
 
-  StdPath outputPath = this->options.mode == WorkerMode::Compdb
-                           ? this->options.indexOutputPath
-                           : (this->options.temporaryOutputDir
-                              / fmt::format("job-{}-worker-{}.index.scip",
-                                            emitIndexRequestId.taskId(),
-                                            this->ipcOptions().workerId));
-  this->emitIndex(std::move(scipIndex), outputPath);
-  indexingTimer.stop();
-
-  this->statistics.totalTimeMicros =
-      uint64_t(indexingTimer.value<std::chrono::microseconds>());
+  auto stopTimer = [&]() -> void {
+    indexingTimer.stop();
+    this->statistics.totalTimeMicros =
+        uint64_t(indexingTimer.value<std::chrono::microseconds>());
+  };
 
   if (this->options.mode == WorkerMode::Compdb) {
+    StdPath outputPath = this->options.indexOutputPath;
+    this->emitIndex(std::move(tuIndexingOutput.docsAndExternals), outputPath);
+    stopTimer();
     if (!this->options.statsFilePath.empty()) {
       StatsEntry::emitAll({StatsEntry{tuMainFilePath, this->statistics}},
                           this->options.statsFilePath.c_str());
@@ -1306,8 +1295,23 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     return ReceiveStatus::OK;
   }
 
-  EmitIndexJobResult emitIndexResult{this->statistics,
-                                     AbsolutePath{outputPath.string()}};
+  StdPath prefix =
+      this->options.temporaryOutputDir
+      / fmt::format("job-{}-worker-{}", emitIndexRequestId.taskId(),
+                    this->ipcOptions().workerId);
+  StdPath docsAndExternalsOutputPath =
+      prefix.concat("-docs_and_externals.shard.scip");
+  StdPath forwardDeclsOutputPath = prefix.concat("-forward_decls.shard.scip");
+  this->emitIndex(std::move(tuIndexingOutput.docsAndExternals),
+                  docsAndExternalsOutputPath);
+  this->emitIndex(std::move(tuIndexingOutput.forwardDecls),
+                  forwardDeclsOutputPath);
+  stopTimer();
+
+  EmitIndexJobResult emitIndexResult{
+      this->statistics,
+      ShardPaths{AbsolutePath{docsAndExternalsOutputPath.string()},
+                 AbsolutePath{forwardDeclsOutputPath.string()}}};
 
   this->sendResult(emitIndexRequestId,
                    IndexJobResult{.kind = IndexJob::Kind::EmitIndex,

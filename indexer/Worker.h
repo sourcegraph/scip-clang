@@ -14,15 +14,13 @@
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "scip/scip.pb.h"
+
 #include "indexer/CliOptions.h"
 #include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/Path.h"
-
-namespace scip {
-class Index;
-}
 
 namespace scip_clang {
 
@@ -81,6 +79,19 @@ struct WorkerOptions {
 using WorkerCallback = absl::FunctionRef<bool(SemanticAnalysisJobResult &&,
                                               EmitIndexJobDetails &)>;
 
+struct TuIndexingOutput {
+  /// Index storing per-document output and external symbols
+  /// for symbols that have definitions.
+  scip::Index docsAndExternals;
+  /// Index storing information about forward declarations.
+  /// Only the external_symbols list is populated.
+  scip::Index forwardDecls;
+
+  TuIndexingOutput() = default;
+  TuIndexingOutput(const TuIndexingOutput &) = delete;
+  TuIndexingOutput &operator=(const TuIndexingOutput &) = delete;
+};
+
 class Worker final {
   WorkerOptions options;
 
@@ -130,7 +141,7 @@ private:
   // Testing-only APIs
 public:
   void processTranslationUnit(SemanticAnalysisJobDetails &&, WorkerCallback,
-                              scip::Index &);
+                              TuIndexingOutput &);
   void flushStreams();
 };
 

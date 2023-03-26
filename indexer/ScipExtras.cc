@@ -110,7 +110,7 @@ void DocumentBuilder::merge(scip::Document &&doc) {
     this->occurrences.insert({std::move(occ)});
   }
   for (auto &symbolInfo : *doc.mutable_symbols()) {
-    auto &name = *symbolInfo.mutable_symbol();
+    SymbolName name{std::move(*symbolInfo.mutable_symbol())};
     auto it = this->symbolInfos.find(name);
     if (it == this->symbolInfos.end()) {
       // SAFETY: Don't inline this initializer call since lack of
@@ -118,7 +118,7 @@ void DocumentBuilder::merge(scip::Document &&doc) {
       // the std::move(name) may happen before passing name to
       // the initializer.
       SymbolInformationBuilder builder{
-          name, std::move(*symbolInfo.mutable_documentation()),
+          name.asStringRef(), std::move(*symbolInfo.mutable_documentation()),
           std::move(*symbolInfo.mutable_relationships())};
       this->symbolInfos.emplace(std::move(name), std::move(builder));
       continue;
@@ -130,6 +130,14 @@ void DocumentBuilder::merge(scip::Document &&doc) {
     }
     symbolInfoBuilder.mergeRelationships(
         std::move(*symbolInfo.mutable_relationships()));
+  }
+}
+
+void DocumentBuilder::populateSymbolToInfoMap(
+    SymbolToInfoMap &symbolToInfoMap) {
+  for (auto &[symbolName, symbolInfoBuilder] : this->symbolInfos) {
+    symbolToInfoMap.emplace(std::string_view(symbolName.asStringRef()),
+                            SymbolToInfoMap::mapped_type(&symbolInfoBuilder));
   }
 }
 
@@ -147,10 +155,10 @@ void DocumentBuilder::finish(bool deterministic, scip::Document &out) {
 
   scip_clang::extractTransform(
       std::move(this->symbolInfos), deterministic,
-      absl::FunctionRef<void(std::string &&, SymbolInformationBuilder &&)>(
+      absl::FunctionRef<void(SymbolName &&, SymbolInformationBuilder &&)>(
           [&](auto &&name, auto &&builder) {
             scip::SymbolInformation symbolInfo{};
-            symbolInfo.set_symbol(name);
+            symbolInfo.set_symbol(std::move(name.asStringRefMut()));
             builder.finish(deterministic, symbolInfo);
             *this->soFar.add_symbols() = std::move(symbolInfo);
           }));
@@ -190,22 +198,28 @@ void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
   }
 }
 
+void IndexBuilder::addExternalSymbolUnchecked(
+    SymbolName &&name, scip::SymbolInformation &&extSym) {
+  std::vector<std::string> docs{};
+  absl::c_move(*extSym.mutable_documentation(), std::back_inserter(docs));
+  absl::flat_hash_set<RelationshipExt> rels{};
+  for (auto &rel : *extSym.mutable_relationships()) {
+    rels.insert({std::move(rel)});
+  }
+  // SAFETY: Don't inline this assignment statement since lack of
+  // guarantees around subexpression evaluation order mean that
+  // the std::move(name) may happen before name.asStringRef() is called.
+  auto builder = std::make_unique<SymbolInformationBuilder>(
+      name.asStringRef(), std::move(docs), std::move(rels));
+  this->externalSymbols.emplace(std::move(name), std::move(builder));
+  return;
+}
+
 void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
   SymbolName name{std::move(*extSym.mutable_symbol())};
   auto it = this->externalSymbols.find(name);
   if (it == this->externalSymbols.end()) {
-    std::vector<std::string> docs{};
-    absl::c_move(*extSym.mutable_documentation(), std::back_inserter(docs));
-    absl::flat_hash_set<RelationshipExt> rels{};
-    for (auto &rel : *extSym.mutable_relationships()) {
-      rels.insert({std::move(rel)});
-    }
-    // SAFETY: Don't inline this assignment statement since lack of
-    // guarantees around subexpression evaluation order mean that
-    // the std::move(name) may happen before name.asStringRef() is called.
-    auto builder = std::make_unique<SymbolInformationBuilder>(
-        name.asStringRef(), std::move(docs), std::move(rels));
-    this->externalSymbols.insert({std::move(name), std::move(builder)});
+    this->addExternalSymbolUnchecked(std::move(name), std::move(extSym));
     return;
   }
   // NOTE(def: precondition-deterministic-ext-symbol-docs)
@@ -216,6 +230,63 @@ void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
     builder->setDocumentation(std::move(*extSym.mutable_documentation()));
   }
   builder->mergeRelationships(std::move(*extSym.mutable_relationships()));
+}
+
+std::unique_ptr<SymbolToInfoMap> IndexBuilder::populateSymbolToInfoMap() {
+  SymbolToInfoMap symbolToInfoMap;
+  for (auto &document : *this->fullIndex.mutable_documents()) {
+    for (auto &symbolInfo : *document.mutable_symbols()) {
+      auto symbolName = std::string_view(symbolInfo.symbol());
+      symbolToInfoMap.emplace(symbolName,
+                              SymbolToInfoMap::mapped_type(&symbolInfo));
+    }
+  }
+  for (auto &[_, docBuilder] : this->multiplyIndexed) {
+    docBuilder->populateSymbolToInfoMap(symbolToInfoMap);
+  }
+  return std::make_unique<SymbolToInfoMap>(std::move(symbolToInfoMap));
+}
+
+void IndexBuilder::addForwardDeclaration(
+    const SymbolToInfoMap &symbolToInfoMap,
+    scip::SymbolInformation &&forwardDeclSym) {
+  SymbolName name{std::move(*forwardDeclSym.mutable_symbol())};
+  auto it = symbolToInfoMap.find(name.asStringRef());
+  if (it == symbolToInfoMap.end()) {
+    if (!this->externalSymbols.contains(name)) {
+      this->addExternalSymbolUnchecked(std::move(name),
+                                       std::move(forwardDeclSym));
+    } else {
+      // The main index confirms that this was an external symbol, which means
+      // that we must have seen the definition in an out-of-project file.
+      // In this case, just throw away the information we have,
+      // and rely on what we found externally as the source of truth.
+    }
+    return;
+  }
+  auto extIt = this->externalSymbols.find(name);
+  if (extIt != this->externalSymbols.end()) {
+    extIt->second->discard();
+    this->externalSymbols.erase(extIt);
+  }
+  if (!forwardDeclSym.documentation().empty()) {
+    // FIXME(def: better-doc-merging): We shouldn't drop documentation
+    // attached to a definition, if present.
+    if (auto *symbolInfo = it->second.dyn_cast<scip::SymbolInformation *>()) {
+      symbolInfo->mutable_documentation()->Clear();
+      for (auto &doc : *forwardDeclSym.mutable_documentation()) {
+        *symbolInfo->add_documentation() = std::move(doc);
+      }
+    } else {
+      auto &symbolInfoBuilder = *it->second.get<SymbolInformationBuilder *>();
+      // FIXME(def: better-documentation-merging): We shouldn't drop
+      // documentation attached to a forward declaration.
+      if (!symbolInfoBuilder.hasDocumentation()) {
+        symbolInfoBuilder.setDocumentation(
+            std::move(*forwardDeclSym.mutable_documentation()));
+      }
+    }
+  }
 }
 
 void IndexBuilder::finish(bool deterministic) {

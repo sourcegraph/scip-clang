@@ -263,7 +263,8 @@ TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      GetStableFileId getStableFileId)
     : sourceManager(sourceManager), langOptions(langOptions),
       astContext(astContext), symbolFormatter(symbolFormatter), documentMap(),
-      getStableFileId(getStableFileId) {}
+      getStableFileId(getStableFileId), externalSymbols(),
+      forwardDeclarations() {}
 
 void TuIndexer::saveBindingDecl(const clang::BindingDecl &bindingDecl) {
   auto optSymbol = this->symbolFormatter.getBindingSymbol(bindingDecl);
@@ -358,8 +359,8 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
     this->saveDefinition(symbol, functionDecl.getLocation(),
                          std::move(symbolInfo));
   } else {
-    // See TODO(ref: handle-forward-decls)
-    this->saveReference(symbol, functionDecl.getLocation());
+    this->saveForwardDeclaration(symbol, functionDecl.getLocation(),
+                                 this->tryGetDocComment(functionDecl));
   }
 }
 
@@ -484,11 +485,8 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
   auto symbol = optSymbol.value();
 
   if (!tagDecl.isThisDeclarationADefinition()) {
-    // 1. We should emit an external symbol here in some situations
-    //    See TODO(ref: handle-forward-decls)
-    // 2. Pass in a forward declaration SymbolRole here
-    //    once https://github.com/sourcegraph/scip/issues/131 is fixed.
-    this->saveReference(symbol, tagDecl.getLocation());
+    this->saveForwardDeclaration(symbol, tagDecl.getLocation(),
+                                 this->tryGetDocComment(tagDecl));
     return;
   }
 
@@ -681,6 +679,34 @@ void TuIndexer::emitDocumentOccurrencesAndSymbols(
           }));
 }
 
+void TuIndexer::emitExternalSymbols(bool deterministic,
+                                    scip::Index &indexShard) {
+  scip_clang::extractTransform(
+      std::move(this->externalSymbols), deterministic,
+      absl::FunctionRef<void(std::string_view &&, scip::SymbolInformation &&)>(
+          [&](auto &&symbol, auto &&symbolInfo) {
+            symbolInfo.set_symbol(symbol.data(), symbol.size());
+            *indexShard.add_external_symbols() = std::move(symbolInfo);
+          }));
+}
+
+void TuIndexer::emitForwardDeclarations(bool deterministic,
+                                        scip::Index &forwardDeclIndex) {
+  scip_clang::extractTransform(
+      std::move(this->forwardDeclarations), deterministic,
+      absl::FunctionRef<void(std::string_view &&, DocComment &&)>(
+          [&](auto &&symbol, auto &&docComment) {
+            scip::SymbolInformation symbolInfo{};
+            for (auto &line : docComment.lines) {
+              *symbolInfo.add_documentation() = std::move(line);
+            }
+            symbolInfo.set_symbol(symbol.data(), symbol.size());
+            // Add a forward declaration SymbolRole here
+            // once https://github.com/sourcegraph/scip/issues/131 is fixed.
+            *forwardDeclIndex.add_external_symbols() = std::move(symbolInfo);
+          }));
+}
+
 std::pair<FileLocalSourceRange, clang::FileID>
 TuIndexer::getTokenExpansionRange(
     clang::SourceLocation startExpansionLoc) const {
@@ -690,6 +716,17 @@ TuIndexer::getTokenExpansionRange(
   auto endLoc = startExpansionLoc.getLocWithOffset(tokenLength);
   return FileLocalSourceRange::fromNonEmpty(this->sourceManager,
                                             {startExpansionLoc, endLoc});
+}
+
+void TuIndexer::saveForwardDeclaration(std::string_view symbol,
+                                       clang::SourceLocation loc,
+                                       DocComment &&docComments) {
+  this->saveReference(symbol, loc);
+  auto [it, inserted] = this->forwardDeclarations.emplace(symbol, docComments);
+  if (!inserted && it->second.lines.empty() && !docComments.lines.empty()) {
+    it->second.lines = std::move(docComments.lines);
+  }
+  return;
 }
 
 void TuIndexer::saveReference(std::string_view symbol,
@@ -721,6 +758,19 @@ void TuIndexer::saveDefinition(
     if (optSymbolInfo.has_value()) {
       doc.symbolInfos.emplace(symbol, std::move(optSymbolInfo.value()));
     }
+  } else if (optSymbolInfo.has_value()) {
+    this->saveExternalSymbol(symbol, std::move(*optSymbolInfo));
+  }
+}
+
+void TuIndexer::saveExternalSymbol(std::string_view symbol,
+                                   scip::SymbolInformation &&symbolInfo) {
+  auto [it, inserted] =
+      this->externalSymbols.emplace(symbol, std::move(symbolInfo));
+  if (!inserted && it->second.documentation().empty()
+      && !symbolInfo.documentation().empty()) {
+    *it->second.mutable_documentation() =
+        std::move(*symbolInfo.mutable_documentation());
   }
 }
 

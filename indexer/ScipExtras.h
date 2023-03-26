@@ -3,6 +3,7 @@
 
 #include <compare>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -12,6 +13,8 @@
 #include "spdlog/fmt/fmt.h"
 
 #include "scip/scip.pb.h"
+
+#include "llvm/ADT/PointerUnion.h"
 
 #include "indexer/Comparison.h"
 #include "indexer/Derive.h"
@@ -102,8 +105,33 @@ public:
       this->relationships.insert({std::move(rel)});
     }
   }
+  void discard() {
+    this->_bomb.defuse();
+  }
   void finish(bool deterministic, scip::SymbolInformation &out);
 };
+
+class SymbolName {
+  std::string value;
+
+  // The implicitly synthesized copy constructor is important as this is
+  // used a map key, which are required to be copy-constructible.
+public:
+  SymbolName(std::string &&value) : value(std::move(value)) {
+    ENFORCE(!this->value.empty());
+  }
+  const std::string &asStringRef() const {
+    return this->value;
+  }
+  std::string &asStringRefMut() {
+    return this->value;
+  }
+  DERIVE_HASH_CMP_NEWTYPE(SymbolName, value, CMP_STR)
+};
+
+using SymbolToInfoMap = absl::flat_hash_map<
+    std::string_view,
+    llvm::PointerUnion<SymbolInformation *, SymbolInformationBuilder *>>;
 
 class DocumentBuilder final {
   scip::Document soFar;
@@ -113,11 +141,12 @@ class DocumentBuilder final {
 
   // Keyed by the symbol name. The SymbolInformationBuilder value
   // doesn't carry the name to avoid redundant allocations.
-  absl::flat_hash_map<std::string, SymbolInformationBuilder> symbolInfos;
+  absl::flat_hash_map<SymbolName, SymbolInformationBuilder> symbolInfos;
 
 public:
   DocumentBuilder(scip::Document &&document);
   void merge(scip::Document &&doc);
+  void populateSymbolToInfoMap(SymbolToInfoMap &);
   void finish(bool deterministic, scip::Document &out);
 };
 
@@ -132,22 +161,6 @@ public:
   DERIVE_HASH_CMP_NEWTYPE(RootRelativePath, value, CMP_STR)
 };
 
-class SymbolName {
-  std::string value;
-
-public:
-  SymbolName(std::string &&value) : value(std::move(value)) {
-    ENFORCE(!this->value.empty());
-  }
-  const std::string &asStringRef() const {
-    return this->value;
-  }
-  std::string &asStringRefMut() {
-    return this->value;
-  }
-  DERIVE_HASH_CMP_NEWTYPE(SymbolName, value, CMP_STR)
-};
-
 class IndexBuilder final {
   scip::Index &fullIndex;
   // The key is deliberately the path only, not the path+hash, so that we can
@@ -156,13 +169,24 @@ class IndexBuilder final {
       multiplyIndexed;
   absl::flat_hash_map<SymbolName, std::unique_ptr<SymbolInformationBuilder>>
       externalSymbols;
+
   scip_clang::Bomb _bomb;
 
 public:
   IndexBuilder(scip::Index &fullIndex);
   void addDocument(scip::Document &&doc, bool isMultiplyIndexed);
   void addExternalSymbol(scip::SymbolInformation &&extSym);
+
+  // The map contains interior references into IndexBuilder's state.
+  std::unique_ptr<SymbolToInfoMap> populateSymbolToInfoMap();
+  void addForwardDeclaration(const SymbolToInfoMap &,
+                             scip::SymbolInformation &&forwardDeclSym);
+
   void finish(bool deterministic);
+
+private:
+  void addExternalSymbolUnchecked(SymbolName &&,
+                                  scip::SymbolInformation &&symWithoutName);
 };
 
 } // namespace scip

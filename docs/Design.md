@@ -46,7 +46,7 @@ by a significant amount for an extended period of time.
 
 ### Disk I/O
 
-Workers write out partial SCIP indexes based on paths
+Workers write out shards (incomplete SCIP indexes) based on paths
 provided by the driver after completing an indexing job.
 This write is done after each job is complete,
 instead of after completing all jobs,
@@ -54,7 +54,7 @@ because it reduces RSS as well as the blast radius
 in case the worker gets killed or crashes later.
 
 After all indexing work is completed, the driver
-assembles the partial indexes into a full SCIP index.
+assembles the shards into a full SCIP index.
 
 ### Bazel and distributed builds
 
@@ -69,11 +69,11 @@ because they would do redundant work.
 "Flattening" the job DAG would get rid of
 intermediate link jobs.)
 
-Each job could output a partial index,
+Each job could output some shards,
 along with hashes (for faster de-duplication
 during the merge step).
 The final merge step would take these
-hashes and partial indexes
+hashes and shards
 and assemble them into an Index.
 
 NOTE: As of Jan 24 2023, this functionality is planned

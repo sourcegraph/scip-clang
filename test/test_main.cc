@@ -286,11 +286,12 @@ TEST_CASE("PREPROCESSING") {
         workerOptions.recordingOptions.rootPath = rootInSourceDir.asStringRef();
         Worker worker(std::move(workerOptions));
 
-        scip::Index index{};
         auto callback = [](SemanticAnalysisJobResult &&,
                            EmitIndexJobDetails &) -> bool { return false; };
+        TuIndexingOutput tuIndexingOutput{};
         worker.processTranslationUnit(
-            SemanticAnalysisJobDetails{std::move(command)}, callback, index);
+            SemanticAnalysisJobDetails{std::move(command)}, callback,
+            tuIndexingOutput);
         worker.flushStreams();
         std::string actual(test::readFileToString(tmpYamlFile.path));
 
