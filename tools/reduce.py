@@ -18,6 +18,8 @@ import tempfile
 import textwrap
 from typing import List
 
+from compdb import *
+
 # https://clang.llvm.org/docs/ClangCommandLineReference.html
 # fmt: off
 PATH_FLAGS = [
@@ -61,46 +63,6 @@ PATH_FLAGS = [
 # fmt: on
 
 
-class CompDBEntry:
-    filepath: pathlib.Path
-    directory: pathlib.Path
-    arguments: List[str]
-
-    def __init__(self, entry):
-        self.filepath = pathlib.Path(entry["file"])
-        self.directory = pathlib.Path(entry["directory"])
-        try:
-            self.arguments = shlex.split(entry["command"])
-        except KeyError:
-            self.arguments = entry(["arguments"])
-
-    def change_tu_filepath(self, new_path: str):
-        old_path = str(self.filepath)
-        # ASSUMPTION: In a normal compilation command, we only expect there to
-        # be a path to a single TU in the argument list, since the compilation
-        # command will involve generating object code for a single TU.
-        #
-        # Moreover, files typically aren't present at the project root.
-        #
-        # These two factors mean that it's very unlikely for the argument list
-        # to have two files like 'cake.c' and 'dessert/cake.c'.
-        self.arguments = [arg.replace(old_path, new_path) for arg in self.arguments]
-        self.filepath = pathlib.Path(new_path)
-
-    def to_dict(self):
-        return {
-            "directory": str(self.directory),
-            "file": str(self.filepath),
-            "arguments": self.arguments[:],  # defensive copy
-        }
-
-
-def run_preprocessor_only(entry: CompDBEntry, preprocessed_tu_path: pathlib.Path):
-    args = copy.deepcopy(entry.arguments)
-    args += ["-E", "-o", str(preprocessed_tu_path)]
-    subprocess.run(args, cwd=entry.directory).check_returncode()
-
-
 def check_scip_clang_output(
     scip_clang: pathlib.Path, compdb_path: str, pattern: re.Pattern
 ) -> bool:
@@ -115,7 +77,7 @@ def check_scip_clang_output(
 
 @dataclass
 class CReduce:
-    entry: CompDBEntry
+    entry: CompilationDatabaseEntry
     scip_clang: pathlib.Path
     project_root: pathlib.Path
     scip_clang_output_pattern: re.Pattern
@@ -247,19 +209,18 @@ def default_main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    compdb = None
-    with open(args.compdb) as compdbFile:
-        compdb = json.load(compdbFile)
+    compdb = CompilationDatabase.load(args.compdb)
 
-    if len(compdb) != 1:
+    n_entries = len(compdb.entries)
+    if n_entries != 1:
         raise ValueError(
-            f"Expected compilation database to have 1 entry but found {len(compdb)}"
+            f"Expected compilation database to have 1 entry but found {n_entries}"
         )
 
     cwd = pathlib.Path.cwd()
     project_root = cwd
 
-    entry = CompDBEntry(compdb[0])
+    entry = CompilationDatabaseEntry(compdb.entries[0])
 
     scip_clang = pathlib.Path(
         __file__, "..", "..", "bazel-bin", "indexer", "scip-clang"
@@ -274,7 +235,7 @@ def default_main():
         start_tu_path = pathlib.Path(start_tu_file.name)
         assert start_tu_path.is_absolute()
 
-        run_preprocessor_only(entry, start_tu_path)
+        entry.run_preprocessor_only(start_tu_path)
 
         new_entry = copy.deepcopy(entry)
         new_entry.change_tu_filepath(str(start_tu_path))
