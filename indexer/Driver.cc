@@ -149,20 +149,17 @@ struct DriverOptions {
     this->projectRootPath =
         RootPath{AbsolutePath{std::move(cwd)}, RootKind::Project};
 
-    if (llvm::sys::path::is_absolute(cliOpts.indexOutputPath)) {
-      this->indexOutputPath =
-          AbsolutePath(std::string(cliOpts.indexOutputPath));
-    } else {
-      this->indexOutputPath = this->projectRootPath.makeAbsolute(
-          RootRelativePathRef(cliOpts.indexOutputPath, RootKind::Project));
-    }
+    auto setAbsolutePath = [this](const std::string &path, AbsolutePath &out) {
+      if (llvm::sys::path::is_absolute(path)) {
+        out = AbsolutePath(std::string(path));
+        return;
+      }
+      out = this->projectRootPath.makeAbsolute(
+          RootRelativePathRef(path, RootKind::Project));
+    };
 
-    if (llvm::sys::path::is_absolute(cliOpts.compdbPath)) {
-      this->compdbPath = AbsolutePath(std::string(cliOpts.compdbPath));
-    } else {
-      auto relPath = RootRelativePathRef(cliOpts.compdbPath, RootKind::Project);
-      this->compdbPath = this->projectRootPath.makeAbsolute(relPath);
-    }
+    setAbsolutePath(cliOpts.indexOutputPath, this->indexOutputPath);
+    setAbsolutePath(cliOpts.compdbPath, this->compdbPath);
 
     auto makeDirs = [](const StdPath &path, const char *name) {
       std::error_code error;
