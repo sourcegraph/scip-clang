@@ -57,9 +57,11 @@ struct WorkerOptions {
   IpcOptions ipcOptions;   // only valid if mode == Ipc
   StdPath compdbPath;      // only valid if mode == Compdb
   StdPath indexOutputPath; // only valid if mode == Compdb
+  StdPath statsFilePath;   // only valid if mode == Compdb
 
   spdlog::level::level_enum logLevel;
   bool deterministic;
+  bool measureStatistics;
   PreprocessorHistoryRecordingOptions recordingOptions;
   StdPath temporaryOutputDir;
   std::string workerFault;
@@ -96,6 +98,8 @@ class Worker final {
   std::optional<std::pair<std::unique_ptr<llvm::raw_fd_ostream>,
                           PreprocessorHistoryRecorder>>
       recorder;
+
+  IndexingStatistics statistics;
 
 public:
   Worker(WorkerOptions &&options);

@@ -25,6 +25,7 @@ class Measurement(enum.Enum):
     PP_LINES = "pp_lines"
     PP_TIME = "pp_time"
     SEMA_TIME = "sema_time"
+    INDEX_TIME = "index_time"
 
     def __str__(self):
         return self.value
@@ -139,7 +140,27 @@ def compute_sema_time(
     return {str(entries[i].filepath): round(t, 3) for (i, t) in enumerate(timings)}
 
 
-def parse_arguments() -> tuple[str, dict[str, bool]]:
+def compute_index_time(compdb_path: Path) -> dict[str, float]:
+    with tempfile.NamedTemporaryFile(
+        mode="r", encoding="utf8", suffix="stats.json"
+    ) as stats_file:
+        cmd = [
+            "scip-clang",
+            f"--compdb-path={compdb_path}",
+            f"--print-statistics-path={stats_file.name}",
+        ]
+        scip_clang_result = subprocess.run(
+            cmd, capture_output=True, env=os.environ.copy()
+        )
+        if scip_clang_result.returncode != 0:
+            print(scip_clang_result.stdout)
+            print(scip_clang_result.stderr)
+            scip_clang_result.check_returncode()
+        stats = json.load(stats_file)
+        return {x["filepath"]: float(x["stats"]["total_time_s"]) for x in stats}
+
+
+def parse_arguments() -> tuple[Path, dict[str, bool]]:
     parser = argparse.ArgumentParser(
         prog="analyze_compdb",
         description="Analyze various statistics about translation units in a compilation database",
@@ -166,7 +187,7 @@ def parse_arguments() -> tuple[str, dict[str, bool]]:
                 raise ValueError(f"Expected one of {case_help_text} but found {a}")
         else:
             requested_measurements[a] = True
-    return (args.compdb_path, requested_measurements)
+    return (Path(args.compdb_path), requested_measurements)
 
 
 def default_main():
@@ -200,6 +221,8 @@ def default_main():
             pp_tmp_file.unlink()
         if requested_measurements[str(Measurement.SEMA_TIME)]:
             results[Measurement.SEMA_TIME] = compute_sema_time(pool, compdb.entries)
+        if requested_measurements[str(Measurement.INDEX_TIME)]:
+            results[Measurement.INDEX_TIME] = compute_index_time(compdb_path)
 
     results = {str(k): v for k, v in results.items()}
 

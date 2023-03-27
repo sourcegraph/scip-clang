@@ -28,6 +28,7 @@ struct CliOptions {
   std::string scipClangExecutablePath;
   std::string temporaryOutputDir;
   std::string indexOutputPath;
+  std::string statsFilePath;
 
   std::chrono::seconds receiveTimeout;
   uint32_t numWorkers;
@@ -48,6 +49,8 @@ struct CliOptions {
   // Worker-specific options
 
   std::string workerMode;
+
+  bool measureStatistics;
 
   std::string preprocessorHistoryLogPath;
 

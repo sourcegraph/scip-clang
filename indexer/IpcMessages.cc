@@ -147,11 +147,12 @@ bool fromJSON(const llvm::json::Value &jsonValue, HashValue &h,
   return false;
 }
 
-DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobResult, indexPartPath)
+DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::IndexingStatistics, totalTimeMicros)
 DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::EmitIndexJobDetails, filesToBeIndexed)
 DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::IpcTestMessage, content)
 DERIVE_SERIALIZE_1_NEWTYPE(scip_clang::SemanticAnalysisJobDetails, command)
 
+DERIVE_SERIALIZE_2(scip_clang::EmitIndexJobResult, statistics, indexPartPath)
 DERIVE_SERIALIZE_2(scip_clang::PreprocessedFileInfo, path, hashValue)
 DERIVE_SERIALIZE_2(scip_clang::PreprocessedFileInfoMulti, path, hashValues)
 DERIVE_SERIALIZE_2(scip_clang::IndexJobRequest, id, job)

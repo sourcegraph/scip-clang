@@ -148,7 +148,13 @@ struct SemanticAnalysisJobResult {
 };
 SERIALIZABLE(SemanticAnalysisJobResult)
 
+struct IndexingStatistics {
+  uint64_t totalTimeMicros;
+};
+SERIALIZABLE(IndexingStatistics)
+
 struct EmitIndexJobResult {
+  IndexingStatistics statistics;
   AbsolutePath indexPartPath;
 };
 SERIALIZABLE(EmitIndexJobResult)
