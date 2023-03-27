@@ -22,6 +22,7 @@
 #include "boost/interprocess/ipc/message_queue.hpp"
 #include "boost/process/child.hpp"
 #include "boost/process/io.hpp"
+#include "boost/process/search_path.hpp"
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/filereadstream.h"
@@ -111,7 +112,7 @@ struct WorkerInfo {
 };
 
 struct DriverOptions {
-  std::string workerExecutablePath;
+  AbsolutePath workerExecutablePath;
   RootPath projectRootPath;
   AbsolutePath compdbPath;
   AbsolutePath indexOutputPath;
@@ -129,7 +130,7 @@ struct DriverOptions {
   std::vector<std::string> originalArgv;
 
   explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
-      : workerExecutablePath(cliOpts.scipClangExecutablePath),
+      : workerExecutablePath(),
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
         indexOutputPath(), numWorkers(cliOpts.numWorkers),
         receiveTimeout(cliOpts.receiveTimeout),
@@ -157,6 +158,28 @@ struct DriverOptions {
       out = this->projectRootPath.makeAbsolute(
           RootRelativePathRef(path, RootKind::Project));
     };
+
+    // Strictly speaking, there is a TOCTOU problem here, as scip-clang
+    // can go missing between this check and the actual execve invocation
+    // when spawning a worker, but it's simpler to check this here and
+    // provide a nicer error message.
+    if (cliOpts.scipClangExecutablePath.find(
+            std::filesystem::path::preferred_separator)
+        == std::string::npos) {
+      auto newPath =
+          boost::process::search_path(cliOpts.scipClangExecutablePath);
+      if (newPath.empty()) {
+        spdlog::error("scip-clang needs to be able to re-invoke itself,"
+                      " but couldn't find scip-clang on PATH."
+                      " Hint: Use a modified PATH to invoke scip-clang,"
+                      " or invoke scip-clang using an absolute path");
+        std::exit(1);
+      }
+      this->workerExecutablePath = AbsolutePath(std::string(newPath.native()));
+    } else {
+      setAbsolutePath(cliOpts.scipClangExecutablePath,
+                      this->workerExecutablePath);
+    }
 
     setAbsolutePath(cliOpts.indexOutputPath, this->indexOutputPath);
     setAbsolutePath(cliOpts.compdbPath, this->compdbPath);
@@ -754,7 +777,7 @@ private:
 
   boost::process::child spawnWorker(WorkerId workerId) {
     std::vector<std::string> args;
-    args.push_back(this->options.workerExecutablePath);
+    args.push_back(this->options.workerExecutablePath.asStringRef());
     args.push_back("--worker-mode=ipc");
     args.push_back(fmt::format("--driver-id={}", this->id));
     args.push_back(fmt::format("--worker-id={}", workerId));
