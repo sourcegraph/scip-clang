@@ -85,6 +85,7 @@ public:
       : documentation(), relationships(),
         _bomb(
             BOMB_INIT(fmt::format("SymbolInformationBuilder for '{}'", name))) {
+    (void)name;
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
   }

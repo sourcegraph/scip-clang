@@ -84,7 +84,9 @@ public:
 
 #else
 
-struct Bomb {};
+struct Bomb {
+  void defuse() {}
+};
 
 #define BOMB_INIT(__msg) scip_clang::Bomb()
 

@@ -506,8 +506,10 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
       ENFORCE(false, "DecompositionDecls require recursive traversal"
                      " and do not have a single symbol name;"
                      " they should be handled in TuIndexer");
+      return {}; // in release mode
     case Kind::ParmVar:
       ENFORCE(false, "already handled parameter case earlier");
+      return {}; // in release mode
     case Kind::VarTemplatePartialSpecialization:
     case Kind::VarTemplateSpecialization:
     case Kind::Var: {
