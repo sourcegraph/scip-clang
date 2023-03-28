@@ -51,6 +51,7 @@
 #include "indexer/Logging.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/Statistics.h"
 #include "indexer/SymbolFormatter.h"
 #include "indexer/Timer.h"
 #include "indexer/Worker.h"
@@ -1072,8 +1073,9 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
       RootKind::Project};
   WorkerMode mode;
   IpcOptions ipcOptions;
-  StdPath compdbPath;
+  StdPath compdbPath{};
   StdPath indexOutputPath{};
+  StdPath statsFilePath{};
   if (cliOptions.workerMode == "ipc") {
     mode = WorkerMode::Ipc;
     ipcOptions = cliOptions.ipcOptions();
@@ -1081,6 +1083,7 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
     mode = WorkerMode::Compdb;
     compdbPath = StdPath(cliOptions.compdbPath);
     indexOutputPath = StdPath(cliOptions.indexOutputPath);
+    statsFilePath = StdPath(cliOptions.statsFilePath);
   } else {
     ENFORCE(cliOptions.workerMode == "testing");
     mode = WorkerMode::Testing;
@@ -1090,8 +1093,10 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
                        ipcOptions,
                        compdbPath,
                        indexOutputPath,
+                       statsFilePath,
                        cliOptions.logLevel,
                        cliOptions.deterministic,
+                       cliOptions.measureStatistics,
                        PreprocessorHistoryRecordingOptions{
                            cliOptions.preprocessorRecordHistoryFilterRegex,
                            cliOptions.preprocessorHistoryLogPath, false, ""},
@@ -1101,7 +1106,7 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
 
 Worker::Worker(WorkerOptions &&options)
     : options(std::move(options)), messageQueues(), compileCommands(),
-      commandIndex(0), recorder() {
+      commandIndex(0), recorder(), statistics() {
   switch (this->options.mode) {
   case WorkerMode::Ipc:
     this->messageQueues = std::make_unique<MessageQueuePair>(
@@ -1120,6 +1125,9 @@ Worker::Worker(WorkerOptions &&options)
   case WorkerMode::Testing:
     break;
   }
+
+  // All initialization unrelated to preprocessor recording should be
+  // completed here.
 
   auto &recordingOptions = this->options.recordingOptions;
   HeaderFilter filter(std::string(recordingOptions.filterRegex));
@@ -1222,6 +1230,9 @@ void Worker::sendResult(JobId requestId, IndexJobResult &&result) {
 
 Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     IndexJobRequest &&semanticAnalysisRequest) {
+  ManualTimer indexingTimer{};
+  indexingTimer.start();
+
   SemanticAnalysisJobResult semaResult{};
   auto semaRequestId = semanticAnalysisRequest.id;
   auto tuMainFilePath =
@@ -1281,12 +1292,21 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
                                             emitIndexRequestId.taskId(),
                                             this->ipcOptions().workerId));
   this->emitIndex(std::move(scipIndex), outputPath);
+  indexingTimer.stop();
+
+  this->statistics.totalTimeMicros =
+      uint64_t(indexingTimer.value<std::chrono::microseconds>());
 
   if (this->options.mode == WorkerMode::Compdb) {
+    if (!this->options.statsFilePath.empty()) {
+      StatsEntry::emitAll({StatsEntry{tuMainFilePath, this->statistics}},
+                          this->options.statsFilePath.c_str());
+    }
     return ReceiveStatus::OK;
   }
 
-  EmitIndexJobResult emitIndexResult{AbsolutePath{outputPath.string()}};
+  EmitIndexJobResult emitIndexResult{this->statistics,
+                                     AbsolutePath{outputPath.string()}};
 
   this->sendResult(emitIndexRequestId,
                    IndexJobResult{.kind = IndexJob::Kind::EmitIndex,

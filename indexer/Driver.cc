@@ -46,6 +46,7 @@
 #include "indexer/Path.h"
 #include "indexer/RAII.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/Statistics.h"
 #include "indexer/Timer.h"
 
 namespace boost_ip = boost::interprocess;
@@ -116,6 +117,7 @@ struct DriverOptions {
   RootPath projectRootPath;
   AbsolutePath compdbPath;
   AbsolutePath indexOutputPath;
+  AbsolutePath statsFilePath;
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
   bool deterministic;
@@ -132,7 +134,7 @@ struct DriverOptions {
   explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
       : workerExecutablePath(),
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
-        indexOutputPath(), numWorkers(cliOpts.numWorkers),
+        indexOutputPath(), statsFilePath(), numWorkers(cliOpts.numWorkers),
         receiveTimeout(cliOpts.receiveTimeout),
         deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
@@ -151,12 +153,12 @@ struct DriverOptions {
         RootPath{AbsolutePath{std::move(cwd)}, RootKind::Project};
 
     auto setAbsolutePath = [this](const std::string &path, AbsolutePath &out) {
-      if (llvm::sys::path::is_absolute(path)) {
-        out = AbsolutePath(std::string(path));
-        return;
-      }
-      out = this->projectRootPath.makeAbsolute(
-          RootRelativePathRef(path, RootKind::Project));
+      out = path.empty()
+                ? AbsolutePath()
+                : (llvm::sys::path::is_absolute(path)
+                       ? AbsolutePath(std::string(path))
+                       : this->projectRootPath.makeAbsolute(
+                           RootRelativePathRef(path, RootKind::Project)));
     };
 
     // Strictly speaking, there is a TOCTOU problem here, as scip-clang
@@ -183,6 +185,7 @@ struct DriverOptions {
 
     setAbsolutePath(cliOpts.indexOutputPath, this->indexOutputPath);
     setAbsolutePath(cliOpts.compdbPath, this->compdbPath);
+    setAbsolutePath(cliOpts.statsFilePath, this->statsFilePath);
 
     auto makeDirs = [](const StdPath &path, const char *name) {
       std::error_code error;
@@ -222,6 +225,9 @@ struct DriverOptions {
                                this->receiveTimeout.count()));
     if (this->deterministic) {
       args.push_back("--deterministic");
+    }
+    if (!this->statsFilePath.asStringRef().empty()) {
+      args.push_back("--measure-statistics");
     }
     if (!this->preprocessorRecordHistoryFilterRegex.empty()) {
       args.push_back(fmt::format("--preprocessor-record-history-filter={}",
@@ -345,6 +351,10 @@ class Scheduler final {
 
 public:
   using Process = boost::process::child;
+
+  const absl::flat_hash_map<JobId, IndexJob> &getJobMap() const {
+    return this->allJobList;
+  }
 
   void checkInvariants() const {
     ENFORCE(
@@ -566,6 +576,7 @@ class Driver {
   Scheduler scheduler;
   FileIndexingPlanner planner;
 
+  std::vector<std::pair<JobId, IndexingStatistics>> allStatistics;
   std::vector<AbsolutePath> indexPartPaths;
 
   /// Total number of commands in the compilation database.
@@ -595,6 +606,36 @@ public:
     }
   }
 
+  void emitStatsFile() {
+    if (this->options.statsFilePath.asStringRef().empty()) {
+      return;
+    }
+    std::vector<std::pair<uint32_t, StatsEntry>> perJobStats{};
+    auto &jobMap = this->scheduler.getJobMap();
+    for (auto &pair : this->allStatistics) {
+      auto &[jobId, stats] = pair;
+      auto semaJobId = JobId::newTask(jobId.taskId());
+      auto it = jobMap.find(semaJobId);
+      ENFORCE(it != jobMap.end());
+      ENFORCE(it->second.kind == IndexJob::Kind::SemanticAnalysis);
+      perJobStats.emplace_back(
+          jobId.taskId(),
+          StatsEntry{it->second.semanticAnalysis.command.Filename,
+                     std::move(stats)});
+    }
+    absl::c_sort(perJobStats, [](const auto &p1, const auto &p2) -> bool {
+      ENFORCE(p1.first != p2.first,
+              "got multiple StatEntry values for the same TU");
+      return p1.first < p2.first;
+    });
+    std::vector<StatsEntry> stats{};
+    for (auto &pair : perJobStats) {
+      stats.emplace_back(std::move(pair.second));
+    }
+    StatsEntry::emitAll(std::move(stats),
+                        this->options.statsFilePath.asStringRef());
+  }
+
   void run() {
     ManualTimer total, indexing, merging;
     unsigned numTus;
@@ -607,6 +648,8 @@ public:
       TIME_IT(merging, this->emitScipIndex());
       spdlog::debug("indexing complete; driver shutting down now, kthxbai");
     });
+    this->emitStatsFile();
+
     using secs = std::chrono::seconds;
     fmt::print("Finished indexing {} translation units in {:.1f}s (indexing: "
                "{:.1f}s, merging: {:.1f}s).\n",
@@ -822,10 +865,16 @@ private:
           }));
       break;
     }
-    case IndexJob::Kind::EmitIndex:
+    case IndexJob::Kind::EmitIndex: {
+      auto &result = response.result.emitIndex;
+      if (!this->options.statsFilePath.asStringRef().empty()) {
+        this->allStatistics.emplace_back(response.jobId,
+                                         std::move(result.statistics));
+      }
       this->indexPartPaths.emplace_back(
           std::move(response.result.emitIndex.indexPartPath));
       break;
+    }
     }
   }
 

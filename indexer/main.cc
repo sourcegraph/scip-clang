@@ -51,6 +51,13 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
   // TODO(def: add-version): Add a --version flag
   parser.add_options("Advanced")(
+    "print-statistics-path",
+    "Print indexing related statistics in JSON format."
+    " Caution: Timing information for individual TUs should not be compared"
+    " directly across runs, as non-determinism may affect the number of files"
+    " skipped by individual indexing jobs.",
+    cxxopts::value<std::string>(cliOptions.statsFilePath));
+  parser.add_options("Advanced")(
     "receive-timeout-seconds",
     "How long should the driver wait for a worker before marking it as timed out?",
     cxxopts::value<uint32_t>()->default_value("300"));
@@ -75,6 +82,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "help-all",
     "Show all command-line flags, including internal ones and ones for testing.",
     cxxopts::value<bool>());
+  parser.add_options("Advanced")(
+    "measure-statistics",
+    "[worker-only] Measure various statistics related to indexing",
+    cxxopts::value<bool>(cliOptions.measureStatistics));
   parser.add_options("Internal")(
     "preprocessor-history-log-path",
     "[worker-only] Path to log preprocessor history, if applicable.",
