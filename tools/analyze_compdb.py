@@ -247,7 +247,6 @@ def default_main():
                     val = -999
             row.append(val)
 
-    compdb = CompilationDatabase.load(args.compdb_path)
     writer = csv.writer(sys.stdout)
     writer.writerow(["path"] + columns)
     writer.writerows(result_table)
