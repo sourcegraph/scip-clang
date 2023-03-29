@@ -1,12 +1,14 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
@@ -342,26 +344,6 @@ TEST_CASE("ROBUSTNESS") {
                                   snapshotLogPath);
 }
 
-test::FormatOptions readFormatOptions(AbsolutePathRef path) {
-  std::ifstream tuStream(path.asStringView(), std::ios::in | std::ios::binary);
-  std::string prefix = "// format-options:";
-  test::FormatOptions formatOptions{};
-  for (std::string line; std::getline(tuStream, line);) {
-    if (!line.starts_with(prefix)) {
-      continue;
-    }
-    for (auto &arg : absl::StrSplit(line.substr(prefix.size()), ',')) {
-      auto s = absl::StripAsciiWhitespace(arg);
-      if (s == "showDocs") {
-        formatOptions.showDocs = true;
-      } else {
-        FAIL("unknown value in format-options");
-      }
-    }
-  }
-  return formatOptions;
-}
-
 TEST_CASE("INDEX") {
   if (test::globalCliOptions.testKind != test::Kind::IndexTests) {
     return;
@@ -388,8 +370,8 @@ TEST_CASE("INDEX") {
       }};
   myTest.runWithMerging(
       test::globalCliOptions.testMode,
-      [](const RootPath &rootInSandbox, auto &&compdbBuilder)
-          -> absl::flat_hash_map<RootRelativePath, std::string> {
+      [](const RootPath &rootInSandbox,
+         auto &&compdbBuilder) -> test::MultiTuSnapshotTest::MergeResult {
         TempFile tmpCompdb{
             fmt::format("{}-compdb.json", test::globalCliOptions.testName)};
         AbsolutePath compdbPath{tmpCompdb.path.string()};
@@ -448,15 +430,17 @@ TEST_CASE("INDEX") {
           llvm::raw_string_ostream os(buffer);
           auto docAbsPath = testRoot.makeAbsolute(
               RootRelativePathRef{doc.relative_path(), RootKind::Project});
-          test::formatSnapshot(doc, docAbsPath.asRef(),
-                               ::readFormatOptions(docAbsPath.asRef()), os);
+          test::SnapshotPrinter::printDocument(doc, docAbsPath.asRef(), os);
           os.flush();
           RootRelativePath path{
               RootRelativePathRef{doc.relative_path(), RootKind::Project}};
           ENFORCE(!buffer.empty());
           snapshots.insert({std::move(path), std::move(buffer)});
         }
-        return snapshots;
+        std::vector<scip::SymbolInformation> externalSymbols{};
+        absl::c_move(std::move(*index.mutable_external_symbols()),
+                     std::back_inserter(externalSymbols));
+        return {std::move(snapshots), std::move(externalSymbols)};
       });
 }
 

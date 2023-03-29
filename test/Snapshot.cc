@@ -90,6 +90,14 @@ static std::vector<RootRelativePath> listFilesRecursive(const RootPath &root) {
   return out;
 }
 
+static std::string formatSymbol(const std::string &symbol) {
+  // Strip out repeating information for cleaner snapshots.
+  return absl::StrReplaceAll(symbol, {
+                                         {"cxx . ", ""}, // indexer prefix
+                                         {"todo-pkg todo-version", "[..]"},
+                                     });
+}
+
 namespace scip_clang {
 namespace test {
 
@@ -108,9 +116,90 @@ bool isTuMainFilePath(std::string_view p) {
   return ext == ".cc" || ext == ".cpp" || ext == ".cxx" || ext == ".c";
 }
 
-void formatSnapshot(const scip::Document &document,
-                    AbsolutePathRef sourceFilePath, FormatOptions options,
-                    llvm::raw_ostream &out) {
+// static
+FormatOptions SnapshotPrinter::readFormatOptions(AbsolutePathRef path) {
+  std::ifstream tuStream(path.asStringView(), std::ios::in | std::ios::binary);
+  std::string prefix = "// format-options:";
+  test::FormatOptions formatOptions{};
+  for (std::string line; std::getline(tuStream, line);) {
+    if (!line.starts_with(prefix)) {
+      continue;
+    }
+    for (auto &arg : absl::StrSplit(line.substr(prefix.size()), ',')) {
+      auto s = absl::StripAsciiWhitespace(arg);
+      if (s == "showDocs") {
+        formatOptions.showDocs = true;
+      } else {
+        FAIL("unknown value in format-options");
+      }
+    }
+  }
+  return formatOptions;
+}
+
+void SnapshotPrinter::printDocs(
+    std::string_view header,
+    const google::protobuf::RepeatedPtrField<std::string> &docs) {
+  if (!this->options.showDocs)
+    return;
+  for (auto &doc : docs) {
+    this->out << this->lineStart << header << '\n';
+    auto docstream = std::istringstream(doc);
+    for (std::string docline; std::getline(docstream, docline);) {
+      this->out << this->lineStart << "| " << docline << '\n';
+    }
+  }
+}
+
+void SnapshotPrinter::printRelationships(
+    const scip::SymbolInformation &symbolInfo) {
+  std::vector<scip::Relationship> relationships;
+  relationships.clear();
+  relationships.reserve(symbolInfo.relationships_size());
+  for (auto &rel : symbolInfo.relationships()) {
+    relationships.push_back(rel);
+  }
+  absl::c_sort(
+      relationships,
+      [](const scip::Relationship &r1, const scip::Relationship &r2) -> bool {
+        return r1.symbol() < r2.symbol();
+      });
+  for (size_t i = 0; i < relationships.size(); ++i) {
+    this->out << this->lineStart << "relation ";
+    auto &rel = relationships[i];
+    std::vector<const char *> kinds{};
+#define ADD_KIND(kind_)      \
+  if (rel.is_##kind_()) {    \
+    kinds.push_back(#kind_); \
+  }
+    ADD_KIND(implementation)
+    ADD_KIND(reference)
+    ADD_KIND(type_definition)
+    ADD_KIND(definition)
+    this->out << absl::StrJoin(kinds, "+") << ' '
+              << ::formatSymbol(rel.symbol()) << '\n';
+  }
+}
+
+// static
+std::string SnapshotPrinter::formatExternalSymbols(
+    std::vector<scip::SymbolInformation> &&externalSymbols) {
+  std::string buf;
+  llvm::raw_string_ostream out(buf);
+  std::string lineStart = "// ";
+  SnapshotPrinter printer{out, lineStart, FormatOptions{.showDocs = true}};
+  for (auto &extSym : externalSymbols) {
+    out << lineStart << ::formatSymbol(extSym.symbol()) << '\n';
+    printer.printDocs("documentation", extSym.documentation());
+    printer.printRelationships(extSym);
+  }
+  return buf;
+}
+
+// static
+void SnapshotPrinter::printDocument(const scip::Document &document,
+                                    AbsolutePathRef sourceFilePath,
+                                    llvm::raw_ostream &out) {
   absl::flat_hash_map<std::string, scip::SymbolInformation> symbolTable{};
   symbolTable.reserve(document.symbols_size());
   for (auto &symbolInfo : document.symbols()) {
@@ -126,20 +215,13 @@ void formatSnapshot(const scip::Document &document,
       [](const scip::Occurrence &lhs, const scip::Occurrence &rhs) -> bool {
         return scip::compareOccurrences(lhs, rhs) == std::strong_ordering::less;
       });
-  auto formatSymbol = [](const std::string &symbol) -> std::string {
-    // Strip out repeating information for cleaner snapshots.
-    return absl::StrReplaceAll(symbol, {
-                                           {"cxx . ", ""}, // indexer prefix
-                                           {"todo-pkg todo-version", "[..]"},
-                                       });
-  };
-  size_t occIndex = 0;
   std::ifstream input(sourceFilePath.asStringView());
   ENFORCE(input.is_open(),
           "failed to open document at '{}' to read source code",
           sourceFilePath.asStringView());
+  auto options = SnapshotPrinter::readFormatOptions(sourceFilePath);
+  size_t occIndex = 0;
   int32_t lineNumber = 1;
-  std::vector<scip::Relationship> relationships;
   for (std::string line; std::getline(input, line); lineNumber++) {
     if (!line.empty() && line.back() == '\r') {
       line.pop_back();
@@ -177,20 +259,10 @@ void formatSnapshot(const scip::Document &document,
       out << lineStart
           << std::string(range.end.column - range.start.column, '^') << ' '
           << std::string(isDefinition ? "definition" : "reference") << ' '
-          << symbolRole << formatSymbol(occ.symbol()) << '\n';
+          << symbolRole << ::formatSymbol(occ.symbol()) << '\n';
 
-      auto printDocs = [&](auto docs, std::string header) -> void {
-        if (!options.showDocs)
-          return;
-        for (auto &doc : docs) {
-          out << lineStart << header << '\n';
-          auto docstream = std::istringstream(doc);
-          for (std::string docline; std::getline(docstream, docline);) {
-            out << lineStart << "| " << docline << '\n';
-          }
-        }
-      };
-      printDocs(occ.override_documentation(), "override_documentation");
+      SnapshotPrinter printer{out, lineStart, options};
+      printer.printDocs("override_documentation", occ.override_documentation());
       if (!symbolTable.contains(occ.symbol())) {
         continue;
       }
@@ -201,34 +273,8 @@ void formatSnapshot(const scip::Document &document,
       if (!isDefinition && !isDefinedByAnother) {
         continue;
       }
-      printDocs(symbolInfo.documentation(), "documentation");
-
-      relationships.clear();
-      relationships.reserve(symbolInfo.relationships_size());
-      for (auto &rel : symbolInfo.relationships()) {
-        relationships.push_back(rel);
-      }
-      absl::c_sort(relationships,
-                   [](const scip::Relationship &r1,
-                      const scip::Relationship &r2) -> bool {
-                     return r1.symbol() < r2.symbol();
-                   });
-      for (size_t i = 0; i < relationships.size(); ++i) {
-        out << lineStart << "relation ";
-        auto &rel = relationships[i];
-        std::vector<const char *> kinds{};
-#define ADD_KIND(kind_)      \
-  if (rel.is_##kind_()) {    \
-    kinds.push_back(#kind_); \
-  }
-        ADD_KIND(implementation)
-        ADD_KIND(reference)
-        ADD_KIND(type_definition)
-        ADD_KIND(definition)
-        out << absl::StrJoin(kinds, "+") << ' ';
-        out << formatSymbol(rel.symbol());
-        out << '\n';
-      }
+      printer.printDocs("documentation", symbolInfo.documentation());
+      printer.printRelationships(symbolInfo);
     }
   }
 }
@@ -334,7 +380,17 @@ void MultiTuSnapshotTest::runWithMerging(
   auto output =
       compute(this->rootPath, CompdbBuilder{std::move(compdbBuilders)});
 
-  this->checkOrUpdate(mode, std::move(output), this->buildInputToOutputMap());
+  this->checkOrUpdate(mode, std::move(output.snapshots),
+                      this->buildInputToOutputMap());
+
+  auto absPath = rootPath.makeAbsolute(RootRelativePathRef{
+      MultiTuSnapshotTest::externalSymbolsSnapshotPath, RootKind::Project});
+  if (!std::filesystem::exists(absPath.asStringRef())) {
+    return;
+  }
+  auto snapshot =
+      SnapshotPrinter::formatExternalSymbols(std::move(output.externalSymbols));
+  test::compareOrUpdateSingleFile(mode, snapshot, absPath.asStringRef());
 }
 
 MultiTuSnapshotTest::InputToOutputMap

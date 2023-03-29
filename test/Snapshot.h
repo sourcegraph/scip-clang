@@ -27,9 +27,29 @@ struct FormatOptions {
   bool showDocs;
 };
 
-void formatSnapshot(const scip::Document &document,
-                    AbsolutePathRef sourceFilePath, FormatOptions options,
-                    llvm::raw_ostream &out);
+class SnapshotPrinter {
+  llvm::raw_ostream &out;
+  std::string_view lineStart;
+  FormatOptions options;
+
+  SnapshotPrinter(llvm::raw_ostream &out, std::string_view lineStart,
+                  FormatOptions options)
+      : out(out), lineStart(lineStart), options(options) {}
+
+  void printDocs(std::string_view header,
+                 const google::protobuf::RepeatedPtrField<std::string> &);
+  void printSymbol(std::string_view);
+  void printRelationships(const scip::SymbolInformation &);
+
+  static FormatOptions readFormatOptions(AbsolutePathRef);
+
+public:
+  static std::string
+  formatExternalSymbols(std::vector<scip::SymbolInformation> &&);
+  static void printDocument(const scip::Document &document,
+                            AbsolutePathRef sourceFilePath,
+                            llvm::raw_ostream &out);
+};
 
 enum class SnapshotMode {
   Compare,
@@ -54,6 +74,9 @@ class MultiTuSnapshotTest final {
   };
 
   std::vector<InputOutput> inputOutputs;
+
+  static constexpr std::string_view externalSymbolsSnapshotPath =
+      "external_symbols.snapshot.cc";
 
 public:
   MultiTuSnapshotTest(RootPath &&,
@@ -87,9 +110,13 @@ public:
 
   void run(SnapshotMode, RunCompileCommandCallback);
 
-  using RunMultiTuCompileCommandCallback =
-      absl::FunctionRef<SnapshotContentsMap(const RootPath &rootInSandbox,
-                                            CompdbBuilder &&)>;
+  struct MergeResult {
+    SnapshotContentsMap snapshots;
+    std::vector<scip::SymbolInformation> externalSymbols;
+  };
+
+  using RunMultiTuCompileCommandCallback = absl::FunctionRef<MergeResult(
+      const RootPath &rootInSandbox, CompdbBuilder &&)>;
 
   void runWithMerging(SnapshotMode, RunMultiTuCompileCommandCallback);
 
