@@ -420,6 +420,7 @@ TEST_CASE("INDEX") {
         args.push_back("--receive-timeout-seconds=60");
         args.push_back(fmt::format("--driver-id=index-{}",
                                    test::globalCliOptions.testName));
+        args.push_back("--deterministic");
         boost::process::child driver(
             args, boost::process::start_dir(rootInSourceDir.asStringRef()),
             boost::process::std_out > stdout, boost::process::std_err > stderr);
