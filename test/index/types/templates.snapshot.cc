@@ -86,3 +86,20 @@
   template <>
   void specialized<int, int>(int) {}
 //     ^^^^^^^^^^^ definition [..] specialized(d4f767463ce0a6b3).
+  
+  template <typename T>
+//                   ^ definition local 17
+  struct Empty {};
+//       ^^^^^ definition [..] Empty#
+  
+  void use_empty() {
+//     ^^^^^^^^^ definition [..] use_empty(49f6e7a06ebc5aa8).
+    Empty<int> x;
+//             ^ definition local 18
+    Empty<Empty<void>> y;
+//                     ^ definition local 19
+    Empty<PointerType<void *>> z;
+//                             ^ definition local 20
+    RefPtr<int> w;
+//              ^ definition local 21
+  }

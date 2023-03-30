@@ -39,3 +39,13 @@ void specialized(T) {}
 
 template <>
 void specialized<int, int>(int) {}
+
+template <typename T>
+struct Empty {};
+
+void use_empty() {
+  Empty<int> x;
+  Empty<Empty<void>> y;
+  Empty<PointerType<void *>> z;
+  RefPtr<int> w;
+}
