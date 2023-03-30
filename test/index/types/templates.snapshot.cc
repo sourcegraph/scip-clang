@@ -70,6 +70,7 @@
   
   using IntRefPtr = RefPtr<int>;
 //      ^^^^^^^^^ definition [..] IntRefPtr#
+//                  ^^^^^^ reference [..] RefPtr#
   
   template <typename T>
 //                   ^ definition local 14
@@ -95,11 +96,17 @@
   void use_empty() {
 //     ^^^^^^^^^ definition [..] use_empty(49f6e7a06ebc5aa8).
     Empty<int> x;
+//  ^^^^^ reference [..] Empty#
 //             ^ definition local 18
     Empty<Empty<void>> y;
+//  ^^^^^ reference [..] Empty#
+//        ^^^^^ reference [..] Empty#
 //                     ^ definition local 19
     Empty<PointerType<void *>> z;
+//  ^^^^^ reference [..] Empty#
+//        ^^^^^^^^^^^ reference [..] PointerType#
 //                             ^ definition local 20
     RefPtr<int> w;
+//  ^^^^^^ reference [..] RefPtr#
 //              ^ definition local 21
   }

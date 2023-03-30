@@ -146,6 +146,7 @@
   
   void f(GenericClass<E, int(E::E0)>) {
 //     ^ definition [..] f(a9a88f5fb6852c6b).
+//       ^^^^^^^^^^^^ reference [..] GenericClass#
 //                    ^ reference [..] E#
 //                           ^ reference [..] E#
 //                              ^^ reference [..] E#E0.
@@ -194,6 +195,7 @@
   class CRTPChild: CRTPBase<CRTPChild> {
 //      ^^^^^^^^^ definition [..] CRTPChild#
 //      relation implementation [..] CRTPBase#
+//                 ^^^^^^^^ reference [..] CRTPBase#
 //                          ^^^^^^^^^ reference [..] CRTPChild#
     void doStuff() { }
 //       ^^^^^^^ definition [..] CRTPChild#doStuff(49f6e7a06ebc5aa8).

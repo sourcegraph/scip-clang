@@ -550,14 +550,25 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
   using Kind = clang::TemplateName::NameKind;
   switch (templateName.getKind()) {
   case Kind::Template: {
-    if (auto *templateTemplateParmDecl =
-            llvm::dyn_cast<clang::TemplateTemplateParmDecl>(
-                templateName.getAsTemplateDecl())) {
-      if (auto optSymbol = this->symbolFormatter.getTemplateTemplateParmSymbol(
-              *templateTemplateParmDecl)) {
-        this->saveReference(*optSymbol,
-                            templateSpecializationTypeLoc.getTemplateNameLoc());
-      }
+    auto *templateDecl = templateName.getAsTemplateDecl();
+    std::optional<std::string_view> optSymbol;
+    if (auto *classTemplateDecl =
+            llvm::dyn_cast<clang::ClassTemplateDecl>(templateDecl)) {
+      optSymbol = this->symbolFormatter.getRecordSymbol(
+          *classTemplateDecl->getTemplatedDecl());
+    } else if (auto *typeAliasTemplateDecl =
+                   llvm::dyn_cast<clang::TypeAliasTemplateDecl>(templateDecl)) {
+      optSymbol = this->symbolFormatter.getTypedefNameSymbol(
+          *typeAliasTemplateDecl->getTemplatedDecl());
+    } else if (auto *templateTemplateParmDecl =
+                   llvm::dyn_cast<clang::TemplateTemplateParmDecl>(
+                       templateDecl)) {
+      optSymbol = this->symbolFormatter.getTemplateTemplateParmSymbol(
+          *templateTemplateParmDecl);
+    }
+    if (optSymbol.has_value()) {
+      this->saveReference(*optSymbol,
+                          templateSpecializationTypeLoc.getTemplateNameLoc());
     }
     break;
   }
