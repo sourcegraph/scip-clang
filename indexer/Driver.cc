@@ -18,7 +18,6 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/strings/str_join.h"
 #include "boost/interprocess/ipc/message_queue.hpp"
 #include "boost/process/child.hpp"
 #include "boost/process/io.hpp"
@@ -826,8 +825,7 @@ private:
     args.push_back(fmt::format("--worker-id={}", workerId));
     this->options.addWorkerOptions(args, workerId);
 
-    spdlog::debug("spawning worker with arguments: '{}'",
-                  absl::StrJoin(args, " "));
+    spdlog::debug("spawning worker with arguments: '{}'", fmt::join(args, " "));
 
     boost::process::child worker(args, boost::process::std_out > stdout);
     spdlog::debug("worker info running {}, pid = {}", worker.running(),
