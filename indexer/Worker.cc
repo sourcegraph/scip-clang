@@ -225,19 +225,6 @@ struct PreprocessorDebugContext {
   std::string tuMainFilePath;
 };
 
-/// Similar to \c PreprocessedFileInfo but storing a PathRef instead.
-struct PreprocessedFileInfoRef {
-  HashValue hash;
-  AbsolutePathRef path;
-
-  template <typename H>
-  friend H AbslHashValue(H h, const PreprocessedFileInfoRef &p) {
-    return H::combine(std::move(h), p.hash.rawValue, p.path);
-  }
-
-  DERIVE_EQ_ALL(PreprocessedFileInfoRef)
-};
-
 /// Type to retrieve information about the \c clang::FileID corresponding
 /// to a (HashValue, Path) pair.
 ///
@@ -253,9 +240,53 @@ struct PreprocessedFileInfoRef {
 /// the same (HashValue, Path) pair (this happens for well-behaved
 /// headers, c.f. \c FileIndexingPlanner); the representative FileID
 /// is chosen arbitrarily.
-using ClangIdLookupMap = absl::flat_hash_map<
-    PreprocessedFileInfoRef,
-    absl::flat_hash_set<llvm_ext::AbslHashAdapter<clang::FileID>>>;
+class ClangIdLookupMap {
+  struct Value {
+    absl::flat_hash_map<HashValue, clang::FileID> hashToFileId;
+  };
+
+  absl::flat_hash_map<AbsolutePathRef, std::shared_ptr<Value>> impl;
+
+public:
+  ClangIdLookupMap() = default;
+
+  void insert(AbsolutePathRef absPathRef, HashValue hashValue,
+              clang::FileID fileId) {
+    auto it = this->impl.find(absPathRef);
+    if (it == this->impl.end()) {
+      this->impl.emplace(absPathRef,
+                         std::make_shared<Value>(
+                             Value{.hashToFileId = {{hashValue, fileId}}}));
+      return;
+    }
+    // A single representative FileID is sufficient.
+    it->second->hashToFileId[hashValue] = fileId;
+  }
+
+  void forEachPathAndHash(
+      absl::FunctionRef<void(AbsolutePathRef, const absl::flat_hash_map<
+                                                  HashValue, clang::FileID> &)>
+          callback) const {
+    for (auto &[absPathRef, valuePtr] : this->impl) {
+      ENFORCE(!valuePtr->hashToFileId.empty(),
+              "Shouldn't have stored empty maps");
+      callback(absPathRef, valuePtr->hashToFileId);
+    }
+  }
+
+  std::optional<clang::FileID> lookup(AbsolutePathRef absPathRef,
+                                      HashValue hashValue) const {
+    auto it = this->impl.find(absPathRef);
+    if (it == this->impl.end()) {
+      return {};
+    }
+    auto hashIt = it->second->hashToFileId.find(hashValue);
+    if (hashIt == it->second->hashToFileId.end()) {
+      return {};
+    }
+    return hashIt->second;
+  }
+};
 
 class IndexerPreprocessorWrapper final : public clang::PPCallbacks {
   const IndexerPreprocessorOptions &options;
@@ -263,20 +294,8 @@ class IndexerPreprocessorWrapper final : public clang::PPCallbacks {
   clang::SourceManager &sourceManager;
   IndexerPreprocessorStack stack;
 
-  struct MultiHashValue {
-    const HashValue hashValue;
-    bool isMultiple;
-  };
-  // Headers which we've seen only expand in a single way.
-  // The extra bit inside the MultiHashValue struct indicates
-  // if should look in the finishedProcessingMulti map instead.
-  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, MultiHashValue>
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, HashValue>
       finishedProcessing;
-  // Headers which expand in at least 2 different ways.
-  // The values have size() >= 2.
-  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>,
-                      absl::flat_hash_set<HashValue>>
-      finishedProcessingMulti;
 
   MacroIndexer macroIndexer;
 
@@ -287,8 +306,8 @@ public:
                              const IndexerPreprocessorOptions &options,
                              PreprocessorDebugContext &&debugContext)
       : options(options), sourceManager(sourceManager), stack(),
-        finishedProcessing(), finishedProcessingMulti(),
-        macroIndexer(sourceManager), debugContext(std::move(debugContext)) {}
+        finishedProcessing(), macroIndexer(sourceManager),
+        debugContext(std::move(debugContext)) {}
 
   void flushState(SemanticAnalysisJobResult &result,
                   ClangIdLookupMap &clangIdLookupMap,
@@ -342,49 +361,34 @@ public:
       }
       return optAbsPath;
     };
-    {
-      for (auto [wrappedFileId, hashInfo] : this->finishedProcessing) {
-        if (hashInfo.isMultiple) {
-          continue;
-        }
-        auto hashValue = hashInfo.hashValue;
-        auto fileId = wrappedFileId.data;
-        if (auto optPath = getAbsPath(fileId)) {
-          auto absPathRef = optPath.value();
-          result.wellBehavedFiles.emplace_back(
-              PreprocessedFileInfo{AbsolutePath{absPathRef}, hashValue});
-          clangIdLookupMap[PreprocessedFileInfoRef{hashValue, absPathRef}]
-              .insert({fileId});
-        }
-      }
-      if (this->options.deterministic) {
-        absl::c_sort(result.wellBehavedFiles);
+    for (auto [wrappedFileId, hashValue] : this->finishedProcessing) {
+      auto fileId = wrappedFileId.data;
+      if (auto optPath = getAbsPath(fileId)) {
+        auto absPathRef = optPath.value();
+        clangIdLookupMap.insert(absPathRef, hashValue, fileId);
       }
     }
-    {
-      auto &fileHashes = this->finishedProcessingMulti;
-      for (auto it = fileHashes.begin(), end = fileHashes.end(); it != end;
-           ++it) {
-        auto fileId = it->first.data;
-        if (auto optPath = getAbsPath(fileId)) {
-          auto absPathRef = optPath.value();
-          std::vector<HashValue> hashes{};
-          hashes.reserve(it->second.size());
-          absl::c_move(it->second, std::back_inserter(hashes));
-          if (this->options.deterministic) {
-            absl::c_sort(hashes);
+    clangIdLookupMap.forEachPathAndHash(
+        [&](AbsolutePathRef absPathRef,
+            const absl::flat_hash_map<HashValue, clang::FileID> &map) {
+          if (map.size() == 1) {
+            for (auto &[hashValue, fileId] : map) {
+              result.wellBehavedFiles.emplace_back(
+                  PreprocessedFileInfo{AbsolutePath{absPathRef}, hashValue});
+            }
+          } else {
+            std::vector<HashValue> hashes;
+            hashes.reserve(map.size());
+            for (auto &[hashValue, fileId] : map) {
+              hashes.push_back(hashValue);
+            }
+            result.illBehavedFiles.emplace_back(PreprocessedFileInfoMulti{
+                AbsolutePath{absPathRef}, std::move(hashes)});
           }
-          result.illBehavedFiles.emplace_back(PreprocessedFileInfoMulti{
-              AbsolutePath{absPathRef}, std::move(hashes)});
-          for (auto &hash : hashes) {
-            clangIdLookupMap[PreprocessedFileInfoRef{hash, absPathRef}].insert(
-                {fileId});
-          }
-        }
-      }
-      if (this->options.deterministic) {
-        absl::c_sort(result.illBehavedFiles);
-      }
+        });
+    if (this->options.deterministic) {
+      absl::c_sort(result.wellBehavedFiles);
+      absl::c_sort(result.illBehavedFiles);
     }
   }
 
@@ -443,23 +447,10 @@ private:
     }
 
     auto key = llvm_ext::AbslHashAdapter<clang::FileID>{fileInfo.fileId};
-    auto it = this->finishedProcessing.find(key);
     auto [hashValue, history] = fileInfo.hashValueBuilder.finish();
+    auto it = this->finishedProcessing.find(key);
     if (it == this->finishedProcessing.end()) {
-      this->finishedProcessing.insert({key, MultiHashValue{hashValue, false}});
-    } else if (it->second.isMultiple) {
-      auto itMulti = this->finishedProcessingMulti.find(key);
-      ENFORCE(itMulti != this->finishedProcessingMulti.end(),
-              "isMultiple = true but key missing from finishedProcessingMulti");
-      itMulti->second.insert(hashValue);
-    } else if (it->second.hashValue != hashValue) {
-      it->second.isMultiple = true;
-      auto oldHash = it->second.hashValue;
-      auto newHash = hashValue;
-      auto [_, inserted] =
-          this->finishedProcessingMulti.insert({key, {oldHash, newHash}});
-      ENFORCE(inserted, "isMultiple = false, but key already present is "
-                        "finishedProcessingMulti");
+      this->finishedProcessing.insert({key, hashValue});
     }
     if (history) {
       ENFORCE(this->options.recorder,
@@ -645,18 +636,17 @@ public:
   StableFileIdMap &operator=(const StableFileIdMap &) = delete;
 
   void populate(const ClangIdLookupMap &clangIdLookupMap) {
-    this->map.reserve(clangIdLookupMap.size());
-    for (auto [fileInfo, fileIdSet] : clangIdLookupMap) {
-      ENFORCE(!fileIdSet.empty());
-      for (auto wrappedFileId : fileIdSet) {
-        bool inserted = this->insert(wrappedFileId.data, fileInfo.path);
-        ENFORCE(
-            inserted,
-            "there is a 1-1 mapping from FileID -> (path, hash)"
-            "so it's unexpected that the FileID {} was inserted for {} already",
-            wrappedFileId.data.getHashValue(), fileInfo.path.asStringView());
-      }
-    }
+    clangIdLookupMap.forEachPathAndHash( // force formatting break
+        [&](AbsolutePathRef absPathRef,
+            const absl::flat_hash_map<HashValue, clang::FileID> &map) {
+          for (auto &[hash, fileId] : map) {
+            bool inserted = this->insert(fileId, absPathRef);
+            ENFORCE(inserted,
+                    "there is a 1-1 mapping from FileID -> (path, hash) so the"
+                    " FileID {} for {} should not have been inserted earlier",
+                    fileId.getHashValue(), absPathRef.asStringView());
+          }
+        });
   }
 
   /// Returns true iff a new entry was inserted.
@@ -965,32 +955,14 @@ private:
 
     for (auto &fileInfo : emitIndexDetails.filesToBeIndexed) {
       auto absPathRef = fileInfo.path.asRef();
-      auto it = clangIdLookupMap.find({fileInfo.hashValue, absPathRef});
-      if (it == clangIdLookupMap.end()) {
+      auto optFileId = clangIdLookupMap.lookup(absPathRef, fileInfo.hashValue);
+      if (!optFileId.has_value()) {
         spdlog::debug(
             "failed to find clang::FileID for path '{}' received from Driver",
             absPathRef.asStringView());
         continue;
       }
-      auto &fileIdSet = it->second;
-      ENFORCE(!fileIdSet.empty());
-      for (auto wrappedFileId : fileIdSet) {
-        toBeIndexed.insert(wrappedFileId);
-        // Pick the representative FileID arbitrarily; it doesn't
-        // matter since the hashes are all the same.
-        break;
-      }
-      std::string message;
-      auto check = [&](auto wrappedFileId) -> bool {
-        auto fileId = wrappedFileId.data;
-        if (stableFileIdMap.contains(fileId)) {
-          return true;
-        }
-        message = fmt::format("missing fileId {} for path: {}",
-                              fileId.getHashValue(), absPathRef.asStringView());
-        return false;
-      };
-      ENFORCE(absl::c_all_of(fileIdSet, check), "{}", message);
+      toBeIndexed.insert({*optFileId});
     }
   }
 };
