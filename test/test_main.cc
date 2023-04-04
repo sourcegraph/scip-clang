@@ -139,7 +139,7 @@ TEST_CASE("COMPDB_PARSING") {
 
     for (auto refillCount : testCase.refillCountsToTry) {
       compdb::ResumableParser parser{};
-      parser.initialize(compdbFile, refillCount);
+      parser.initialize(compdbFile, refillCount, false);
       std::vector<std::vector<clang::tooling::CompileCommand>> commandGroups;
       std::string buffer;
       llvm::raw_string_ostream outStr(buffer);
