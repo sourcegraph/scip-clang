@@ -22,6 +22,7 @@
 #include "indexer/SymbolFormatter.h"
 
 #define FOR_EACH_EXPR_TO_BE_INDEXED(F) \
+  F(CXXConstruct)                      \
   F(DeclRef)                           \
   F(Member)
 

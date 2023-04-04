@@ -29,6 +29,7 @@
     S1(): S0() {
 //  ^^ definition [..] S1#S1(49f6e7a06ebc5aa8).
 //        ^^ reference [..] S0#
+//        ^^ reference [..] S0#S0(49f6e7a06ebc5aa8).
       x = y;
 //    ^ reference [..] S0#x.
 //        ^ reference [..] S0#y.
