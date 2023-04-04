@@ -115,6 +115,10 @@ since the main purpose of this type
 is to be an ID for [`SLocEntry`](#slocentry) values,
 which contain more information.
 
+This also means that, if a single header is included multiple times,
+regardless of whether it expands the same way or not, there will
+be two different `FileID` values for it, not one.
+
 - A valid `FileID` always has a corresponding `SLocEntry`.
 - Since a `FileID` may not actually represent a source file,
   it is possible that `sourceManager.getFileEntryForID`
