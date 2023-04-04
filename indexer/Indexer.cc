@@ -14,6 +14,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/SourceLocation.h"
@@ -619,6 +620,16 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
       *symbolInfo.add_documentation() = std::move(docComment);
     }
     this->saveDefinition(optSymbol.value(), varDecl.getLocation(), symbolInfo);
+  }
+}
+
+void TuIndexer::saveCXXConstructExpr(
+    const clang::CXXConstructExpr &cxxConstructExpr) {
+  if (auto *cxxConstructorDecl = cxxConstructExpr.getConstructor()) {
+    if (auto optSymbol =
+            this->symbolFormatter.getFunctionSymbol(*cxxConstructorDecl)) {
+      this->saveReference(*optSymbol, cxxConstructExpr.getBeginLoc());
+    }
   }
 }
 

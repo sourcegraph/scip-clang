@@ -66,15 +66,18 @@
     C c0;
 //  ^ reference [..] C#
 //    ^^ definition local 5
+//    ^^ reference [..] C#C(ced63f7c635d850d).
     D d0;
 //  ^ reference [..] D#
 //    ^^ definition local 6
+//    ^^ reference [..] D#D(ced63f7c635d850d).
     C c1{};
 //  ^ reference [..] C#
 //    ^^ definition local 7
     D d1{};
 //  ^ reference [..] D#
 //    ^^ definition local 8
+//    ^^ reference [..] D#D(ced63f7c635d850d).
     C c2{0, 1};
 //  ^ reference [..] C#
 //    ^^ definition local 9
@@ -85,10 +88,12 @@
     C c3{move(c1)};
 //  ^ reference [..] C#
 //    ^^ definition local 10
+//    ^^ reference [..] C#C(5ec619aa603d7b0).
 //            ^^ reference local 7
     D d3{move(d1)};
 //  ^ reference [..] D#
 //    ^^ definition local 11
+//    ^^ reference [..] D#D(ece7426db7e2c886).
 //            ^^ reference local 8
   
     C c4 = {};
@@ -97,14 +102,17 @@
     D d4 = {};
 //  ^ reference [..] D#
 //    ^^ definition local 13
+//         ^ reference [..] D#D(ced63f7c635d850d).
     C c5 = C();
 //  ^ reference [..] C#
 //    ^^ definition local 14
 //         ^ reference [..] C#
+//         ^ reference [..] C#C(ced63f7c635d850d).
     D d5 = D();
 //  ^ reference [..] D#
 //    ^^ definition local 15
 //         ^ reference [..] D#
+//         ^ reference [..] D#D(ced63f7c635d850d).
     C c6 = {0, 1};
 //  ^ reference [..] C#
 //    ^^ definition local 16
@@ -124,9 +132,11 @@
     C c10 = move(c1);
 //  ^ reference [..] C#
 //    ^^^ definition local 20
+//          ^^^^ reference [..] C#C(5ec619aa603d7b0).
 //               ^^ reference local 7
     D d10 = move(d1);
 //  ^ reference [..] D#
 //    ^^^ definition local 21
+//          ^^^^ reference [..] D#D(ece7426db7e2c886).
 //               ^^ reference local 8
   }
