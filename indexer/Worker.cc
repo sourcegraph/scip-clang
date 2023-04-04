@@ -1056,13 +1056,10 @@ public:
   }
 };
 
-class IndexerDiagnosticConsumer : public clang::DiagnosticConsumer {
+class SuppressDiagnosticConsumer : public clang::DiagnosticConsumer {
 public:
   void HandleDiagnostic(clang::DiagnosticsEngine::Level,
-                        const clang::Diagnostic &) override {
-    // Just dropping all diagnostics on the floor for now.
-    // FIXME(def: surface-diagnostics)
-  }
+                        const clang::Diagnostic &) override {}
 };
 
 } // namespace
@@ -1094,6 +1091,7 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
                        compdbPath,
                        indexOutputPath,
                        statsFilePath,
+                       cliOptions.showClangDiagnostics,
                        cliOptions.logLevel,
                        cliOptions.deterministic,
                        cliOptions.measureStatistics,
@@ -1199,13 +1197,15 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
       std::move(args), &frontendActionFactory, fileManager.get(),
       std::make_shared<clang::PCHContainerOperations>());
 
-  IndexerDiagnosticConsumer diagnosticConsumer;
-  invocation.setDiagnosticConsumer(&diagnosticConsumer);
+  SuppressDiagnosticConsumer suppressDiagnostics;
+  if (!this->options.showClangDiagnostics) {
+    invocation.setDiagnosticConsumer(&suppressDiagnostics);
+  }
 
   {
     LogTimerRAII timer(fmt::format("invocation for {}", job.command.Filename));
     bool ranSuccessfully = invocation.run();
-    (void)ranSuccessfully; // FIXME(ref: surface-diagnostics)
+    (void)ranSuccessfully;
   }
 }
 
