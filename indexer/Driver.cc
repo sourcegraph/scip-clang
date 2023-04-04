@@ -403,7 +403,7 @@ public:
           return fmt::format("emitting an index for '{}'",
                              fileInfoIt->path.asStringRef());
         }
-        return "emitting a partial index";
+        return "emitting a shard";
       }
     }());
   }
@@ -581,7 +581,7 @@ class Driver {
   FileIndexingPlanner planner;
 
   std::vector<std::pair<JobId, IndexingStatistics>> allStatistics;
-  std::vector<AbsolutePath> indexPartPaths;
+  std::vector<ShardPaths> shardPaths;
 
   /// Total number of commands in the compilation database.
   size_t compdbCommandCount = 0;
@@ -593,8 +593,7 @@ public:
 
   Driver(std::string driverId, DriverOptions &&options)
       : options(std::move(options)), id(driverId), scheduler(),
-        planner(this->options.projectRootPath), indexPartPaths(),
-        compdbParser() {
+        planner(this->options.projectRootPath), shardPaths(), compdbParser() {
     MessageQueues::deleteIfPresent(this->id, this->numWorkers());
     this->queues = MessageQueues(this->id, this->numWorkers(),
                                  {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
@@ -675,20 +674,23 @@ private:
 
     scip::Index fullIndex{};
     if (this->options.deterministic) {
-      // Sorting before merging so that mergeIndexParts can be const
-      absl::c_sort(this->indexPartPaths,
-                   [](const AbsolutePath &p1, const AbsolutePath &p2) -> bool {
-                     auto cmp = p1 <=> p2;
-                     ENFORCE(cmp != 0, "2+ index parts have same path '{}'",
-                             p1.asStringRef());
-                     return cmp == std::strong_ordering::less;
-                   });
+      // Sorting before merging so that mergeShards can be const
+      absl::c_sort(
+          this->shardPaths, [](const auto &paths1, const auto &paths2) -> bool {
+            auto cmp = paths1.docsAndExternals <=> paths2.docsAndExternals;
+            ENFORCE(cmp != 0, "2+ index parts have same path '{}'",
+                    paths1.docsAndExternals.asStringRef());
+            ENFORCE(paths1.forwardDecls != paths2.forwardDecls,
+                    "2+ index parts have same path '{}'",
+                    paths1.forwardDecls.asStringRef());
+            return cmp == std::strong_ordering::less;
+          });
     }
-    this->mergeIndexParts(fullIndex);
+    this->mergeShards(fullIndex);
     fullIndex.SerializeToOstream(&outputStream);
   }
 
-  void mergeIndexParts(scip::Index &fullIndex) const {
+  void mergeShards(scip::Index &fullIndex) const {
     LogTimerRAII timer("index merging");
 
     scip::ToolInfo toolInfo;
@@ -721,23 +723,31 @@ private:
     // a dependency on a library with a concurrent hash table.
     *fullIndex.mutable_metadata() = std::move(metadata);
 
-    scip::IndexBuilder builder{fullIndex};
-    // TODO: Measure how much time this is taking and parallelize if too slow.
-    for (auto &indexPartAbsPath : this->indexPartPaths) {
-      auto &indexPartPath = indexPartAbsPath.asStringRef();
-      std::ifstream inputStream(indexPartPath,
+    auto readIndexShard = [](const AbsolutePath &path,
+                             scip::Index &indexShard) -> bool {
+      auto &shardPath = path.asStringRef();
+      std::ifstream inputStream(shardPath,
                                 std::ios_base::in | std::ios_base::binary);
       if (inputStream.fail()) {
-        spdlog::warn("failed to open partial index at '{}' ({})", indexPartPath,
+        spdlog::warn("failed to open shard at '{}' ({})", shardPath,
                      std::strerror(errno));
+        return false;
+      }
+      if (!indexShard.ParseFromIstream(&inputStream)) {
+        spdlog::warn("failed to parse shard at '{}'", shardPath);
+        return false;
+      }
+      return true;
+    };
+
+    scip::IndexBuilder builder{fullIndex};
+    // TODO: Measure how much time this is taking and parallelize if too slow.
+    for (auto &paths : this->shardPaths) {
+      scip::Index indexShard;
+      if (!readIndexShard(paths.docsAndExternals, indexShard)) {
         continue;
       }
-      scip::Index partialIndex;
-      if (!partialIndex.ParseFromIstream(&inputStream)) {
-        spdlog::warn("failed to parse partial index at '{}'", indexPartPath);
-        continue;
-      }
-      for (auto &doc : *partialIndex.mutable_documents()) {
+      for (auto &doc : *indexShard.mutable_documents()) {
         bool isMultiplyIndexed = this->planner.isMultiplyIndexed(
             RootRelativePathRef{doc.relative_path(), RootKind::Project});
         builder.addDocument(std::move(doc), isMultiplyIndexed);
@@ -746,10 +756,24 @@ private:
       // deterministic mode, indexes should be the same, and iterated over in
       // sorted order. So if external symbol emission in each part is
       // deterministic, addExternalSymbol will be called in deterministic order.
-      for (auto &extSym : *partialIndex.mutable_external_symbols()) {
+      for (auto &extSym : *indexShard.mutable_external_symbols()) {
         builder.addExternalSymbol(std::move(extSym));
       }
     }
+
+    auto symbolToInfoMap = builder.populateSymbolToInfoMap();
+
+    for (auto &paths : this->shardPaths) {
+      scip::Index indexShard;
+      if (!readIndexShard(paths.forwardDecls, indexShard)) {
+        continue;
+      }
+      for (auto &forwardDeclSym : *indexShard.mutable_external_symbols()) {
+        builder.addForwardDeclaration(*symbolToInfoMap,
+                                      std::move(forwardDeclSym));
+      }
+    }
+
     builder.finish(this->options.deterministic);
   }
 
@@ -877,8 +901,7 @@ private:
         this->allStatistics.emplace_back(response.jobId,
                                          std::move(result.statistics));
       }
-      this->indexPartPaths.emplace_back(
-          std::move(response.result.emitIndex.indexPartPath));
+      this->shardPaths.emplace_back(std::move(result.shardPaths));
       break;
     }
     }

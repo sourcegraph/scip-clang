@@ -153,9 +153,15 @@ struct IndexingStatistics {
 };
 SERIALIZABLE(IndexingStatistics)
 
+struct ShardPaths {
+  AbsolutePath docsAndExternals;
+  AbsolutePath forwardDecls;
+};
+SERIALIZABLE(ShardPaths)
+
 struct EmitIndexJobResult {
   IndexingStatistics statistics;
-  AbsolutePath indexPartPath;
+  ShardPaths shardPaths;
 };
 SERIALIZABLE(EmitIndexJobResult)
 

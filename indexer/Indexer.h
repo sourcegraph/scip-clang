@@ -214,6 +214,11 @@ class TuIndexer final {
       documentMap;
   GetStableFileId getStableFileId;
 
+  absl::flat_hash_map</*name*/ std::string_view, scip::SymbolInformation>
+      externalSymbols;
+
+  absl::flat_hash_map<std::string_view, DocComment> forwardDeclarations;
+
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
             const clang::ASTContext &, SymbolFormatter &, GetStableFileId);
@@ -242,9 +247,18 @@ public:
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
                                          scip::Document &);
 
+  void emitExternalSymbols(bool deterministic, scip::Index &);
+  void emitForwardDeclarations(bool deterministic, scip::Index &);
+
 private:
   std::pair<FileLocalSourceRange, clang::FileID>
   getTokenExpansionRange(clang::SourceLocation startExpansionLoc) const;
+
+  /// Helper method for recording forward declarations.
+  ///
+  /// Prefer this over \c saveReference or \c saveOccurrence.
+  void saveForwardDeclaration(std::string_view symbol,
+                              clang::SourceLocation loc, DocComment &&);
 
   void saveReference(std::string_view symbol, clang::SourceLocation loc,
                      int32_t extraRoles = 0);
@@ -258,6 +272,9 @@ private:
   void saveDefinition(std::string_view symbol, clang::SourceLocation loc,
                       std::optional<scip::SymbolInformation> &&symbolInfo,
                       int32_t extraRoles = 0);
+
+  /// Only for use inside \c saveDefinition.
+  void saveExternalSymbol(std::string_view symbol, scip::SymbolInformation &&);
 
   /// Lower-level method for only saving a Occurrence.
   ///
