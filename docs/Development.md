@@ -10,8 +10,9 @@
   - [UBSan stacktraces](#ubsan-stacktraces)
   - [Attaching a debugger](#attaching-a-debugger)
   - [Debugging on Linux](#debugging-on-linux)
-  - [Automated test case reduction](#automated-test-case-reduction)
   - [Inspecting Clang ASTs](#inspecting-clang-asts)
+  - [Automated test case reduction](#automated-test-case-reduction)
+  - [Debugging preprocessor issues](#debugging-preprocessor-issues)
 - [Implementation notes](#implementation-notes)
 - [Notes on Clang internals](#notes-on-clang-internals)
 
@@ -173,6 +174,29 @@ After completion, a path to a reduced C++ file will be printed out
 which still reproduces the crash.
 
 See the script's `--help` text for information about additional flags.
+
+### Debugging preprocessor issues
+
+The LLVM monorepo contains a tool
+[pp-trace](https://clang.llvm.org/extra/pp-trace.html)
+which can be used to understand
+the preprocessor callbacks being invoked
+without having to resort to
+print debugging inside scip-clang itself.
+
+First, build `pp-trace` from source in your LLVM checkout,
+making sure to include `clang-tools-extra` in `LLVM_ENABLE_PROJECTS`.
+After that, it can be invoked like so:
+
+```
+/path/to/llvm-project/build/bin/pp-trace mytestfile.cpp --extra-arg="-isysroot" --extra-arg="$(xcrun --show-sdk-path)"
+```
+
+The `isysroot` argument is particularly important,
+as `pp-trace` will not find standard library headers without it.
+
+See the [pp-trace](https://clang.llvm.org/extra/pp-trace.html) docs
+or  the `--help` text for information about other supported flags.
 
 ## Implementation notes
 
