@@ -8,6 +8,7 @@
 
 #include "indexer/Enforce.h" // defines ENFORCE used by rapidjson headers
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/reader.h"
@@ -85,16 +86,28 @@ class ResumableParser {
   std::optional<CommandObjectHandler> handler;
   rapidjson::Reader reader;
 
+  bool inferResourceDir;
+  absl::flat_hash_set<std::string> emittedErrors;
+  absl::flat_hash_map<std::string, std::string> resourceDirMap;
+
 public:
   ResumableParser() = default;
   ResumableParser(const ResumableParser &) = delete;
   ResumableParser &operator=(const ResumableParser &) = delete;
 
-  void initialize(CompilationDatabaseFile compdb, size_t refillCount);
+  /// If \param inferResourceDir is set, then the parser will automatically
+  /// add extra '-resource-dir' '<path>' arguments to the parsed
+  /// CompileCommands' CommandLine field.
+  void initialize(CompilationDatabaseFile compdb, size_t refillCount,
+                  bool inferResourceDir);
 
   // Parses at most refillCount elements (passed during initialization)
   // from the compilation database passed during initialization.
   void parseMore(std::vector<clang::tooling::CompileCommand> &out);
+
+private:
+  void tryInferResourceDir(std::vector<std::string> &commandLine);
+  void emitResourceDirError(std::string &&error);
 };
 
 } // namespace compdb

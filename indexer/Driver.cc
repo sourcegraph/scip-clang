@@ -818,7 +818,10 @@ private:
         std::min(this->compdbCommandCount, this->numWorkers());
     spdlog::debug("total {} compilation jobs", this->compdbCommandCount);
 
-    this->compdbParser.initialize(compdbFile, this->refillCount());
+    // FIXME(def: resource-dir-extra): If we're passed in a resource dir
+    // as an extra argument, we should not pass it here.
+    this->compdbParser.initialize(compdbFile, this->refillCount(),
+                                  !this->options.isTesting);
     return FileGuard(compdbFile.file);
   }
 

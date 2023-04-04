@@ -9,6 +9,9 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
+#include "boost/process/child.hpp"
+#include "boost/process/io.hpp"
+#include "boost/process/search_path.hpp"
 #include "rapidjson/error/en.h"
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/reader.h"
@@ -412,7 +415,7 @@ CompilationDatabaseFile CompilationDatabaseFile::openAndExitOnErrors(
 }
 
 void ResumableParser::initialize(CompilationDatabaseFile compdb,
-                                 size_t refillCount) {
+                                 size_t refillCount, bool inferResourceDir) {
   auto averageJobSize = compdb.sizeInBytes() / compdb.commandCount();
   // Some customers have averageJobSize = 150KiB.
   // If numWorkers == 300 (very high core count machine),
@@ -427,6 +430,7 @@ void ResumableParser::initialize(CompilationDatabaseFile compdb,
       rapidjson::FileReadStream(compdb.file, this->jsonStreamBuffer.data(),
                                 this->jsonStreamBuffer.size());
   this->reader.IterativeParseInit();
+  this->inferResourceDir = inferResourceDir;
 }
 
 void ResumableParser::parseMore(
@@ -451,7 +455,77 @@ void ResumableParser::parseMore(
   for (auto &cmd : this->handler->commands) {
     out.emplace_back(std::move(cmd));
   }
+  if (this->inferResourceDir) {
+    for (auto &cmd : out) {
+      if (cmd.CommandLine.empty()) {
+        continue;
+      }
+      this->tryInferResourceDir(cmd.CommandLine);
+    }
+  }
   this->handler->commands.clear();
+}
+
+void ResumableParser::tryInferResourceDir(
+    std::vector<std::string> &commandLine) {
+  auto &clangPath = commandLine.front();
+  auto it = this->resourceDirMap.find(clangPath);
+  if (it != this->resourceDirMap.end()) {
+    commandLine.push_back("-resource-dir");
+    commandLine.push_back(it->second);
+    return;
+  }
+  std::string clangInvocationPath = clangPath;
+  if (clangPath.find(std::filesystem::path::preferred_separator)
+      == std::string::npos) {
+    clangInvocationPath = boost::process::search_path(clangPath).native();
+    if (clangInvocationPath.empty()) {
+      this->emitResourceDirError(fmt::format(
+          "scip-clang needs to be invoke '{0}' (found via the compilation"
+          " database) to determine the resource directory, but couldn't find"
+          " '{0}' on PATH. Hint: Use a modified PATH to invoke scip-clang,"
+          " or change the compilation database to use absolute paths"
+          " for the compiler.",
+          clangPath));
+      return;
+    }
+  }
+  std::vector<std::string> args = {clangInvocationPath, "-print-resource-dir"};
+  std::string resourceDir;
+  BOOST_TRY {
+    spdlog::debug("attempting to find resource dir by invoking '{}'",
+                  fmt::join(args, " "));
+    boost::process::ipstream inputStream;
+    boost::process::child worker(args, boost::process::std_out > inputStream);
+    worker.wait();
+    std::getline(inputStream, resourceDir);
+  }
+  BOOST_CATCH(boost::process::process_error & ex) {
+    this->emitResourceDirError(
+        fmt::format("failed to get resource dir (invocation: '{}'): {}",
+                    fmt::join(args, " "), ex.what()));
+    return;
+  }
+  BOOST_CATCH_END
+  spdlog::debug("get resource dir '{}'", resourceDir);
+  if (!std::filesystem::exists(resourceDir)) {
+    this->emitResourceDirError(
+        fmt::format("'{}' returned '{}' but the directory does not exist",
+                    fmt::join(args, " "), resourceDir));
+    return;
+  }
+  auto [newIt, inserted] =
+      this->resourceDirMap.emplace(clangPath, std::move(resourceDir));
+  ENFORCE(inserted);
+  commandLine.push_back("-resource-dir");
+  commandLine.push_back(newIt->second);
+}
+
+void ResumableParser::emitResourceDirError(std::string &&error) {
+  auto [it, inserted] = this->emittedErrors.emplace(std::move(error));
+  if (inserted) {
+    spdlog::error("{}", *it);
+  }
 }
 
 } // namespace compdb

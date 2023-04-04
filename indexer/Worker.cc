@@ -1115,7 +1115,8 @@ Worker::Worker(WorkerOptions &&options)
         this->options.compdbPath,
         compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = true});
     compdb::ResumableParser parser{};
-    parser.initialize(compdbFile, std::numeric_limits<size_t>::max());
+    // See FIXME(ref: resource-dir-extra)
+    parser.initialize(compdbFile, std::numeric_limits<size_t>::max(), true);
     parser.parseMore(this->compileCommands);
     std::fclose(compdbFile.file);
     break;
