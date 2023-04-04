@@ -626,6 +626,12 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
 void TuIndexer::saveCXXConstructExpr(
     const clang::CXXConstructExpr &cxxConstructExpr) {
   if (auto *cxxConstructorDecl = cxxConstructExpr.getConstructor()) {
+    if (cxxConstructorDecl->isImplicit()) {
+      // SCIP doesn't yet have any way to represent implicitly
+      // synthesized code:
+      // https://github.com/sourcegraph/scip-clang/issues/126
+      return;
+    }
     if (auto optSymbol =
             this->symbolFormatter.getFunctionSymbol(*cxxConstructorDecl)) {
       this->saveReference(*optSymbol, cxxConstructExpr.getBeginLoc());

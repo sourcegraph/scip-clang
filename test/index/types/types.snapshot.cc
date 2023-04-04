@@ -233,7 +233,6 @@
 //                                             ^ reference [..] L#
       return l;
 //           ^ reference local 5
-//           ^ reference [..] L#L(b1ffdfbbeea5cff7).
     };
     return ignore_first("", L{});
 //         ^^^^^^^^^^^^ reference local 3

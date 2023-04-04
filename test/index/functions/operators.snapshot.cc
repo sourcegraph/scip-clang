@@ -101,10 +101,8 @@
 //  ^^^^^^^ reference [..] IntPair#
 //          ^ definition local 10
 //               ^ reference local 8
-//               ^ reference [..] Int#Int(f1655c27a9282763).
 //                ^ reference [..] `operator,`(56a2b3932346e301).
 //                  ^ reference local 9
-//                  ^ reference [..] Int#Int(f1655c27a9282763).
     p.x++;
 //  ^ reference local 10
 //    ^ reference [..] IntPair#x.
@@ -112,7 +110,6 @@
   
     FnLike()();
 //  ^^^^^^ reference [..] FnLike#
-//  ^^^^^^ reference [..] FnLike#FnLike(ced63f7c635d850d).
 //          ^ reference [..] FnLike#`operator()`(b126dc7c1de90089).
     Table{}[0, 1];
 //  ^^^^^ reference [..] Table#
@@ -143,7 +140,6 @@
     IntConvertible x;
 //  ^^^^^^^^^^^^^^ reference [..] IntConvertible#
 //                 ^ definition local 11
-//                 ^ reference [..] IntConvertible#IntConvertible(ced63f7c635d850d).
     (void)static_cast<int>(x);
 //                         ^ reference local 11
     int m = x;
@@ -248,14 +244,12 @@
 //        ^^ definition local 23
 //                  ^ reference local 22
 //                     ^^^^^^^ reference [..] InArena#
-//                     ^^^^^^^ reference [..] InArena#InArena(ced63f7c635d850d).
     delete p1;
 //         ^^ reference local 23
     auto *p2 = new (a) InArena[3];
 //        ^^ definition local 24
 //                  ^ reference local 22
 //                     ^^^^^^^ reference [..] InArena#
-//                     ^^^^^^^ reference [..] InArena#InArena(ced63f7c635d850d).
     delete[] p2;
 //           ^^ reference local 24
   }

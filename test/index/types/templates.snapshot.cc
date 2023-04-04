@@ -98,17 +98,14 @@
     Empty<int> x;
 //  ^^^^^ reference [..] Empty#
 //             ^ definition local 18
-//             ^ reference [..] Empty#Empty(ced63f7c635d850d).
     Empty<Empty<void>> y;
 //  ^^^^^ reference [..] Empty#
 //        ^^^^^ reference [..] Empty#
 //                     ^ definition local 19
-//                     ^ reference [..] Empty#Empty(ced63f7c635d850d).
     Empty<PointerType<void *>> z;
 //  ^^^^^ reference [..] Empty#
 //        ^^^^^^^^^^^ reference [..] PointerType#
 //                             ^ definition local 20
-//                             ^ reference [..] Empty#Empty(ced63f7c635d850d).
     RefPtr<int> w;
 //  ^^^^^^ reference [..] RefPtr#
 //              ^ definition local 21

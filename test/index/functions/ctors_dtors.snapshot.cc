@@ -66,7 +66,6 @@
     C c0;
 //  ^ reference [..] C#
 //    ^^ definition local 5
-//    ^^ reference [..] C#C(ced63f7c635d850d).
     D d0;
 //  ^ reference [..] D#
 //    ^^ definition local 6
@@ -88,7 +87,6 @@
     C c3{move(c1)};
 //  ^ reference [..] C#
 //    ^^ definition local 10
-//    ^^ reference [..] C#C(5ec619aa603d7b0).
 //            ^^ reference local 7
     D d3{move(d1)};
 //  ^ reference [..] D#
@@ -107,7 +105,6 @@
 //  ^ reference [..] C#
 //    ^^ definition local 14
 //         ^ reference [..] C#
-//         ^ reference [..] C#C(ced63f7c635d850d).
     D d5 = D();
 //  ^ reference [..] D#
 //    ^^ definition local 15
@@ -132,7 +129,6 @@
     C c10 = move(c1);
 //  ^ reference [..] C#
 //    ^^^ definition local 20
-//          ^^^^ reference [..] C#C(5ec619aa603d7b0).
 //               ^^ reference local 7
     D d10 = move(d1);
 //  ^ reference [..] D#
