@@ -48,6 +48,11 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "Store temporary files under a specific directory instead of using system APIs."
     "If set, this directory will not be deleted after indexing is complete.",
     cxxopts::value<std::string>(cliOptions.temporaryOutputDir));
+  parser.add_options("")(
+    "show-clang-diagnostics",
+    "Show Clang diagnostics triggered when running semantic analysis."
+    " Useful for debugging issues related to missing headers.",
+    cxxopts::value<bool>(cliOptions.showClangDiagnostics));
   parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
   // TODO(def: add-version): Add a --version flag
   parser.add_options("Advanced")(
