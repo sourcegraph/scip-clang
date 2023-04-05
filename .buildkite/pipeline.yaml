@@ -19,6 +19,8 @@ steps:
         exit 1
       fi
 
+      ./tools/lint.sh
+
       bazel build //... --config=ci
 
       # Don't use //... as that will also try to update snapshots
