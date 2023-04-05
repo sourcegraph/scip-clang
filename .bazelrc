@@ -56,3 +56,6 @@ build:ci --config=ubsan
 
 build:dev --config=ci
 build:dev --copt="-Og" # For testing against large projects locally
+
+build:release --copt="-O2"
+build:release --config=stacktraces

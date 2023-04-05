@@ -182,6 +182,27 @@ def fetch_direct_dependencies():
     )
 
     http_archive(
+        name = "actionlint_darwin_arm64",
+        build_file = "@scip_clang//third_party:actionlint.BUILD",
+        sha256 = "5477f8a5a4073ef086525a2512b2bf1201641cd544034ad0c66f329590638242",
+        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.6.24/actionlint_1.6.24_darwin_arm64.tar.gz"],
+    )
+
+    http_archive(
+        name = "actionlint_linux_amd64",
+        build_file = "@scip_clang//third_party:actionlint.BUILD",
+        sha256 = "3c5818744143a5d6754edd3dcc4c2b32c9dfcdd3bb30e0e108fb5e5c505262d4",
+        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.6.24/actionlint_1.6.24_linux_amd64.tar.gz"],
+    )
+
+    http_archive(
+        name = "actionlint_linux_arm64",
+        build_file = "@scip_clang//third_party:actionlint.BUILD",
+        sha256 = "93cc9d1f4a01f0658423b41ecf3bd8c17c619003ec683be8bac9264d0361d0d8",
+        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.6.24/actionlint_1.6.24_linux_arm64.tar.gz"],
+    )
+
+    http_archive(
         name = "rules_python",
         sha256 = "29a801171f7ca190c543406f9894abf2d483c206e14d6acbd695623662320097",
         strip_prefix = "rules_python-%s" % _RULES_PYTHON_VERSION,
