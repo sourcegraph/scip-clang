@@ -1,5 +1,8 @@
   #include "myheader.h"
+//^ definition [..] `<file>/myuses.cc`/
+//         ^^^^^^^^^^^^ reference [..] `<file>/myheader.h`/
   #include "ext_header.h"
+//         ^^^^^^^^^^^^^^ reference [..] `<file>/ext_header.h`/
   
   void doStuff(S *, C *c) {
 //     ^^^^^^^ definition [..] doStuff(87adf7c4c0c37b30).

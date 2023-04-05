@@ -1,4 +1,5 @@
   // Virtual methods and inheritance
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/methods.cc`/
   
   struct S0 {
 //       ^^ definition [..] S0#

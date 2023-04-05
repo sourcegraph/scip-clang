@@ -1,4 +1,5 @@
   // extra-args: -std=c++17
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/templates.cc`/
   
   template <typename ...Args>
 //                      ^^^^ definition local 0

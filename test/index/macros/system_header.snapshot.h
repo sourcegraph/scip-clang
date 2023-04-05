@@ -1,4 +1,5 @@
   #pragma GCC system_header
+//^ definition [..] `<file>/system_header.h`/
   
   #define SYSTEM_INT 0
 //        ^^^^^^^^^^ definition [..] `system_header.h:3:9`!

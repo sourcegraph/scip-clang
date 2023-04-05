@@ -286,6 +286,19 @@ public:
     }
     return hashIt->second;
   }
+
+  std::optional<clang::FileID>
+  lookupAnyFileId(AbsolutePathRef absPathRef) const {
+    auto it = this->impl.find(absPathRef);
+    if (it == this->impl.end()) {
+      return {};
+    }
+    for (auto [hashValue, fileId] : it->second->hashToFileId) {
+      return fileId;
+    }
+    ENFORCE(false, "Shouldn't have stored empty maps");
+    return {};
+  }
 };
 
 class IndexerPreprocessorWrapper final : public clang::PPCallbacks {
@@ -576,11 +589,31 @@ public:
     this->macroIndexer.saveReference(macroNameToken, macroDefinition);
   }
 
+  virtual void InclusionDirective(
+      clang::SourceLocation /*hashLoc*/, const clang::Token & /*includeTok*/,
+      llvm::StringRef /*fileName*/, bool /*isAngled*/,
+      clang::CharSourceRange fileNameRange,
+      clang::OptionalFileEntryRef optFileEntry, clang::StringRef /*searchPath*/,
+      clang::StringRef /*relativePath*/, const clang::Module * /*importModule*/,
+      clang::SrcMgr::CharacteristicKind /*fileType*/) override {
+    if (!optFileEntry.has_value() || fileNameRange.isInvalid()) {
+      return;
+    }
+    auto fileId = this->sourceManager.getFileID(fileNameRange.getBegin());
+    if (fileId.isInvalid()) {
+      return;
+    }
+    auto realPath = optFileEntry->getFileEntry().tryGetRealPathName();
+    if (auto optAbsPathRef = AbsolutePathRef::tryFrom(realPath)) {
+      this->macroIndexer.saveInclude(fileId, fileNameRange.getAsRange(),
+                                     *optAbsPathRef);
+    }
+  }
+
   // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/21):
   // Add overrides for
   // - If
   // - Elif
-  // - InclusionDirective
 
   // END overrides from PPCallbacks
 };
@@ -609,6 +642,8 @@ using FileIdsToBeIndexedSet =
 /// may be supplied or inferred, which would provide canonical relative
 /// paths for more files.
 class StableFileIdMap final {
+  using Self = StableFileIdMap;
+
   std::vector<RootRelativePath> storage;
 
   struct ExternalFileEntry {
@@ -617,8 +652,9 @@ class StableFileIdMap final {
     RootRelativePathRef fakeRelativePath;
   };
 
-  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>,
-                      std::variant<RootRelativePathRef, ExternalFileEntry>>
+  using MapValueType = std::variant<RootRelativePathRef, ExternalFileEntry>;
+
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, MapValueType>
       map;
 
   const RootPath &projectRootPath;
@@ -707,13 +743,25 @@ public:
     if (it == this->map.end()) {
       return {};
     }
-    if (std::holds_alternative<RootRelativePathRef>(it->second)) {
-      return StableFileId{.path = std::get<RootRelativePathRef>(it->second),
+    return Self::mapValueToStableFileId(it->second);
+  }
+
+  void
+  forEachFileId(absl::FunctionRef<void(clang::FileID, StableFileId)> callback) {
+    for (auto &[wrappedFileId, entry] : this->map) {
+      callback(wrappedFileId.data, Self::mapValueToStableFileId(entry));
+    }
+  }
+
+private:
+  static StableFileId mapValueToStableFileId(const MapValueType &variant) {
+    if (std::holds_alternative<RootRelativePathRef>(variant)) {
+      return StableFileId{.path = std::get<RootRelativePathRef>(variant),
                           .isInProject = true,
                           .isSynthetic = false};
     }
     return StableFileId{
-        .path = std::get<ExternalFileEntry>(it->second).fakeRelativePath,
+        .path = std::get<ExternalFileEntry>(variant).fakeRelativePath,
         .isInProject = false,
         .isSynthetic = true};
   }
@@ -915,6 +963,9 @@ public:
                         this->sema->getASTContext(), symbolFormatter,
                         getStableFileId};
 
+    this->saveIncludeReferences(toBeIndexed, macroIndexer, clangIdLookupMap,
+                                stableFileIdMap, tuIndexer);
+
     IndexerAstVisitor visitor{stableFileIdMap, std::move(toBeIndexed),
                               this->options.deterministic, tuIndexer};
     visitor.TraverseAST(astContext);
@@ -963,6 +1014,36 @@ private:
         continue;
       }
       toBeIndexed.insert({*optFileId});
+    }
+  }
+
+  void saveIncludeReferences(const FileIdsToBeIndexedSet &toBeIndexed,
+                             const MacroIndexer &macroIndexer,
+                             const ClangIdLookupMap &clangIdLookupMap,
+                             const StableFileIdMap &stableFileIdMap,
+                             TuIndexer &tuIndexer) {
+    for (auto &wrappedFileId : toBeIndexed) {
+      if (auto optStableFileId =
+              stableFileIdMap.getStableFileId(wrappedFileId.data)) {
+        tuIndexer.saveSyntheticFileDefinition(wrappedFileId.data,
+                                              *optStableFileId);
+      }
+      macroIndexer.forEachIncludeInFile(
+          wrappedFileId.data,
+          [&](clang::SourceRange range, AbsolutePathRef importedFilePath) {
+            auto optRefFileId =
+                clangIdLookupMap.lookupAnyFileId(importedFilePath);
+            if (!optRefFileId.has_value()) {
+              return;
+            }
+            auto refFileId = *optRefFileId;
+            auto optStableFileId =
+                stableFileIdMap.getStableFileId(*optRefFileId);
+            ENFORCE(optStableFileId.has_value(),
+                    "missing StableFileId value for path {} (FileID = {})",
+                    importedFilePath.asStringView(), refFileId.getHashValue());
+            tuIndexer.saveInclude(range, *optStableFileId);
+          });
     }
   }
 };

@@ -5,10 +5,12 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
 
 #include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
@@ -86,6 +88,9 @@ struct FileLocalSourceRange {
   static std::pair<FileLocalSourceRange, clang::FileID>
   fromNonEmpty(const clang::SourceManager &, clang::SourceRange inclusiveRange);
 
+  static FileLocalSourceRange makeEmpty(const clang::SourceManager &,
+                                        clang::SourceLocation);
+
   void addToOccurrence(scip::Occurrence &occ) const;
 
   std::string debugToString() const;
@@ -160,9 +165,25 @@ class MacroIndexer final {
 
   absl::flat_hash_set<NonFileBasedMacro> nonFileBasedMacros;
 
+  using PerFileIncludeInfo =
+      std::vector<std::pair<clang::SourceRange, AbsolutePathRef>>;
+
+  /// Map storing #include information on a per-FileID basis.
+  ///
+  /// On seeing `#include "some/dir/header.h"` in A.cpp, the map
+  /// will have a key for A.cpp and the AbsolutePathRef in the value
+  /// corresponds to the absolute path for header.h.
+  /// (Ideally, we'd use a clang::FileID instead of an AbsolutePathRef,
+  /// but it's not clear if that's possible with the existing APIs
+  /// during #include processing).
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>,
+                      // shared_ptr for copy-ability required by flat_hash_map
+                      std::shared_ptr<PerFileIncludeInfo>>
+      includeRanges;
+
 public:
   MacroIndexer(clang::SourceManager &m)
-      : sourceManager(&m), table(), nonFileBasedMacros() {}
+      : sourceManager(&m), table(), nonFileBasedMacros(), includeRanges() {}
   MacroIndexer(MacroIndexer &&) = default;
   MacroIndexer &operator=(MacroIndexer &&other) = default;
   MacroIndexer(const MacroIndexer &) = delete;
@@ -176,10 +197,18 @@ public:
   void saveDefinition(const clang::Token &macroNameToken,
                       const clang::MacroInfo *);
 
+  void saveInclude(clang::FileID fileContainingInclude,
+                   clang::SourceRange pathRange,
+                   AbsolutePathRef includedFilePath);
+
   void emitDocumentOccurrencesAndSymbols(bool deterministic, SymbolFormatter &,
                                          clang::FileID, scip::Document &);
   void emitExternalSymbols(bool deterministic, SymbolFormatter &,
                            scip::Index &);
+
+  void forEachIncludeInFile(
+      clang::FileID,
+      absl::FunctionRef<void(clang::SourceRange, AbsolutePathRef)>) const;
 
 private:
   /// Pre-condition: all arguments are valid/non-null.
@@ -223,6 +252,15 @@ class TuIndexer final {
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
             const clang::ASTContext &, SymbolFormatter &, GetStableFileId);
+
+  /// Emit a fake 'definition' for a file, which can be used as a target
+  /// of Go to definition from #include, as well as the source for
+  // Find references to see where a header has been included.
+  void saveSyntheticFileDefinition(clang::FileID, StableFileId);
+
+  /// Emit a reference to the fake 'definition' for a file, allowing Go to
+  /// Definition from '#include'.
+  void saveInclude(clang::SourceRange, StableFileId);
 
   // See NOTE(ref: emit-vs-save) for naming conventions.
 #define SAVE_DECL(DeclName) \
@@ -288,6 +326,11 @@ private:
   PartialDocument &saveOccurrence(std::string_view symbol,
                                   clang::SourceLocation loc,
                                   int32_t allRoles = 0);
+
+  PartialDocument &saveOccurrenceImpl(std::string_view symbol,
+                                      FileLocalSourceRange range,
+                                      clang::FileID fileId,
+                                      int32_t allRoles = 0);
 
   DocComment tryGetDocComment(const clang::Decl &) const;
 };

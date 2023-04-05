@@ -1,4 +1,5 @@
   // extra-args: -std=c++2b
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/operators.cc`/
   
   // Overloaded operators
   

@@ -1,6 +1,8 @@
   // extra-args: -std=c++23
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/macros.cc`/
   
   #include "macros.h"
+//         ^^^^^^^^^^ reference [..] `<file>/macros.h`/
   
   int a = MY_MACRO + MY_MACRO_ALIAS;
 //    ^ definition [..] a.

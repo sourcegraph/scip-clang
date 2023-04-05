@@ -160,6 +160,27 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   return std::string_view(newIt->second);
 }
 
+std::string_view SymbolFormatter::getFileSymbol(StableFileId stableFileId) {
+  auto it = this->fileSymbolCache.find(stableFileId);
+  if (it != this->fileSymbolCache.end()) {
+    return std::string_view(it->second);
+  }
+  auto name =
+      this->formatTemporary("<file>/{}", stableFileId.path.asStringView());
+  std::string out{};
+  SymbolBuilder{.packageName = "todo-pkg",
+                .packageVersion = "todo-version",
+                .descriptors = {DescriptorBuilder{
+                    .name = name, .suffix = scip::Descriptor::Namespace}}}
+      .formatTo(out);
+  auto [newIt, inserted] =
+      this->fileSymbolCache.emplace(stableFileId, std::move(out));
+  ENFORCE(
+      inserted,
+      "StableFileId key was missing earlier, so insert should've succeeded");
+  return std::string_view(newIt->second);
+}
+
 // NOTE(def: canonical-decl):
 // It is a little subtle as to why using getCanonicalDecl will
 // give correct results. In particular, the result of getCanonicalDecl

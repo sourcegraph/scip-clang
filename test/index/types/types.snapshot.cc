@@ -1,7 +1,9 @@
   // extra-args: -std=c++20
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/types.cc`/
   // format-options: showDocs
   
   #include "types.h"
+//         ^^^^^^^^^ reference [..] `<file>/types.h`/
   
   enum {
 //^^^^ definition [..] $anonymous_type_9a8b4e83cf46cb05_0#
