@@ -42,12 +42,11 @@ jobs:
           create_credentials_file: true
       - name: '🚧 Build scip-clang'
         run: |
-          echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_credentials=$CREDENTIALS_FILE_PATH" > ci.bazelrc
+          echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials" > ci.bazelrc
           bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
         env:
           CONFIG: ${{ matrix.config }}
           CI_BAZEL_REMOTE_CACHE: 'https://storage.googleapis.com/sourcegraph_bazel_cache'
-          CREDENTIALS_FILE_PATH: ${{ steps.auth.outputs.credentials_file_path }}
       - name: '🔎 Identify OS'
         run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       - name: '🪵 Upload log'
