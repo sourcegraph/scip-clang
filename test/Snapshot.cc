@@ -249,7 +249,9 @@ void SnapshotPrinter::printDocument(const scip::Document &document,
                          : "(write) ";
       }
 
-      ENFORCE(range.start.column < range.end.column,
+      ENFORCE(range.start.column < range.end.column
+                  || (range.start.line == 1 && range.end.line == 1
+                      && range.start.column == 1),
               "Found empty range for {} at {}:{}:{}", occ.symbol(),
               sourceFilePath.asStringView(), range.start.line,
               range.start.column);

@@ -52,6 +52,15 @@ FileLocalSourceRange::fromNonEmpty(const clang::SourceManager &sourceManager,
           fileId};
 }
 
+// static
+FileLocalSourceRange
+FileLocalSourceRange::makeEmpty(const clang::SourceManager &sourceManager,
+                                clang::SourceLocation loc) {
+  auto presumedLoc = sourceManager.getPresumedLoc(loc);
+  return {presumedLoc.getLine(), presumedLoc.getColumn(), presumedLoc.getLine(),
+          presumedLoc.getColumn()};
+}
+
 void FileLocalSourceRange::addToOccurrence(scip::Occurrence &occ) const {
   occ.add_range(this->startLine - 1);
   occ.add_range(this->startColumn - 1);
@@ -195,6 +204,19 @@ void MacroIndexer::saveReference(
   this->saveOccurrence(refFileId, macroNameToken, defMacroInfo,
                        Role::Reference);
 }
+void MacroIndexer::saveInclude(clang::FileID containingFileId,
+                               clang::SourceRange pathRange,
+                               AbsolutePathRef includedFilePath) {
+  auto it = this->includeRanges.find({containingFileId});
+  if (it != this->includeRanges.end()) {
+    it->second->emplace_back(pathRange, includedFilePath);
+    return;
+  }
+  PerFileIncludeInfo vec{std::make_pair(pathRange, includedFilePath)};
+  this->includeRanges.insert(
+      {{containingFileId},
+       std::make_shared<PerFileIncludeInfo>(std::move(vec))});
+}
 
 void MacroIndexer::emitDocumentOccurrencesAndSymbols(
     bool deterministic, SymbolFormatter &symbolFormatter, clang::FileID fileId,
@@ -257,6 +279,19 @@ void MacroIndexer::emitExternalSymbols(bool deterministic,
           }));
 }
 
+void MacroIndexer::forEachIncludeInFile(
+    clang::FileID fileId,
+    absl::FunctionRef<void(clang::SourceRange, AbsolutePathRef)> callback)
+    const {
+  auto it = this->includeRanges.find({fileId});
+  if (it == this->includeRanges.end()) {
+    return;
+  }
+  for (auto &[range, path] : *it->second) {
+    callback(range, path);
+  }
+}
+
 TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      const clang::LangOptions &langOptions,
                      const clang::ASTContext &astContext,
@@ -266,6 +301,43 @@ TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
       astContext(astContext), symbolFormatter(symbolFormatter), documentMap(),
       getStableFileId(getStableFileId), externalSymbols(),
       forwardDeclarations() {}
+
+void TuIndexer::saveSyntheticFileDefinition(clang::FileID fileId,
+                                            StableFileId stableFileId) {
+  if (stableFileId.isSynthetic || !stableFileId.isInProject) {
+    return;
+  }
+  // Strictly speaking, the token at the start of the file could be any
+  // token, including a reference to a built-in type or a keyword. In
+  // such a situation, there would be no natural place to put the definition.
+  // We could use a zero-length occurrence, which would be more "correct"
+  // but less useful, since you couldn't trigger Find references.
+  auto fileStartLoc = this->sourceManager.getLocForStartOfFile(fileId);
+  auto symbol = this->symbolFormatter.getFileSymbol(stableFileId);
+  auto tokenLength = clang::Lexer::MeasureTokenLength(
+      fileStartLoc, this->sourceManager, this->langOptions);
+  if (tokenLength > 0) {
+    this->saveDefinition(symbol, fileStartLoc, scip::SymbolInformation{});
+    return;
+  }
+  auto range =
+      FileLocalSourceRange::makeEmpty(this->sourceManager, fileStartLoc);
+  this->saveOccurrenceImpl(symbol, range, fileId, scip::SymbolRole::Definition);
+}
+
+void TuIndexer::saveInclude(clang::SourceRange sourceRange,
+                            StableFileId stableFileId) {
+  if (stableFileId.isSynthetic) {
+    return;
+  }
+  auto symbol = this->symbolFormatter.getFileSymbol(stableFileId);
+  // #include can't come from macro expansions, so instead of having
+  // to write a generic saveReference method which needs to handle
+  // ranges in macro expansions, directly call saveOccurrenceImpl.
+  auto [range, fileId] =
+      FileLocalSourceRange::fromNonEmpty(this->sourceManager, sourceRange);
+  this->saveOccurrenceImpl(symbol, range, fileId, 0);
+}
 
 void TuIndexer::saveBindingDecl(const clang::BindingDecl &bindingDecl) {
   auto optSymbol = this->symbolFormatter.getBindingSymbol(bindingDecl);
@@ -795,6 +867,13 @@ PartialDocument &TuIndexer::saveOccurrence(std::string_view symbol,
                                            clang::SourceLocation expansionLoc,
                                            int32_t allRoles) {
   auto [range, fileId] = this->getTokenExpansionRange(expansionLoc);
+  return this->saveOccurrenceImpl(symbol, range, fileId, allRoles);
+}
+
+PartialDocument &TuIndexer::saveOccurrenceImpl(std::string_view symbol,
+                                               FileLocalSourceRange range,
+                                               clang::FileID fileId,
+                                               int32_t allRoles) {
   scip::Occurrence occ;
   range.addToOccurrence(occ);
   occ.set_symbol(symbol.data(), symbol.size());

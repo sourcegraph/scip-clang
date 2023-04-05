@@ -1,4 +1,5 @@
   
+// definition [..] `<file>/types.h`/
   namespace has_anon_enum {
 //          ^^^^^^^^^^^^^ definition [..] has_anon_enum/
     enum { E1, E2 } e = E1;

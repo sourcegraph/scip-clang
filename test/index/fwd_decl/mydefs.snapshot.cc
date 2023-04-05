@@ -1,4 +1,6 @@
   #include "myheader.h"
+//^ definition [..] `<file>/mydefs.cc`/
+//         ^^^^^^^^^^^^ reference [..] `<file>/myheader.h`/
   
   void f() {}
 //     ^ definition [..] f(49f6e7a06ebc5aa8).

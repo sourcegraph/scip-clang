@@ -1,4 +1,5 @@
   // Minimized from
+//^^^^^^^^^^^^^^^^^ definition [..] `<file>/bad_tagdecl.cc`/
   // https://sourcegraph.com/github.com/llvm/llvm-project@08b9835072c0b2c50cf3be9d6182bc89f64ae51d/-/blob/llvm/include/llvm/Support/YAMLTraits.h?L1283-1285
   // when indexing llvm/lib/Support/AMDGPUMetadata.cpp
   //

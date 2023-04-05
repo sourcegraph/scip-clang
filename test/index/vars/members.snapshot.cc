@@ -1,4 +1,5 @@
   struct S0 {
+//^^^^^^ definition [..] `<file>/members.cc`/
 //       ^^ definition [..] S0#
     int x = a;
 //      ^ definition [..] S0#x.

@@ -1,4 +1,5 @@
   // extra-args: -std=c++20
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/ctors_dtors.cc`/
   
   template<class T> struct remove_ref      { typedef T type; };
 //               ^ definition local 0

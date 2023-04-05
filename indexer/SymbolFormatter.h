@@ -12,9 +12,11 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include "scip/scip.pb.h"
+
+#include "indexer/Derive.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
-#include "scip/scip.pb.h"
 
 #define FOR_EACH_DECL_TO_BE_INDEXED(F) \
   F(Binding)                           \
@@ -112,6 +114,14 @@ struct StableFileId {
   bool isInProject;
   /// Track this for debugging.
   bool isSynthetic;
+
+  template <typename H>
+  friend H AbslHashValue(H h, const StableFileId &stableFileId) {
+    return H::combine(std::move(h), stableFileId.path, stableFileId.isInProject,
+                      stableFileId.isSynthetic);
+  }
+
+  DERIVE_EQ_ALL(StableFileId)
 };
 
 using GetStableFileId =
@@ -128,6 +138,7 @@ class SymbolFormatter final {
                       std::string>
       locationBasedCache;
   absl::flat_hash_map<const clang::Decl *, std::string> declBasedCache;
+  absl::flat_hash_map<StableFileId, std::string> fileSymbolCache;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
       anonymousTypeCounters;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
@@ -138,11 +149,14 @@ public:
   SymbolFormatter(const clang::SourceManager &sourceManager,
                   GetStableFileId getStableFileId)
       : sourceManager(sourceManager), getStableFileId(getStableFileId),
-        locationBasedCache(), declBasedCache(), scratchBuffer() {}
+        locationBasedCache(), declBasedCache(), fileSymbolCache(),
+        localVariableCounters(), scratchBuffer() {}
   SymbolFormatter(const SymbolFormatter &) = delete;
   SymbolFormatter &operator=(const SymbolFormatter &) = delete;
 
   std::string_view getMacroSymbol(clang::SourceLocation defLoc);
+
+  std::string_view getFileSymbol(StableFileId);
 
 #define DECLARE_GET_SYMBOL(DeclName)                     \
   std::optional<std::string_view> get##DeclName##Symbol( \

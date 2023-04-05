@@ -1,6 +1,8 @@
   // extra-args: -std=c++20
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/namespaces.cc`/
   
   #include "system_header.h"
+//         ^^^^^^^^^^^^^^^^^ reference [..] `<file>/system_header.h`/
   
   namespace a {
 //          ^ definition [..] a/

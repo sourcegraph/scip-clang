@@ -1,4 +1,5 @@
   void top_level_func() {}
+//^^^^ definition [..] `<file>/functions.cc`/
 //     ^^^^^^^^^^^^^^ definition [..] top_level_func(49f6e7a06ebc5aa8).
   
   namespace my_namespace {

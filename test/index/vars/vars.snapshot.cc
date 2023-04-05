@@ -1,4 +1,5 @@
   // extra-args: -std=c++17
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/vars.cc`/
   
   int MyGlobal = 3;
 //    ^^^^^^^^ definition [..] MyGlobal.
