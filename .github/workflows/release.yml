@@ -19,19 +19,29 @@ jobs:
     name: 'Build and upload artifacts'
     strategy:
       matrix:
-        platform: ['ubuntu-20.04', 'macos-12', 'windows-2022']
+        # TODO: Add macos-12 once 
+        # https://github.com/github/roadmap/issues/528 is fixed
+        platform: ['ubuntu-20.04', 'windows-2022']
         config: ['dev', 'release']
     runs-on: ${{ matrix.platform }}
     env:
       TAG: ${{ github.event.ref }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v3
       - name: '🐍 Install Bazelisk'
         run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            choco install bazelisk
-          else
-            sudo npm install -g @bazel/bazelisk
+          if ! command -v bazelisk; then
+            if [ "$RUNNER_OS" == "Windows" ]; then
+              choco install bazelisk
+            else
+              sudo npm install -g @bazel/bazelisk
+            fi
           fi
       - id: auth
         name: '🔓 Authenticate to Google Cloud'
@@ -42,6 +52,10 @@ jobs:
           create_credentials_file: true
       - name: '🚧 Build scip-clang'
         run: |
+          # Stop Windows from converting the // to /
+          # https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842
+          # https://stackoverflow.com/a/34386471
+          export MSYS2_ARG_CONV_EXCL="*"
           echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials" > ci.bazelrc
           bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
         env:
