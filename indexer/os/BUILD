@@ -1,13 +1,13 @@
 # NOTE(ref: based-on-sorbet): Based on Sorbet's common/os package.
 cc_library(
     name = "os",
-    srcs = [
-        "Os.h",
-        "Os.cc",
-    ] + select({
-        "@platforms//os:linux": ["Linux.cc"],
-        "@platforms//os:macos": ["macOS.cc"],
-    }),
+    srcs = glob(
+        [
+            "*.cc",
+            "*.h",
+        ],
+        allow_empty = False,
+    ),
     hdrs = [
         "Os.h",
     ],

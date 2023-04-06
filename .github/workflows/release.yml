@@ -21,7 +21,7 @@ jobs:
       matrix:
         # NOTE: GitHub-hosted runners for macOS are x86_64 only
         # https://github.com/github/roadmap/issues/528
-        platform: ['ubuntu-22.04', 'macos-12'] # , 'windows-2022']
+        platform: ['ubuntu-22.04', 'macos-12', 'windows-2022']
         config: ['dev', 'release']
         exclude:
           - platform: 'macos-12'
