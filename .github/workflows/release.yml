@@ -19,9 +19,9 @@ jobs:
     name: 'Build and upload artifacts'
     strategy:
       matrix:
-        # TODO: Add macos-12 once 
-        # https://github.com/github/roadmap/issues/528 is fixed
-        platform: ['ubuntu-20.04', 'windows-2022']
+        # NOTE: GitHub-hosted runners for macOS are x86_64 only
+        # https://github.com/github/roadmap/issues/528
+        platform: ['ubuntu-20.04', 'macos-12', 'windows-2022']
         config: ['dev', 'release']
     runs-on: ${{ matrix.platform }}
     env:
