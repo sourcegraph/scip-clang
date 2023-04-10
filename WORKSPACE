@@ -9,12 +9,9 @@ load("@com_grail_bazel_toolchain//toolchain:deps.bzl", "bazel_toolchain_dependen
 
 bazel_toolchain_dependencies()
 
-load("@com_grail_bazel_toolchain//toolchain:rules.bzl", "llvm_toolchain")
+load("//:setup_llvm.bzl", "setup_llvm_toolchain")
 
-llvm_toolchain(
-    name = "llvm_toolchain",
-    llvm_version = "15.0.6",
-)
+setup_llvm_toolchain(name = "llvm_toolchain")
 
 load("@llvm_toolchain//:toolchains.bzl", "llvm_register_toolchains")
 load("@rules_python//python:repositories.bzl", "py_repositories", "python_register_toolchains")
