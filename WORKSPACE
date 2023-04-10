@@ -4,19 +4,37 @@ load("//:fetch_deps.bzl", "fetch_direct_dependencies")
 
 fetch_direct_dependencies()
 
-# Setup the toolchain before setting up other dependencies
-load("@com_grail_bazel_toolchain//toolchain:deps.bzl", "bazel_toolchain_dependencies")
+load("@io_tweag_rules_nixpkgs//nixpkgs:repositories.bzl", "rules_nixpkgs_dependencies")
+rules_nixpkgs_dependencies()
 
-bazel_toolchain_dependencies()
+load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_git_repository", "nixpkgs_package", "nixpkgs_cc_configure")
+nixpkgs_git_repository(
+    name = "nixpkgs",
+    revision = "nixpkgs-unstable",
+)
 
-load("//:setup_llvm.bzl", "setup_llvm_toolchain")
+nixpkgs_cc_configure(
+    name = "toolchain-darwin-aarch64",
+    # exec_constraints = [
+    #     "@platforms//cpu:x86_64",
+    #     "@platforms//os:osx",
+    # ],
+    repository = "@nixpkgs",
+    attribute_path = "clang_15",
+    # nix_file_content = "(import <nixpkgs> {}).clang_15",
+    # target_constraints = [
+    #     "@platforms//cpu:arm64",
+    #     "@platforms//os:osx",
+    # ],
+)
 
-setup_llvm_toolchain(name = "llvm_toolchain")
+# load("@rules_cc//cc:repositories.bzl", "rules_cc_dependencies", "rules_cc_toolchains")
 
-load("@llvm_toolchain//:toolchains.bzl", "llvm_register_toolchains")
+# rules_cc_dependencies()
+
+# rules_cc_toolchains()
+
 load("@rules_python//python:repositories.bzl", "py_repositories", "python_register_toolchains")
-
-llvm_register_toolchains()
 
 python_register_toolchains(
     name = "python_3_10",

@@ -1,4 +1,6 @@
 load("//:settings.bzl", "ASAN_LINKOPTS")
+# load("@rules_cc//cc:defs.bzl", "cc_binary")
+
 load(":test_suite.bzl", "scip_clang_test_suite")
 
 cc_binary(

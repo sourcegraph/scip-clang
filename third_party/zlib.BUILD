@@ -1,5 +1,5 @@
 package(default_visibility = ["//visibility:public"])
-
+# load("@rules_cc//cc:defs.bzl", "cc_library")
 # This file was copied from the Kythe repository
 
 licenses(["notice"])  # BSD/MIT-like license (for zlib)

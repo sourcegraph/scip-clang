@@ -59,3 +59,6 @@ build:dev --copt="-Og" # For testing against large projects locally
 
 build:release --copt="-O2"
 build:release --config=stacktraces
+
+build --host_platform=@rules_nixpkgs_core//platforms:host
+build --crosstool_top=@toolchain-darwin-aarch64//:toolchain

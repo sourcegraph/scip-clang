@@ -38,12 +38,24 @@ def fetch_direct_dependencies():
     )
 
     http_archive(
-        name = "com_grail_bazel_toolchain",
-        sha256 = "c4436850f2edece101371b56971a760aee4b65c0800d55a8b1b8e3f52296ebdd",
-        strip_prefix = "bazel-toolchain-%s" % _BAZEL_TOOLCHAIN_VERSION,
-        urls = [
-            "https://github.com/grailbio/bazel-toolchain/archive/refs/tags/%s.zip" % _BAZEL_TOOLCHAIN_VERSION,
-        ],
+        name = "io_tweag_rules_nixpkgs",
+        strip_prefix = "rules_nixpkgs-57ade1d276893d108d579e561a55e4814218b0b5",
+        urls = ["https://github.com/tweag/rules_nixpkgs/archive/57ade1d276893d108d579e561a55e4814218b0b5.tar.gz"],
+    )
+
+    # http_archive(
+    #     name = "com_grail_bazel_toolchain",
+    #     sha256 = "c4436850f2edece101371b56971a760aee4b65c0800d55a8b1b8e3f52296ebdd",
+    #     strip_prefix = "bazel-toolchain-%s" % _BAZEL_TOOLCHAIN_VERSION,
+    #     urls = [
+    #         "https://github.com/grailbio/bazel-toolchain/archive/refs/tags/%s.zip" % _BAZEL_TOOLCHAIN_VERSION,
+    #     ],
+    # )
+
+    http_archive(
+        name = "rules_cc",
+        strip_prefix = "rules_cc-0.0.6",
+        urls = ["https://github.com/bazelbuild/rules_cc/archive/refs/tags/0.0.6.tar.gz"],
     )
 
     http_archive(

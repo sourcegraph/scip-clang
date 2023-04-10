@@ -1,3 +1,5 @@
+# load("@rules_cc//cc:defs.bzl", "cc_library")
+
 # NOTE(ref: based-on-sorbet): Based on Sorbet's common/os package.
 cc_library(
     name = "os",
