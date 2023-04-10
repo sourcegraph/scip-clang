@@ -57,6 +57,12 @@ jobs:
           # https://stackoverflow.com/a/34386471
           export MSYS2_ARG_CONV_EXCL="*"
           echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials" > ci.bazelrc
+          # For default runners
+          if [ "$RUNNER_OS" == "macOS" ]; then
+              export JAVA_OPTS="-Xmx13G"
+          else
+              export JAVA_OPTS="-Xmx6G"
+          fi
           bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
         env:
           CONFIG: ${{ matrix.config }}
