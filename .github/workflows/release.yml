@@ -23,6 +23,12 @@ jobs:
         # https://github.com/github/roadmap/issues/528
         platform: ['ubuntu-20.04', 'macos-12'] # , 'windows-2022']
         config: ['dev', 'release']
+        exclude:
+          - platform: 'macos-12'
+            config: 'dev'
+          # Seeing an inexplicable
+          #   ld: file not found: external/llvm_toolchain_llvm/lib/clang/15.0.7/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
+          # when running in GitHub Actions
     runs-on: ${{ matrix.platform }}
     env:
       TAG: ${{ github.event.ref }}

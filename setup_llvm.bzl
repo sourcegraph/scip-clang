@@ -1,6 +1,8 @@
 load("@com_grail_bazel_toolchain//toolchain:rules.bzl", grailbio_llvm_toolchain = "llvm_toolchain")
 
 def setup_llvm_toolchain(name):
+    # NOTE: The ASan build uses paths which involve the version.
+    # Keep the version list in sync with settings.bzl
     mapping = {
         "linux-aarch64": {"version": "15.0.6", "triple": "aarch64-linux-gnu", "sha256": "8ca4d68cf103da8331ca3f35fe23d940c1b78fb7f0d4763c1c059e352f5d1bec"},
         "linux-x86_64": {"version": "15.0.6", "triple": "x86_64-linux-gnu-ubuntu-18.04", "sha256": "38bc7f5563642e73e69ac5626724e206d6d539fbef653541b34cae0ba9c3f036"},
