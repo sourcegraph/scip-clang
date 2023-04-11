@@ -8,4 +8,4 @@ bash -c 'curl -L "$RELEASE_URL/scip-clang-$(uname -m)-$OS" -o scip-clang' && \
 chmod +x scip-clang
 ```
 
-The `-debug*` binaries are meant for debugging issues (for example, if you run into a crash with `scip-clang`), and are not recommended for general use.
+The `-dev` binaries are meant for debugging issues (for example, if you run into a crash with `scip-clang`), and are not recommended for general use.
