@@ -82,7 +82,7 @@ jobs:
             SUFFIX=""
           fi
           outBinaryPath="scip-clang${SUFFIX}-$(uname -m)-$OS"
-          cp bazel-bin/main/scip-ruby "$outBinaryPath"
+          cp bazel-bin/indexer/scip-clang "$outBinaryPath"
           echo "outBinaryPath=$outBinaryPath" >> "$GITHUB_ENV"
           echo "suffix=$SUFFIX" >> "$GITHUB_ENV"
         env:
