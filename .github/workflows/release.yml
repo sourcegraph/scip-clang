@@ -21,7 +21,7 @@ jobs:
       matrix:
         # NOTE: GitHub-hosted runners for macOS are x86_64 only
         # https://github.com/github/roadmap/issues/528
-        platform: ['ubuntu-latest-8-cores', 'macos-12'] # , 'windows-2022']
+        platform: ['ubuntu-20.04', 'macos-12'] # , 'windows-2022']
         config: ['dev', 'release']
     runs-on: ${{ matrix.platform }}
     env:
@@ -62,7 +62,7 @@ jobs:
               export JAVA_OPTS="-Xmx13G"
           elif [ "$RUNNER_OS" == "Linux" ]; then
               # 8-core Linux runner has 32GB RAM
-              export JAVA_OPTS="-Xmx30G"
+              export JAVA_OPTS="-Xmx7G"
           fi
           bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
         env:
