@@ -61,7 +61,10 @@ jobs:
           else # if [ "$RUNNER_OS" == "Linux" ]; then
             export BAZEL_MEM="6G"
           fi
-          echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials --host_jvm_args=-Xmx$BAZEL_MEM" > ci.bazelrc
+          {
+            echo "startup --host_jvm_args=-Xmx$BAZEL_MEM"
+            echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials"
+          } > ci.bazelrc
           bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
         env:
           CONFIG: ${{ matrix.config }}
