@@ -56,7 +56,15 @@ jobs:
           # https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842
           # https://stackoverflow.com/a/34386471
           export MSYS2_ARG_CONV_EXCL="*"
-          echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials" > ci.bazelrc
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            export BAZEL_MEM="13G"
+          else # if [ "$RUNNER_OS" == "Linux" ]; then
+            export BAZEL_MEM="6G"
+          fi
+          {
+            echo "startup --host_jvm_args=-Xmx$BAZEL_MEM"
+            echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials"
+          } > ci.bazelrc
           bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
         env:
           CONFIG: ${{ matrix.config }}
@@ -75,7 +83,7 @@ jobs:
             SUFFIX=""
           fi
           outBinaryPath="scip-clang${SUFFIX}-$(uname -m)-$OS"
-          cp bazel-bin/main/scip-ruby "$outBinaryPath"
+          cp bazel-bin/indexer/scip-clang "$outBinaryPath"
           echo "outBinaryPath=$outBinaryPath" >> "$GITHUB_ENV"
           echo "suffix=$SUFFIX" >> "$GITHUB_ENV"
         env:
