@@ -115,7 +115,7 @@ jobs:
             REV="${GITHUB_REF/refs\/tags\//}"
           fi
           TEMPLATE="$(< .github/workflows/release-template.md)"
-          echo "${TEMPLATE//TAG_PLACEHOLDER/$TAG}" > notes
+          echo "${TEMPLATE//TAG_PLACEHOLDER/$REV}" > notes
           gh release create "$REV" --title "scip-clang $REV" --notes-file notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

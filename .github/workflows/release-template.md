@@ -4,7 +4,7 @@ Download the binary for your platform using:
 TAG=TAG_PLACEHOLDER \
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')" \
 RELEASE_URL="https://github.com/sourcegraph/scip-clang/releases/download/$TAG" \
-bash -c 'curl -L "$RELEASE_URL/scip-clang-$(uname -m)-$OS" -o scip-clang' && \
+bash -c 'curl -L "$RELEASE_URL/scip-clang-x86_64-$OS" -o scip-clang' && \
 chmod +x scip-clang
 ```
 
