@@ -56,14 +56,12 @@ jobs:
           # https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842
           # https://stackoverflow.com/a/34386471
           export MSYS2_ARG_CONV_EXCL="*"
-          echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials" > ci.bazelrc
-          # For default runners
           if [ "$RUNNER_OS" == "macOS" ]; then
-              export JAVA_OPTS="-Xmx13G"
-          elif [ "$RUNNER_OS" == "Linux" ]; then
-              # 8-core Linux runner has 32GB RAM
-              export JAVA_OPTS="-Xmx7G"
+            export BAZEL_MEM="13G"
+          else # if [ "$RUNNER_OS" == "Linux" ]; then
+            export BAZEL_MEM="6G"
           fi
+          echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials --host_jvm_args=-Xmx$BAZEL_MEM" > ci.bazelrc
           bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
         env:
           CONFIG: ${{ matrix.config }}
