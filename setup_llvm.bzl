@@ -4,6 +4,9 @@ def setup_llvm_toolchain(name):
     # NOTE: The ASan build uses paths which involve the version.
     # Keep the version list in sync with settings.bzl
     mapping = {
+        # Even though we're using zig cc on Linux, keep these
+        # in to keep clang-format working in CI until we figure
+        # out a more lightweight solution.
         "linux-aarch64": {"version": "15.0.6", "triple": "aarch64-linux-gnu", "sha256": "8ca4d68cf103da8331ca3f35fe23d940c1b78fb7f0d4763c1c059e352f5d1bec"},
         "linux-x86_64": {"version": "15.0.6", "triple": "x86_64-linux-gnu-ubuntu-18.04", "sha256": "38bc7f5563642e73e69ac5626724e206d6d539fbef653541b34cae0ba9c3f036"},
         "darwin-arm64": {"version": "15.0.6", "triple": "arm64-apple-darwin21.0", "sha256": "32bc7b8eee3d98f72dd4e5651e6da990274ee2d28c5c19a7d8237eb817ce8d91"},

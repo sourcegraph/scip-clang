@@ -16,6 +16,7 @@ _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 # in the types for which we implement hashing and comparison in
 # indexer/ScipExtras.{h,cc}
 
+_BAZEL_ZIG_CC_VERSION = "v1.0.1"
 _DOCTEST_VERSION = "2.4.9"
 _DTL_VERSION = "1.20"
 _RULES_PYTHON_VERSION = "0.18.1"
@@ -43,6 +44,18 @@ def fetch_direct_dependencies():
         strip_prefix = "bazel-toolchain-%s" % _BAZEL_TOOLCHAIN_VERSION,
         urls = [
             "https://github.com/grailbio/bazel-toolchain/archive/refs/tags/%s.zip" % _BAZEL_TOOLCHAIN_VERSION,
+        ],
+    )
+
+    http_archive(
+        # The repo hard-codes this name in internal functions,
+        # so use kebab-case instead of camel case.
+        name = "bazel-zig-cc",
+        sha256 = "e9f82bfb74b3df5ca0e67f4d4989e7f1f7ce3386c295fd7fda881ab91f83e509",
+        strip_prefix = "bazel-zig-cc-{}".format(_BAZEL_ZIG_CC_VERSION),
+        urls = [
+            "https://mirror.bazel.build/github.com/uber/bazel-zig-cc/releases/download/{0}/{0}.tar.gz".format(_BAZEL_ZIG_CC_VERSION),
+            "https://github.com/uber/bazel-zig-cc/releases/download/{0}/{0}.tar.gz".format(_BAZEL_ZIG_CC_VERSION),
         ],
     )
 
