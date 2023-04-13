@@ -191,6 +191,25 @@ static void initializeGlobalLogger(std::string name,
   spdlog::set_default_logger(defaultLogger);
 }
 
+int bad_main() {
+  // FIXME: With zig cc, this returns "Failed to create temp dir"
+  // when running on Ubuntu 22.04
+  auto tmpDir = std::filesystem::temp_directory_path();
+  std::stringstream s{};
+  s << "scip-clang-" << 32;
+  tmpDir.append(s.str());
+  std::error_code error;
+  std::filesystem::create_directories(tmpDir, error);
+  if (error) {
+    std::cerr << "Failed to create temp dir at " << tmpDir.string()
+              << "(error: " << error.message() << ")\n";
+    return 1;
+  } else {
+    std::cout << "Directory present at " << tmpDir.string() << '\n';
+  }
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   scip_clang::initializeSymbolizer(argv[0]);
   auto cliOptions = parseArguments(argc, argv);
