@@ -15,6 +15,7 @@
   - [Debugging preprocessor issues](#debugging-preprocessor-issues)
 - [Implementation notes](#implementation-notes)
 - [Notes on Clang internals](#notes-on-clang-internals)
+- [Notes on Windows](#notes-on-windows)
 
 ## Install dependencies
 
@@ -217,3 +218,41 @@ cost of assertions in Clang itself vs in our code.
 
 See [docs/SourceLocation.md](/docs/SourceLocation.md) for information
 about how source locations are handled in Clang.
+
+## Notes on Windows
+
+We have limited familiarity with Windows overall,
+so this section includes detailed steps to (try to)
+build the code on Windows.
+
+1. Spin up a Windows Server 2022 machine on GCP.
+   This generally takes a bit more time than Linux machines.
+2. Install [Microsoft Remote Desktop](https://apps.apple.com/us/app/microsoft-remote-desktop/id1295203466)
+   through the App Store.
+3. Run the GCP command: (via RDP dropdown > View gcloud command to reset password)
+   ```bash
+   gcloud compute reset-windows-password --zone "<your zone>" --project <your project>" "<instane name>"
+   ```
+   This will print a password.
+4. In the GCP UI, download the RDP file for remote login.
+5. Open the RDP file using Microsoft Remote Desktop.
+6. Enter the password from step 3.
+7. Start Powershell.exe as Admin and [install Chocolatey](https://docs.chocolatey.org/en-us/choco/setup#install-with-powershell.exe)
+8. Install [Git for Windows](https://github.com/git-for-windows/git/releases/).
+9. Run Git Bash as Admin and install Python and Bazelisk:
+   ```
+   choco install -yv bazelisk python3
+   ```
+   After this, you may need to restart Git Bash for Python to be found.
+   If after restarting, check if `python3 --version` and `python --version` work.
+   If `python3 --version` doesn't work, then copy over the binary
+   ```bash
+   cp "$(which python)" "$(dirname "$(which python)")/python3"
+   ```
+10. Before invoking Bazel, make sure to run:
+   ```bash
+   export MSYS2_ARG_CONV_EXCL="*"
+   ```
+   for correctly handling `//` in Bazel targets.
+
+After this, you should be able to run the build as usual.
