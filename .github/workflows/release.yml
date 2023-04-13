@@ -21,7 +21,7 @@ jobs:
       matrix:
         # NOTE: GitHub-hosted runners for macOS are x86_64 only
         # https://github.com/github/roadmap/issues/528
-        platform: ['ubuntu-20.04', 'macos-12'] # , 'windows-2022']
+        platform: ['ubuntu-22.04', 'macos-12'] # , 'windows-2022']
         config: ['dev', 'release']
         exclude:
           - platform: 'macos-12'
@@ -75,6 +75,11 @@ jobs:
         env:
           CONFIG: ${{ matrix.config }}
           CI_BAZEL_REMOTE_CACHE: 'https://storage.googleapis.com/sourcegraph_bazel_cache'
+      - name: '🧪 Test scip-clang'
+        run:
+          bazel test //test --config="$CONFIG"
+        env:
+          CONFIG: ${{ matrix.config }}
       - name: '🔎 Identify OS'
         run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       - name: '🪵 Upload log'
