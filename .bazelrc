@@ -25,6 +25,8 @@ build --per_file_copt="external/com_google_protobuf/.*@-Wno-unused-function"
 build:asserts --copt="-DFORCE_DEBUG=1"
 build:asserts --copt="-DLLVM_ENABLE_ASSERTIONS=1"
 
+# bazel_zig_cc doesn't respect --strip=never in fastbuild
+build:stacktraces -c dbg
 build:stacktraces --strip=never
 build:stacktraces --copt="-gline-tables-only" --copt="-fno-omit-frame-pointer"
 
@@ -57,8 +59,8 @@ build:ci --config=ubsan
 build:dev --config=ci
 build:dev --copt="-Og" # For testing against large projects locally
 
-build:release -c opt
-build:release --copt="-O2"
 build:release --config=stacktraces
-# Zig uses UBSan by default
+build:release -c opt # stacktraces forces -c dbg
+build:release --copt="-O2"
+# Avoid any usage of fsanitize=undefined from Zig
 build:release --copt="-fno-sanitize=undefined"
