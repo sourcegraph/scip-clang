@@ -539,7 +539,12 @@ void ResumableParser::tryInferResourceDir(
   auto resourceDirProcResult =
       ::runProcess(args, "attempting to find resource dir");
   std::string resourceDir{};
-  if (!resourceDirProcResult.error) {
+  if (!resourceDirProcResult.error.has_value()) {
+    if (resourceDirProcResult.stdoutLines.empty()) {
+      spdlog::warn(
+          "-print-resource-dir succeeded but returned an empty result");
+      return fail();
+    }
     compiler = Compiler::Clang;
     resourceDir =
         absl::StripAsciiWhitespace(resourceDirProcResult.stdoutLines.front());
