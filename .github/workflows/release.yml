@@ -91,13 +91,14 @@ jobs:
           } > ci.bazelrc
           # Comment out the 'upload log' bit below for debugging
           bazel build //indexer:scip-clang --config="$CONFIG" # --execution_log_binary_file=log
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            echo "--- GLIBC VERSIONS ---"
+            objdump -T bazel-bin/indexer/scip-clang | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
+            echo "----------------------"
+          fi
         env:
           CONFIG: ${{ matrix.config }}
           CI_BAZEL_REMOTE_CACHE: 'https://storage.googleapis.com/sourcegraph_bazel_cache'
-      - name: '🔎 Identify glibc'
-        if: ${{ matrix.container }} != ''
-        run: |
-          objdump -T bazel-bin/indexer/scip-clang | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
       - name: '🔎 Identify OS'
         run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       # - name: '🪵 Upload log'
