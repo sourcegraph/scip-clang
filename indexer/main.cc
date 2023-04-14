@@ -15,6 +15,7 @@
 #include "indexer/CliOptions.h"
 #include "indexer/Driver.h"
 #include "indexer/Enforce.h"
+#include "indexer/Version.h"
 #include "indexer/Worker.h"
 
 static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
@@ -53,8 +54,8 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "Show Clang diagnostics triggered when running semantic analysis."
     " Useful for debugging issues related to missing headers.",
     cxxopts::value<bool>(cliOptions.showClangDiagnostics));
+  parser.add_options("")("version", "Show the version", cxxopts::value<bool>());
   parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
-  // TODO(def: add-version): Add a --version flag
   parser.add_options("Advanced")(
     "print-statistics-path",
     "Print indexing related statistics in JSON format."
@@ -135,6 +136,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   }
   if (result.count("help-all")) {
     fmt::print("{}\n", parser.help());
+    std::exit(EXIT_SUCCESS);
+  }
+  if (result.count("version")) {
+    fmt::print("{}", scip_clang::full_version_string);
     std::exit(EXIT_SUCCESS);
   }
 

@@ -47,6 +47,7 @@
 #include "indexer/ScipExtras.h"
 #include "indexer/Statistics.h"
 #include "indexer/Timer.h"
+#include "indexer/Version.h"
 
 namespace boost_ip = boost::interprocess;
 
@@ -697,7 +698,7 @@ private:
 
     scip::ToolInfo toolInfo;
     toolInfo.set_name("scip-clang");
-    toolInfo.set_version("0.0.0"); // See TODO(ref: add-version)
+    toolInfo.set_version(scip_clang::version);
     for (auto &arg : this->options.originalArgv) {
       toolInfo.add_arguments(arg);
     }
