@@ -32,14 +32,15 @@ struct CompletedProcess {
   std::vector<std::string> stderrLines;
 };
 
-static CompletedProcess runProcess(std::vector<std::string> &args, const char *logContext) {
+static CompletedProcess runProcess(std::vector<std::string> &args,
+                                   const char *logContext) {
   CompletedProcess out{};
   boost::process::ipstream stdoutStream, stderrStream;
   BOOST_TRY {
     spdlog::debug("{}{}invoking '{}'", logContext ? logContext : "",
-                  logContext ? " by " : "",
-                  fmt::join(args, " "));
-    boost::process::child worker(args, boost::process::std_out > stdoutStream, boost::process::std_err > stderrStream);
+                  logContext ? " by " : "", fmt::join(args, " "));
+    boost::process::child worker(args, boost::process::std_out > stdoutStream,
+                                 boost::process::std_err > stderrStream);
     worker.wait();
   }
   BOOST_CATCH(boost::process::process_error & ex) {
@@ -501,14 +502,12 @@ void ResumableParser::parseMore(
   this->handler->commands.clear();
 }
 
-
-
 void ResumableParser::tryInferResourceDir(
     std::vector<std::string> &commandLine) {
   auto &compilerPath = commandLine.front();
   auto it = this->extraArgsMap.find(compilerPath);
   if (it != this->extraArgsMap.end()) {
-    for (auto &extraArg: it->second) {
+    for (auto &extraArg : it->second) {
       commandLine.push_back(extraArg);
     }
     return;
@@ -528,39 +527,47 @@ void ResumableParser::tryInferResourceDir(
       return;
     }
   }
-  auto fail = [&]() {
-    this->extraArgsMap.insert({compilerPath, {}});
-  };
+  auto fail = [&]() { this->extraArgsMap.insert({compilerPath, {}}); };
 
   enum class Compiler {
     Gcc,
     Clang,
   } compiler;
 
-  std::vector<std::string> args = {compilerInvocationPath, "-print-resource-dir"};
-  auto resourceDirProcResult = ::runProcess(args, "attempting to find resource dir");
+  std::vector<std::string> args = {compilerInvocationPath,
+                                   "-print-resource-dir"};
+  auto resourceDirProcResult =
+      ::runProcess(args, "attempting to find resource dir");
   std::string resourceDir{};
   if (!resourceDirProcResult.error) {
     compiler = Compiler::Clang;
-    resourceDir = absl::StripAsciiWhitespace(resourceDirProcResult.stdoutLines.front());
+    resourceDir =
+        absl::StripAsciiWhitespace(resourceDirProcResult.stdoutLines.front());
   } else {
     args = {compilerInvocationPath, "-print-search-dirs"};
-    auto searchDirsProcResult = ::runProcess(args, "attempting to find search dirs");
+    auto searchDirsProcResult =
+        ::runProcess(args, "attempting to find search dirs");
     if (searchDirsProcResult.error.has_value()) {
-      spdlog::warn("both -print-resource-dir and -print-search-dirs failed for compiler {}; may be unable to locate standard library headers",
-        compilerInvocationPath);
+      spdlog::warn(
+          "both -print-resource-dir and -print-search-dirs failed for compiler "
+          "{}; may be unable to locate standard library headers",
+          compilerInvocationPath);
       return fail();
     }
-    absl::c_any_of(searchDirsProcResult.stdoutLines, [&](const std::string &line) -> bool {
-      if (line.starts_with("install:")) {
-        resourceDir = absl::StripAsciiWhitespace(absl::StripPrefix(line, "install:"));
-        return true;
-      }
-      return false;
-    });
+    absl::c_any_of(
+        searchDirsProcResult.stdoutLines, [&](const std::string &line) -> bool {
+          if (line.starts_with("install:")) {
+            resourceDir =
+                absl::StripAsciiWhitespace(absl::StripPrefix(line, "install:"));
+            return true;
+          }
+          return false;
+        });
     if (resourceDir.empty()) {
-      spdlog::warn("missing 'install:' line in -print-search-dirs from GCC(-like?) compiler {}; may be unable to locate standard library headers",
-        compilerInvocationPath);
+      spdlog::warn(
+          "missing 'install:' line in -print-search-dirs from GCC(-like?) "
+          "compiler {}; may be unable to locate standard library headers",
+          compilerInvocationPath);
       return fail();
     }
     compiler = Compiler::Gcc;
@@ -580,7 +587,7 @@ void ResumableParser::tryInferResourceDir(
   auto [newIt, inserted] =
       this->extraArgsMap.emplace(compilerPath, std::move(extraArgs));
   ENFORCE(inserted);
-  for (auto &arg: newIt->second) {
+  for (auto &arg : newIt->second) {
     commandLine.push_back(arg);
   }
 }
