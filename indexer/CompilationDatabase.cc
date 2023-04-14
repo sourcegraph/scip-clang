@@ -27,16 +27,36 @@
 #include "indexer/FileSystem.h"
 #include "indexer/LlvmCommandLineParsing.h"
 
+namespace {
+enum class CompilerKind {
+  Gcc,
+  Clang,
+};
+
 struct CompletedProcess {
   int exitCode;
   std::optional<boost::process::process_error> error;
   std::vector<std::string> stdoutLines;
   std::vector<std::string> stderrLines;
+
+  bool isSuccess() const {
+    return this->exitCode == EXIT_SUCCESS && !this->error.has_value();
+  }
 };
+
+struct ResourceDirResult {
+  std::string resourceDir;
+  std::vector<std::string> cliInvocation;
+  CompilerKind compilerKind;
+};
+} // namespace
 
 static CompletedProcess runProcess(std::vector<std::string> &args,
                                    const char *logContext) {
-  CompletedProcess out{.error = std::nullopt};
+  CompletedProcess out{.exitCode = EXIT_FAILURE,
+                       .error = std::nullopt,
+                       .stdoutLines = {},
+                       .stderrLines = {}};
   boost::process::ipstream stdoutStream, stderrStream;
   BOOST_TRY {
     spdlog::debug("{}{}invoking '{}'", logContext ? logContext : "",
@@ -56,6 +76,55 @@ static CompletedProcess runProcess(std::vector<std::string> &args,
   }
   while (std::getline(stderrStream, line) && !line.empty()) {
     out.stderrLines.push_back(line);
+  }
+  return out;
+}
+
+/// Returns an empty path if we failed to determine the resource dir
+ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
+  ResourceDirResult out{
+      "", {compilerPath, "-print-resource-dir"}, CompilerKind::Clang};
+  // std::pair<CompilerKind, std::string> errorResult = {CompilerKind::Clang,
+  // ""}; std::vector<std::string> args = {compilerPath,
+  //                                  "-print-resource-dir"};
+  auto printResourceDirResult =
+      ::runProcess(out.cliInvocation, "attempting to find resource dir");
+  if (printResourceDirResult.isSuccess()) {
+    if (printResourceDirResult.stdoutLines.empty()) {
+      spdlog::warn(
+          "-print-resource-dir succeeded but returned an empty result");
+      return out;
+    }
+    out.resourceDir = std::string(
+        absl::StripAsciiWhitespace(printResourceDirResult.stdoutLines.front()));
+    return out;
+  }
+  out.compilerKind = CompilerKind::Gcc;
+  out.cliInvocation = {compilerPath, "-print-search-dirs"};
+  auto printSearchDirsResult =
+      ::runProcess(out.cliInvocation, "attempting to find search dirs");
+  if (!printSearchDirsResult.isSuccess()) {
+    spdlog::warn(
+        "both -print-resource-dir and -print-search-dirs failed for compiler "
+        "{}; may be unable to locate standard library headers",
+        compilerPath);
+    return out;
+  }
+  absl::c_any_of(
+      printSearchDirsResult.stdoutLines, [&](const std::string &line) -> bool {
+        if (line.starts_with("install:")) {
+          out.resourceDir =
+              absl::StripAsciiWhitespace(absl::StripPrefix(line, "install:"));
+          return true;
+        }
+        return false;
+      });
+  if (out.resourceDir.empty()) {
+    spdlog::warn(
+        "missing 'install:' line in -print-search-dirs from GCC(-like?) "
+        "compiler {}; may be unable to locate standard library headers",
+        compilerPath);
+    return out;
   }
   return out;
 }
@@ -531,66 +600,20 @@ void ResumableParser::tryInferResourceDir(
     }
   }
   auto fail = [&]() { this->extraArgsMap.insert({compilerPath, {}}); };
-
-  enum class Compiler {
-    Gcc,
-    Clang,
-  } compiler;
-
-  std::vector<std::string> args = {compilerInvocationPath,
-                                   "-print-resource-dir"};
-  auto resourceDirProcResult =
-      ::runProcess(args, "attempting to find resource dir");
-  std::string resourceDir{};
-  if (!resourceDirProcResult.error.has_value()
-      && resourceDirProcResult.exitCode == EXIT_SUCCESS) {
-    if (resourceDirProcResult.stdoutLines.empty()) {
-      spdlog::warn(
-          "-print-resource-dir succeeded but returned an empty result");
-      return fail();
-    }
-    compiler = Compiler::Clang;
-    resourceDir =
-        absl::StripAsciiWhitespace(resourceDirProcResult.stdoutLines.front());
-  } else {
-    args = {compilerInvocationPath, "-print-search-dirs"};
-    auto searchDirsProcResult =
-        ::runProcess(args, "attempting to find search dirs");
-    if (searchDirsProcResult.error.has_value()) {
-      spdlog::warn(
-          "both -print-resource-dir and -print-search-dirs failed for compiler "
-          "{}; may be unable to locate standard library headers",
-          compilerInvocationPath);
-      return fail();
-    }
-    absl::c_any_of(
-        searchDirsProcResult.stdoutLines, [&](const std::string &line) -> bool {
-          if (line.starts_with("install:")) {
-            resourceDir =
-                absl::StripAsciiWhitespace(absl::StripPrefix(line, "install:"));
-            return true;
-          }
-          return false;
-        });
-    if (resourceDir.empty()) {
-      spdlog::warn(
-          "missing 'install:' line in -print-search-dirs from GCC(-like?) "
-          "compiler {}; may be unable to locate standard library headers",
-          compilerInvocationPath);
-      return fail();
-    }
-    compiler = Compiler::Gcc;
+  auto resourceDirResult = ::determineResourceDir(compilerInvocationPath);
+  if (resourceDirResult.resourceDir.empty()) {
+    return fail();
   }
-
+  auto &resourceDir = resourceDirResult.resourceDir;
   std::vector<std::string> extraArgs{"-resource-dir", resourceDir};
-  if (compiler == Compiler::Gcc) {
+  if (resourceDirResult.compilerKind == CompilerKind::Gcc) {
     extraArgs.push_back(fmt::format("-I{}/include-fixed", resourceDir));
   }
   spdlog::debug("got resource dir '{}'", resourceDir);
   if (!std::filesystem::exists(resourceDir)) {
-    this->emitResourceDirError(
-        fmt::format("'{}' returned '{}' but the directory does not exist",
-                    fmt::join(args, " "), resourceDir));
+    this->emitResourceDirError(fmt::format(
+        "'{}' returned '{}' but the directory does not exist",
+        fmt::join(resourceDirResult.cliInvocation, " "), resourceDir));
     return fail();
   }
   auto [newIt, inserted] =
