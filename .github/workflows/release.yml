@@ -71,17 +71,18 @@ jobs:
             echo "startup --host_jvm_args=-Xmx$BAZEL_MEM"
             echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials"
           } > ci.bazelrc
-          bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
+          # Comment out the 'upload log' bit below for debugging
+          bazel build //indexer:scip-clang --config="$CONFIG" # --execution_log_binary_file=log
         env:
           CONFIG: ${{ matrix.config }}
           CI_BAZEL_REMOTE_CACHE: 'https://storage.googleapis.com/sourcegraph_bazel_cache'
       - name: '🔎 Identify OS'
         run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
-      - name: '🪵 Upload log'
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.OS }}-${{ matrix.config }}-build-log
-          path: log
+      # - name: '🪵 Upload log'
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: ${{ env.OS }}-${{ matrix.config }}-build-log
+      #     path: log
       - name: ${{ format('🪄 Rename binary ({0})', matrix.config) }}
         run: |
           SUFFIX="-dev"
