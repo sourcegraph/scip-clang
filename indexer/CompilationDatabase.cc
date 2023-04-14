@@ -81,9 +81,6 @@ static CompletedProcess runProcess(std::vector<std::string> &args,
 ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
   ResourceDirResult out{
       "", {compilerPath, "-print-resource-dir"}, CompilerKind::Clang};
-  // std::pair<CompilerKind, std::string> errorResult = {CompilerKind::Clang,
-  // ""}; std::vector<std::string> args = {compilerPath,
-  //                                  "-print-resource-dir"};
   auto printResourceDirResult =
       ::runProcess(out.cliInvocation, "attempting to find resource dir");
   if (printResourceDirResult.isSuccess()) {
