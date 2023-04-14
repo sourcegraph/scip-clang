@@ -50,10 +50,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "If set, this directory will not be deleted after indexing is complete.",
     cxxopts::value<std::string>(cliOptions.temporaryOutputDir));
   parser.add_options("")(
-    "show-clang-diagnostics",
+    "show-compiler-diagnostics",
     "Show Clang diagnostics triggered when running semantic analysis."
     " Useful for debugging issues related to missing headers.",
-    cxxopts::value<bool>(cliOptions.showClangDiagnostics));
+    cxxopts::value<bool>(cliOptions.showCompilerDiagonstics));
   parser.add_options("")("version", "Show the version", cxxopts::value<bool>());
   parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
   parser.add_options("Advanced")(

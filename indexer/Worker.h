@@ -57,7 +57,7 @@ struct WorkerOptions {
   StdPath indexOutputPath; // only valid if mode == Compdb
   StdPath statsFilePath;   // only valid if mode == Compdb
 
-  bool showClangDiagnostics;
+  bool showCompilerDiagonstics;
 
   spdlog::level::level_enum logLevel;
   bool deterministic;

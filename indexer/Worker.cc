@@ -1135,7 +1135,7 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
                        compdbPath,
                        indexOutputPath,
                        statsFilePath,
-                       cliOptions.showClangDiagnostics,
+                       cliOptions.showCompilerDiagonstics,
                        cliOptions.logLevel,
                        cliOptions.deterministic,
                        cliOptions.measureStatistics,
@@ -1243,7 +1243,7 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
       std::make_shared<clang::PCHContainerOperations>());
 
   SuppressDiagnosticConsumer suppressDiagnostics;
-  if (!this->options.showClangDiagnostics) {
+  if (!this->options.showCompilerDiagonstics) {
     invocation.setDiagnosticConsumer(&suppressDiagnostics);
   }
 

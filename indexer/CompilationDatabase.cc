@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,8 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/strip.h"
 #include "boost/process/child.hpp"
 #include "boost/process/io.hpp"
 #include "boost/process/search_path.hpp"
@@ -20,6 +23,110 @@
 #include "indexer/CompilationDatabase.h"
 #include "indexer/FileSystem.h"
 #include "indexer/LlvmCommandLineParsing.h"
+
+namespace {
+enum class CompilerKind {
+  Gcc,
+  Clang,
+};
+
+struct CompletedProcess {
+  int exitCode;
+  std::optional<boost::process::process_error> error;
+  std::vector<std::string> stdoutLines;
+  std::vector<std::string> stderrLines;
+
+  bool isSuccess() const {
+    return this->exitCode == EXIT_SUCCESS && !this->error.has_value();
+  }
+};
+
+struct ResourceDirResult {
+  std::string resourceDir;
+  std::vector<std::string> cliInvocation;
+  CompilerKind compilerKind;
+};
+} // namespace
+
+static CompletedProcess runProcess(std::vector<std::string> &args,
+                                   const char *logContext) {
+  CompletedProcess out{.exitCode = EXIT_FAILURE,
+                       .error = std::nullopt,
+                       .stdoutLines = {},
+                       .stderrLines = {}};
+  boost::process::ipstream stdoutStream, stderrStream;
+  BOOST_TRY {
+    spdlog::debug("{}{}invoking '{}'", logContext ? logContext : "",
+                  logContext ? " by " : "", fmt::join(args, " "));
+    boost::process::child worker(args, boost::process::std_out > stdoutStream,
+                                 boost::process::std_err > stderrStream);
+    worker.wait();
+    out.exitCode = worker.exit_code();
+  }
+  BOOST_CATCH(boost::process::process_error & ex) {
+    out.error = ex;
+  }
+  BOOST_CATCH_END
+  std::string line;
+  while (std::getline(stdoutStream, line) && !line.empty()) {
+    out.stdoutLines.push_back(line);
+  }
+  while (std::getline(stderrStream, line) && !line.empty()) {
+    out.stderrLines.push_back(line);
+  }
+  return out;
+}
+
+/// Returns an empty path if we failed to determine the resource dir
+ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
+  ResourceDirResult out{
+      "", {compilerPath, "-print-resource-dir"}, CompilerKind::Clang};
+  auto printResourceDirResult =
+      ::runProcess(out.cliInvocation, "attempting to find resource dir");
+  if (printResourceDirResult.isSuccess()) {
+    if (printResourceDirResult.stdoutLines.empty()) {
+      spdlog::warn(
+          "-print-resource-dir succeeded but returned an empty result");
+      return out;
+    }
+    out.resourceDir = std::string(
+        absl::StripAsciiWhitespace(printResourceDirResult.stdoutLines.front()));
+    return out;
+  }
+  out.compilerKind = CompilerKind::Gcc;
+  out.cliInvocation = {compilerPath, "-print-search-dirs"};
+  auto printSearchDirsResult =
+      ::runProcess(out.cliInvocation, "attempting to find search dirs");
+  auto noteStdlib = []() {
+    spdlog::warn("may be unable to locate standard library headers");
+    spdlog::info("compilation errors are suppressed by default, but can be "
+                 "turned on using --show-compiler-diagnostics");
+  };
+  if (!printSearchDirsResult.isSuccess()) {
+    spdlog::warn(
+        "both -print-resource-dir and -print-search-dirs failed for {}",
+        compilerPath);
+    noteStdlib();
+    return out;
+  }
+  absl::c_any_of(
+      printSearchDirsResult.stdoutLines, [&](const std::string &line) -> bool {
+        if (line.starts_with("install:")) {
+          out.resourceDir =
+              absl::StripAsciiWhitespace(absl::StripPrefix(line, "install:"));
+          return true;
+        }
+        return false;
+      });
+  if (out.resourceDir.empty()) {
+    spdlog::warn(
+        "missing 'install:' line in -print-search-dirs from GCC(-like?) {}",
+        compilerPath);
+    noteStdlib();
+    return out;
+  }
+  return out;
+}
 
 namespace scip_clang {
 namespace compdb {
@@ -468,57 +575,53 @@ void ResumableParser::parseMore(
 
 void ResumableParser::tryInferResourceDir(
     std::vector<std::string> &commandLine) {
-  auto &clangPath = commandLine.front();
-  auto it = this->resourceDirMap.find(clangPath);
-  if (it != this->resourceDirMap.end()) {
-    commandLine.push_back("-resource-dir");
-    commandLine.push_back(it->second);
+  auto &compilerPath = commandLine.front();
+  auto it = this->extraArgsMap.find(compilerPath);
+  if (it != this->extraArgsMap.end()) {
+    for (auto &extraArg : it->second) {
+      commandLine.push_back(extraArg);
+    }
     return;
   }
-  std::string clangInvocationPath = clangPath;
-  if (clangPath.find(std::filesystem::path::preferred_separator)
+  std::string compilerInvocationPath = compilerPath;
+  if (compilerPath.find(std::filesystem::path::preferred_separator)
       == std::string::npos) {
-    clangInvocationPath = boost::process::search_path(clangPath).native();
-    if (clangInvocationPath.empty()) {
+    compilerInvocationPath = boost::process::search_path(compilerPath).native();
+    if (compilerInvocationPath.empty()) {
       this->emitResourceDirError(fmt::format(
           "scip-clang needs to be invoke '{0}' (found via the compilation"
           " database) to determine the resource directory, but couldn't find"
           " '{0}' on PATH. Hint: Use a modified PATH to invoke scip-clang,"
           " or change the compilation database to use absolute paths"
           " for the compiler.",
-          clangPath));
+          compilerPath));
       return;
     }
   }
-  std::vector<std::string> args = {clangInvocationPath, "-print-resource-dir"};
-  std::string resourceDir;
-  BOOST_TRY {
-    spdlog::debug("attempting to find resource dir by invoking '{}'",
-                  fmt::join(args, " "));
-    boost::process::ipstream inputStream;
-    boost::process::child worker(args, boost::process::std_out > inputStream);
-    worker.wait();
-    std::getline(inputStream, resourceDir);
+  auto fail = [&]() { this->extraArgsMap.insert({compilerPath, {}}); };
+  auto resourceDirResult = ::determineResourceDir(compilerInvocationPath);
+  if (resourceDirResult.resourceDir.empty()) {
+    return fail();
   }
-  BOOST_CATCH(boost::process::process_error & ex) {
-    this->emitResourceDirError(
-        fmt::format("failed to get resource dir (invocation: '{}'): {}",
-                    fmt::join(args, " "), ex.what()));
-    return;
+  auto &resourceDir = resourceDirResult.resourceDir;
+  std::vector<std::string> extraArgs{"-resource-dir", resourceDir};
+  if (resourceDirResult.compilerKind == CompilerKind::Gcc) {
+    // gcc-7 adds headers like limits.h and syslimits.h in include-fixed
+    extraArgs.push_back(fmt::format("-I{}/include-fixed", resourceDir));
   }
-  BOOST_CATCH_END
-  spdlog::debug("get resource dir '{}'", resourceDir);
+  spdlog::debug("got resource dir '{}'", resourceDir);
   if (!std::filesystem::exists(resourceDir)) {
-    this->emitResourceDirError(
-        fmt::format("'{}' returned '{}' but the directory does not exist",
-                    fmt::join(args, " "), resourceDir));
-    return;
+    this->emitResourceDirError(fmt::format(
+        "'{}' returned '{}' but the directory does not exist",
+        fmt::join(resourceDirResult.cliInvocation, " "), resourceDir));
+    return fail();
   }
   auto [newIt, inserted] =
-      this->resourceDirMap.emplace(clangPath, std::move(resourceDir));
+      this->extraArgsMap.emplace(compilerPath, std::move(extraArgs));
   ENFORCE(inserted);
-  commandLine.push_back("-resource-dir");
-  commandLine.push_back(newIt->second);
+  for (auto &arg : newIt->second) {
+    commandLine.push_back(arg);
+  }
 }
 
 void ResumableParser::emitResourceDirError(std::string &&error) {
