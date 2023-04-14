@@ -19,17 +19,23 @@ jobs:
     name: 'Build and upload artifacts'
     strategy:
       matrix:
-        # NOTE: GitHub-hosted runners for macOS are x86_64 only
-        # https://github.com/github/roadmap/issues/528
-        platform: ['ubuntu-20.04', 'macos-12'] # , 'windows-2022']
-        config: ['dev', 'release']
-        exclude:
-          - platform: 'macos-12'
+        include:
+          - platform: 'ubuntu-22.04'
+            container: 'gcc:9.5.0-buster'
             config: 'dev'
+          - platform: 'ubuntu-22.04'
+            container: 'gcc:9.5.0-buster'
+            config: 'release'
+          # NOTE: GitHub-hosted runners for macOS are x86_64 only
+          # https://github.com/github/roadmap/issues/528
+          - platform: 'macos-12'
+            container: ''
+            config: 'release'
           # Seeing an inexplicable
           #   ld: file not found: external/llvm_toolchain_llvm/lib/clang/15.0.7/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
-          # when running in GitHub Actions
+          # when running the dev build in in GitHub Actions
     runs-on: ${{ matrix.platform }}
+    container: ${{ matrix.container }}
     env:
       TAG: ${{ github.event.ref }}
     permissions:
@@ -45,6 +51,9 @@ jobs:
           if ! command -v bazelisk; then
             if [ "$RUNNER_OS" == "Windows" ]; then
               choco install bazelisk
+            elif [ "$RUNNER_OS" == "Linux" ]; then
+              curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.16.0/bazelisk-linux-amd64 > /usr/local/bin/bazel
+              chmod +x /usr/local/bin/bazel
             else
               sudo npm install -g @bazel/bazelisk
             fi
@@ -76,6 +85,10 @@ jobs:
         env:
           CONFIG: ${{ matrix.config }}
           CI_BAZEL_REMOTE_CACHE: 'https://storage.googleapis.com/sourcegraph_bazel_cache'
+      - name: '🔎 Identify glibc'
+        if: ${{ matrix.container }} != ''
+        run: |
+          objdump -T bazel-bin/indexer/scip-clang | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
       - name: '🔎 Identify OS'
         run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       # - name: '🪵 Upload log'
