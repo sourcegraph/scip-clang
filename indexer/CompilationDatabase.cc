@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -27,6 +28,7 @@
 #include "indexer/LlvmCommandLineParsing.h"
 
 struct CompletedProcess {
+  int exitCode;
   std::optional<boost::process::process_error> error;
   std::vector<std::string> stdoutLines;
   std::vector<std::string> stderrLines;
@@ -34,7 +36,7 @@ struct CompletedProcess {
 
 static CompletedProcess runProcess(std::vector<std::string> &args,
                                    const char *logContext) {
-  CompletedProcess out{};
+  CompletedProcess out{.error = std::nullopt};
   boost::process::ipstream stdoutStream, stderrStream;
   BOOST_TRY {
     spdlog::debug("{}{}invoking '{}'", logContext ? logContext : "",
@@ -42,6 +44,7 @@ static CompletedProcess runProcess(std::vector<std::string> &args,
     boost::process::child worker(args, boost::process::std_out > stdoutStream,
                                  boost::process::std_err > stderrStream);
     worker.wait();
+    out.exitCode = worker.exit_code();
   }
   BOOST_CATCH(boost::process::process_error & ex) {
     out.error = ex;
@@ -539,7 +542,8 @@ void ResumableParser::tryInferResourceDir(
   auto resourceDirProcResult =
       ::runProcess(args, "attempting to find resource dir");
   std::string resourceDir{};
-  if (!resourceDirProcResult.error.has_value()) {
+  if (!resourceDirProcResult.error.has_value()
+      && resourceDirProcResult.exitCode == EXIT_SUCCESS) {
     if (resourceDirProcResult.stdoutLines.empty()) {
       spdlog::warn(
           "-print-resource-dir succeeded but returned an empty result");
