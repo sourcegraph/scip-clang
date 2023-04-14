@@ -71,6 +71,7 @@ struct MessageQueues {
 
   MessageQueues(std::string_view driverId, size_t numWorkers,
                 std::pair<size_t, size_t> elementSizes) {
+    spdlog::debug("creating queues for IPC");
     for (WorkerId workerId = 0; workerId < numWorkers; workerId++) {
       auto d2w = scip_clang::driverToWorkerQueueName(driverId, workerId);
       driverToWorker.emplace_back(
@@ -145,6 +146,7 @@ struct DriverOptions {
         temporaryOutputDir(cliOpts.temporaryOutputDir),
         deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()),
         originalArgv(cliOpts.originalArgv) {
+    spdlog::debug("initializing driver options");
 
     auto cwd = std::filesystem::current_path().string();
     ENFORCE(llvm::sys::path::is_absolute(cwd),
