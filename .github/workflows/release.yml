@@ -46,6 +46,15 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v3
+      - name: '📝 Check version'
+        run: |
+          set -euo pipefail
+          if [[ "${TAG:-}" == v* ]]; then
+            TAG_LIKE="$TAG"
+          else
+            TAG_LIKE="$(grep '## v' CHANGELOG.md | head -n 1 | cut -d ' ' -f 2)"
+          fi
+          NEW_VERSION="${TAG_LIKE/v/}" ./tools/version_check.sh
       - name: '🐍 Install Bazelisk'
         run: |
           if ! command -v bazelisk; then
