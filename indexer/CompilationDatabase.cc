@@ -1,5 +1,4 @@
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -20,8 +19,6 @@
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/reader.h"
 #include "spdlog/fmt/fmt.h"
-
-#include "llvm/Support/Regex.h"
 
 #include "indexer/CompilationDatabase.h"
 #include "indexer/FileSystem.h"
