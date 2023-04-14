@@ -606,6 +606,7 @@ void ResumableParser::tryInferResourceDir(
   auto &resourceDir = resourceDirResult.resourceDir;
   std::vector<std::string> extraArgs{"-resource-dir", resourceDir};
   if (resourceDirResult.compilerKind == CompilerKind::Gcc) {
+    // gcc-7 adds headers like limits.h and syslimits.h in include-fixed
     extraArgs.push_back(fmt::format("-I{}/include-fixed", resourceDir));
   }
   spdlog::debug("got resource dir '{}'", resourceDir);
