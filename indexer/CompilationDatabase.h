@@ -88,7 +88,12 @@ class ResumableParser {
 
   bool inferResourceDir;
   absl::flat_hash_set<std::string> emittedErrors;
-  absl::flat_hash_map<std::string, std::string> resourceDirMap;
+
+  /// Mapping from compiler -> resource directory.
+  ///
+  /// nullopt indicates that we couldn't locate a resource directory,
+  /// so we shouldn't retry looking for it.
+  absl::flat_hash_map<std::string, std::optional<std::string>> resourceDirMap;
 
 public:
   ResumableParser() = default;

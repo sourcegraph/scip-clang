@@ -468,29 +468,31 @@ void ResumableParser::parseMore(
 
 void ResumableParser::tryInferResourceDir(
     std::vector<std::string> &commandLine) {
-  auto &clangPath = commandLine.front();
-  auto it = this->resourceDirMap.find(clangPath);
+  auto &compilerPath = commandLine.front();
+  auto it = this->resourceDirMap.find(compilerPath);
   if (it != this->resourceDirMap.end()) {
-    commandLine.push_back("-resource-dir");
-    commandLine.push_back(it->second);
+    if (auto optPath = it->second) {
+      commandLine.push_back("-resource-dir");
+      commandLine.push_back(*optPath);
+    }
     return;
   }
-  std::string clangInvocationPath = clangPath;
-  if (clangPath.find(std::filesystem::path::preferred_separator)
+  std::string compilerInvocationPath = compilerPath;
+  if (compilerPath.find(std::filesystem::path::preferred_separator)
       == std::string::npos) {
-    clangInvocationPath = boost::process::search_path(clangPath).native();
-    if (clangInvocationPath.empty()) {
+    compilerInvocationPath = boost::process::search_path(compilerPath).native();
+    if (compilerInvocationPath.empty()) {
       this->emitResourceDirError(fmt::format(
           "scip-clang needs to be invoke '{0}' (found via the compilation"
           " database) to determine the resource directory, but couldn't find"
           " '{0}' on PATH. Hint: Use a modified PATH to invoke scip-clang,"
           " or change the compilation database to use absolute paths"
           " for the compiler.",
-          clangPath));
+          compilerPath));
       return;
     }
   }
-  std::vector<std::string> args = {clangInvocationPath, "-print-resource-dir"};
+  std::vector<std::string> args = {compilerInvocationPath, "-print-resource-dir"};
   std::string resourceDir;
   BOOST_TRY {
     spdlog::debug("attempting to find resource dir by invoking '{}'",
@@ -501,24 +503,27 @@ void ResumableParser::tryInferResourceDir(
     std::getline(inputStream, resourceDir);
   }
   BOOST_CATCH(boost::process::process_error & ex) {
+    // FIXME: We should not emit this error for non-Clang based compilers.
     this->emitResourceDirError(
         fmt::format("failed to get resource dir (invocation: '{}'): {}",
                     fmt::join(args, " "), ex.what()));
+    this->resourceDirMap.emplace(compilerPath, std::nullopt);
     return;
   }
   BOOST_CATCH_END
-  spdlog::debug("get resource dir '{}'", resourceDir);
+  spdlog::debug("got resource dir '{}'", resourceDir);
   if (!std::filesystem::exists(resourceDir)) {
     this->emitResourceDirError(
         fmt::format("'{}' returned '{}' but the directory does not exist",
                     fmt::join(args, " "), resourceDir));
+    this->resourceDirMap.emplace(compilerPath, std::nullopt);
     return;
   }
   auto [newIt, inserted] =
-      this->resourceDirMap.emplace(clangPath, std::move(resourceDir));
+      this->resourceDirMap.emplace(compilerPath, std::move(resourceDir));
   ENFORCE(inserted);
   commandLine.push_back("-resource-dir");
-  commandLine.push_back(newIt->second);
+  commandLine.push_back(*newIt->second);
 }
 
 void ResumableParser::emitResourceDirError(std::string &&error) {
