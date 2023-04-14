@@ -474,6 +474,7 @@ void ResumableParser::tryInferResourceDir(
     if (auto optPath = it->second) {
       commandLine.push_back("-resource-dir");
       commandLine.push_back(*optPath);
+      commandLine.push_back("-I/usr/lib/gcc/x86_64-linux-gnu/7/include-fixed");
     }
     return;
   }
@@ -519,6 +520,7 @@ void ResumableParser::tryInferResourceDir(
     this->resourceDirMap.emplace(compilerPath, "/usr/lib/gcc/x86_64-linux-gnu/7/");
     commandLine.push_back("-resource-dir");
     commandLine.push_back("/usr/lib/gcc/x86_64-linux-gnu/7/");
+    commandLine.push_back("-I/usr/lib/gcc/x86_64-linux-gnu/7/include-fixed");
     return;
   }
   auto [newIt, inserted] =
