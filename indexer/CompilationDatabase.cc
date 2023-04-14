@@ -97,11 +97,16 @@ ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
   out.cliInvocation = {compilerPath, "-print-search-dirs"};
   auto printSearchDirsResult =
       ::runProcess(out.cliInvocation, "attempting to find search dirs");
+  auto noteStdlib = []() {
+    spdlog::warn("may be unable to locate standard library headers");
+    spdlog::info("compilation errors are suppressed by default, but can be "
+                 "turned on using --show-compiler-diagnostics");
+  };
   if (!printSearchDirsResult.isSuccess()) {
     spdlog::warn(
-        "both -print-resource-dir and -print-search-dirs failed for compiler "
-        "{}; may be unable to locate standard library headers",
+        "both -print-resource-dir and -print-search-dirs failed for {}",
         compilerPath);
+    noteStdlib();
     return out;
   }
   absl::c_any_of(
@@ -115,9 +120,9 @@ ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
       });
   if (out.resourceDir.empty()) {
     spdlog::warn(
-        "missing 'install:' line in -print-search-dirs from GCC(-like?) "
-        "compiler {}; may be unable to locate standard library headers",
+        "missing 'install:' line in -print-search-dirs from GCC(-like?) {}",
         compilerPath);
+    noteStdlib();
     return out;
   }
   return out;
