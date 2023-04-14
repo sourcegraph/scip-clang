@@ -32,3 +32,10 @@ py_binary(
     srcs = ["reformat_python.py"],
     deps = [pip_requirement("black")],
 )
+
+py_binary(
+    name = "build_release_workflow",
+    srcs = ["build_release_workflow.py"],
+    deps = [pip_requirement("ruamel.yaml")],
+    data = ["//.github/workflows:release.yml", "//.github/workflows/in:release.in.yml"]
+)

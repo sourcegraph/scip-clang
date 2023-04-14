@@ -1,174 +1,155 @@
+build:
+  env: &id005 {CI_BAZEL_REMOTE_CACHE: https://storage.googleapis.com/sourcegraph_bazel_cache,
+    CONFIG: '${{ matrix.config }}'}
+  name: 🚧 Build scip-clang
+  run: "# Stop Windows from converting the // to /\n# https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842\n\
+    # https://stackoverflow.com/a/34386471\nexport MSYS2_ARG_CONV_EXCL=\"*\"\nif [\
+    \ \"$RUNNER_OS\" == \"macOS\" ]; then\n  export BAZEL_MEM=\"13G\"\nelse # if [\
+    \ \"$RUNNER_OS\" == \"Linux\" ]; then\n  export BAZEL_MEM=\"6G\"\nfi\n{\n  echo\
+    \ \"startup --host_jvm_args=-Xmx$BAZEL_MEM\"\n  echo \"build --remote_cache=$CI_BAZEL_REMOTE_CACHE\
+    \ --google_default_credentials\"\n} > ci.bazelrc\nbazel build //indexer:scip-clang\
+    \ --config=\"$CONFIG\" --execution_log_binary_file=log\n"
+env-and-shell:
+  defaults: &id001
+    run: {shell: bash}
+  env: &id002 {TAG: '${{ github.event.ref }}'}
+  permissions: &id003 {contents: read, id-token: write}
+gcloud-auth:
+  id: auth
+  name: 🔓 Authenticate to Google Cloud
+  uses: google-github-actions/auth@v1
+  with: &id004 {create_credentials_file: true, service_account: '${{ secrets.GCP_SERVICE_ACCOUNT
+      }}', workload_identity_provider: '${{ secrets.GCP_IDENTITY_PROVIDER }}'}
+identify-os: {name: 🔎 Identify OS, run: "echo \"OS=$(uname -s | tr '[:upper:]' '[:lower:]')\"\
+    \ >> \"$GITHUB_ENV\""}
+jobs:
+  build-and-upload-linux:
+    container: gcc:9.5.0-buster
+    defaults: *id001
+    env: *id002
+    name: Build and upload (Linux)
+    permissions: *id003
+    runs-on: ubuntu-latest
+    steps:
+    - {uses: actions/checkout@v3}
+    - {name: 🐍 Install Bazelisk etc, run: "curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.16.0/bazelisk-linux-amd64\
+        \ > /usr/local/bin/bazel\nchmod +x /usr/local/bin/bazel\n"}
+    - id: auth
+      name: 🔓 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with: *id004
+    - id: auth
+      name: 🔓 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with: *id004
+    - env: *id005
+      name: 🚧 Build scip-clang
+      run: "# Stop Windows from converting the // to /\n# https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842\n\
+        # https://stackoverflow.com/a/34386471\nexport MSYS2_ARG_CONV_EXCL=\"*\"\n\
+        if [ \"$RUNNER_OS\" == \"macOS\" ]; then\n  export BAZEL_MEM=\"13G\"\nelse\
+        \ # if [ \"$RUNNER_OS\" == \"Linux\" ]; then\n  export BAZEL_MEM=\"6G\"\n\
+        fi\n{\n  echo \"startup --host_jvm_args=-Xmx$BAZEL_MEM\"\n  echo \"build --remote_cache=$CI_BAZEL_REMOTE_CACHE\
+        \ --google_default_credentials\"\n} > ci.bazelrc\nbazel build //indexer:scip-clang\
+        \ --config=\"$CONFIG\" --execution_log_binary_file=log\n"
+    - {name: 🔎 Identify OS, run: "echo \"OS=$(uname -s | tr '[:upper:]' '[:lower:]')\"\
+        \ >> \"$GITHUB_ENV\""}
+    - name: 🪵 Upload log
+      uses: actions/upload-artifact@v3
+      with: &id006 {name: '${{ env.OS }}-${{ matrix.config }}-build-log', path: log}
+    - env: &id007 {CONFIG: '${{ matrix.config }}', OS: '${{ env.OS }}'}
+      name: ${{ format('🪄 Rename binary ({0})', matrix.config) }}
+      run: "SUFFIX=\"-dev\"\nif [ \"$CONFIG\" == \"release\" ]; then\n  SUFFIX=\"\"\
+        \nfi\noutBinaryPath=\"scip-clang${SUFFIX}-$(uname -m)-$OS\"\ncp bazel-bin/indexer/scip-clang\
+        \ \"$outBinaryPath\"\necho \"outBinaryPath=$outBinaryPath\" >> \"$GITHUB_ENV\"\
+        \necho \"suffix=$SUFFIX\" >> \"$GITHUB_ENV\"\n"
+    - name: ${{ format('📦 Store binary ({0})', matrix.config) }}
+      uses: actions/upload-artifact@v3
+      with: &id008 {name: '${{ matrix.platform }}-${{ matrix.config }}-release-artifacts',
+        path: '${{ env.outBinaryPath }}'}
+  build-and-upload-rest:
+    defaults: *id001
+    env: *id002
+    name: Build and upload (non-Linux)
+    permissions: *id003
+    runs-on: ${{ matrix.platform }}
+    steps:
+    - {uses: actions/checkout@v3}
+    - {name: 🐍 Install Bazelisk, run: "if ! command -v bazelisk; then\n  if [ \"$RUNNER_OS\"\
+        \ == \"Windows\" ]; then\n    choco install bazelisk\n  else\n    sudo npm\
+        \ install -g @bazel/bazelisk\n  fi\nfi\n"}
+    - id: auth
+      name: 🔓 Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with: *id004
+    - env: *id005
+      name: 🚧 Build scip-clang
+      run: "# Stop Windows from converting the // to /\n# https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842\n\
+        # https://stackoverflow.com/a/34386471\nexport MSYS2_ARG_CONV_EXCL=\"*\"\n\
+        if [ \"$RUNNER_OS\" == \"macOS\" ]; then\n  export BAZEL_MEM=\"13G\"\nelse\
+        \ # if [ \"$RUNNER_OS\" == \"Linux\" ]; then\n  export BAZEL_MEM=\"6G\"\n\
+        fi\n{\n  echo \"startup --host_jvm_args=-Xmx$BAZEL_MEM\"\n  echo \"build --remote_cache=$CI_BAZEL_REMOTE_CACHE\
+        \ --google_default_credentials\"\n} > ci.bazelrc\nbazel build //indexer:scip-clang\
+        \ --config=\"$CONFIG\" --execution_log_binary_file=log\n"
+    - {name: 🔎 Identify OS, run: "echo \"OS=$(uname -s | tr '[:upper:]' '[:lower:]')\"\
+        \ >> \"$GITHUB_ENV\""}
+    - name: 🪵 Upload log
+      uses: actions/upload-artifact@v3
+      with: *id006
+    - env: *id007
+      name: ${{ format('🪄 Rename binary ({0})', matrix.config) }}
+      run: "SUFFIX=\"-dev\"\nif [ \"$CONFIG\" == \"release\" ]; then\n  SUFFIX=\"\"\
+        \nfi\noutBinaryPath=\"scip-clang${SUFFIX}-$(uname -m)-$OS\"\ncp bazel-bin/indexer/scip-clang\
+        \ \"$outBinaryPath\"\necho \"outBinaryPath=$outBinaryPath\" >> \"$GITHUB_ENV\"\
+        \necho \"suffix=$SUFFIX\" >> \"$GITHUB_ENV\"\n"
+    - name: ${{ format('📦 Store binary ({0})', matrix.config) }}
+      uses: actions/upload-artifact@v3
+      with: *id008
+    strategy:
+      matrix:
+        config: [dev, release]
+        exclude:
+        - {config: dev, platform: macos-12}
+        platform: [macos-12]
+  create-release:
+    if: github.event_name != 'workflow_dispatch' || inputs.create_release
+    name: Create release
+    needs: [build-and-upload-linux, build-and-upload-rest]
+    runs-on: ubuntu-latest
+    steps:
+    - {uses: actions/checkout@v3}
+    - env: {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}', INPUT_REVISION: '${{ inputs.revision
+          }}', TRIGGER: '${{ github.event_name }}'}
+      name: 📝 Create Release
+      run: "REV=\"$INPUT_REVISION\"\nif [ \"$TRIGGER\" != \"workflow_dispatch\" ];\
+        \ then\n  REV=\"${GITHUB_REF/refs\\/tags\\//}\"\nfi\nTEMPLATE=\"$(< .github/workflows/release-template.md)\"\
+        \necho \"${TEMPLATE//TAG_PLACEHOLDER/$REV}\" > notes\ngh release create \"\
+        $REV\" --title \"scip-clang $REV\" --notes-file notes\n"
+    - {name: 📥 Download all artifacts, uses: actions/download-artifact@v3}
+    - env: {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'}
+      name: 📤 Upload artifacts for release
+      run: gh release upload "${GITHUB_REF/refs\/tags\//}" ./*-release-artifacts/*
 name: Release
 on:
   push:
-    tags:
-      - 'v*'
+    tags: [v*]
   workflow_dispatch:
     inputs:
-      revision:
-        description: 'Tag or revision to build binaries for'
-        type: string
-        required: true
-      create_release:
-        description: 'Should publish the binary or not'
-        required: true
-        default: 'false'
-
-env-and-shell: &env-and-shell
-  env:
-    TAG: ${{ github.event.ref }}
-  permissions:
-    contents: 'read'
-    id-token: 'write'
-  defaults:
-    run:
-      shell: bash
-
-build: &build
-  name: '🚧 Build scip-clang'
-  run: |
-    # Stop Windows from converting the // to /
-    # https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842
-    # https://stackoverflow.com/a/34386471
-    export MSYS2_ARG_CONV_EXCL="*"
-    if [ "$RUNNER_OS" == "macOS" ]; then
-      export BAZEL_MEM="13G"
-    else # if [ "$RUNNER_OS" == "Linux" ]; then
-      export BAZEL_MEM="6G"
-    fi
-    {
-      echo "startup --host_jvm_args=-Xmx$BAZEL_MEM"
-      echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials"
-    } > ci.bazelrc
-    bazel build //indexer:scip-clang --config="$CONFIG" --execution_log_binary_file=log
-  env:
-    CONFIG: ${{ matrix.config }}
-    CI_BAZEL_REMOTE_CACHE: 'https://storage.googleapis.com/sourcegraph_bazel_cache'
-
-gcloud-auth: &gcloud-auth
-  id: auth
-  name: '🔓 Authenticate to Google Cloud'
-  uses: 'google-github-actions/auth@v1'
-  with:
-    workload_identity_provider: ${{ secrets.GCP_IDENTITY_PROVIDER }}
-    service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-    create_credentials_file: true
-
-identify-os: &identify-os
-  name: '🔎 Identify OS'
-  run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
-
-upload-log: &upload-log
-  name: '🪵 Upload log'
-  uses: actions/upload-artifact@v3
-  with:
-    name: ${{ env.OS }}-${{ matrix.config }}-build-log
-    path: log
-
-rename-binary: &rename-binary
+      create_release: {default: 'false', description: Should publish the binary or
+          not, required: true}
+      revision: {description: Tag or revision to build binaries for, required: true,
+        type: string}
+rename-binary:
+  env: *id007
   name: ${{ format('🪄 Rename binary ({0})', matrix.config) }}
-  run: |
-    SUFFIX="-dev"
-    if [ "$CONFIG" == "release" ]; then
-      SUFFIX=""
-    fi
-    outBinaryPath="scip-clang${SUFFIX}-$(uname -m)-$OS"
-    cp bazel-bin/indexer/scip-clang "$outBinaryPath"
-    echo "outBinaryPath=$outBinaryPath" >> "$GITHUB_ENV"
-    echo "suffix=$SUFFIX" >> "$GITHUB_ENV"
-  env:
-    OS: ${{ env.OS }}
-    CONFIG: ${{ matrix.config }}
-
-upload-binary: &upload-binary
+  run: "SUFFIX=\"-dev\"\nif [ \"$CONFIG\" == \"release\" ]; then\n  SUFFIX=\"\"\n\
+    fi\noutBinaryPath=\"scip-clang${SUFFIX}-$(uname -m)-$OS\"\ncp bazel-bin/indexer/scip-clang\
+    \ \"$outBinaryPath\"\necho \"outBinaryPath=$outBinaryPath\" >> \"$GITHUB_ENV\"\
+    \necho \"suffix=$SUFFIX\" >> \"$GITHUB_ENV\"\n"
+upload-binary:
   name: ${{ format('📦 Store binary ({0})', matrix.config) }}
   uses: actions/upload-artifact@v3
-  with:
-    name: ${{ matrix.platform }}-${{ matrix.config }}-release-artifacts
-    path: ${{ env.outBinaryPath }}
-
-jobs:
-  build-and-upload-linux:
-    name: 'Build and upload (Linux)'
-    runs-on: 'ubuntu-latest'
-    <<: *env-and-shell
-    container: 'gcc:9.5.0-buster'
-    steps:
-      - uses: actions/checkout@v3
-      - name: '🐍 Install Bazelisk etc'
-        run: |
-          curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.16.0/bazelisk-linux-amd64 > /usr/local/bin/bazel
-          chmod +x /usr/local/bin/bazel
-      - <<: *gcloud-auth
-      - <<: *gcloud-auth
-      - <<: *build
-      - <<: *identify-os
-      - <<: *upload-log
-      - <<: *rename-binary
-      - <<: *upload-binary
-
-  build-and-upload-rest:
-    name: 'Build and upload (non-Linux)'
-    strategy:
-      matrix:
-        # NOTE: GitHub-hosted runners for macOS are x86_64 only
-        # https://github.com/github/roadmap/issues/528
-        platform: ['macos-12'] # , 'windows-2022']
-        config: ['dev', 'release']
-        exclude:
-          - platform: 'macos-12'
-            config: 'dev'
-          # Seeing an inexplicable
-          #   ld: file not found: external/llvm_toolchain_llvm/lib/clang/15.0.7/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
-          # when running in GitHub Actions
-    runs-on: ${{ matrix.platform }}
-    <<: *env-and-shell
-    steps:
-      - uses: actions/checkout@v3
-      - name: '🐍 Install Bazelisk'
-        run: |
-          if ! command -v bazelisk; then
-            if [ "$RUNNER_OS" == "Windows" ]; then
-              choco install bazelisk
-            else
-              sudo npm install -g @bazel/bazelisk
-            fi
-          fi
-      - <<: *gcloud-auth
-      - <<: *build
-      - <<: *identify-os
-      - <<: *upload-log
-      - <<: *rename-binary
-      - <<: *upload-binary
-      # I wish there were a better way to do this 💩
-      # but there is no way to reuse steps (https://stackoverflow.com/a/61488170)
-      # and YAML doesn't support merging arrays https://stackoverflow.com/a/30683699
-
-  create-release:
-    name: 'Create release'
-    if: github.event_name != 'workflow_dispatch' || inputs.create_release
-    needs: [build-and-upload-linux, build-and-upload-rest]
-    runs-on: 'ubuntu-latest'
-    steps:
-      - uses: actions/checkout@v3
-      - name: '📝 Create Release'
-        run: |
-          REV="$INPUT_REVISION"
-          if [ "$TRIGGER" != "workflow_dispatch" ]; then
-            REV="${GITHUB_REF/refs\/tags\//}"
-          fi
-          TEMPLATE="$(< .github/workflows/release-template.md)"
-          echo "${TEMPLATE//TAG_PLACEHOLDER/$REV}" > notes
-          gh release create "$REV" --title "scip-clang $REV" --notes-file notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TRIGGER: ${{ github.event_name }}
-          INPUT_REVISION: ${{ inputs.revision }}
-      # Download everything to avoid spelling out the different
-      # platforms here.
-      - name: '📥 Download all artifacts'
-        uses: actions/download-artifact@v3
-      - name: '📤 Upload artifacts for release'
-        run: gh release upload "${GITHUB_REF/refs\/tags\//}" ./*-release-artifacts/*
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with: *id008
+upload-log:
+  name: 🪵 Upload log
+  uses: actions/upload-artifact@v3
+  with: *id006
