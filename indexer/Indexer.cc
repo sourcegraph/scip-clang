@@ -235,7 +235,8 @@ void MacroIndexer::emitDocumentOccurrencesAndSymbols(
             switch (macroOcc.role) {
             case Role::Definition: {
               scip::SymbolInformation symbolInfo;
-              ENFORCE(!occ.symbol().empty())
+              *symbolInfo.add_documentation() = "No documentation available.";
+              ENFORCE(!occ.symbol().empty());
               macroOcc.emitSymbolInformation(occ.symbol(), symbolInfo);
               *document.add_symbols() = std::move(symbolInfo);
               break;
@@ -317,7 +318,19 @@ void TuIndexer::saveSyntheticFileDefinition(clang::FileID fileId,
   auto tokenLength = clang::Lexer::MeasureTokenLength(
       fileStartLoc, this->sourceManager, this->langOptions);
   if (tokenLength > 0) {
-    this->saveDefinition(symbol, fileStartLoc, scip::SymbolInformation{});
+    scip::SymbolInformation symbolInfo;
+    std::string docComment;
+    if (stableFileId.isSynthetic) {
+      if (auto optFilename = stableFileId.path.fileName()) {
+        docComment = fmt::format("File: {}", *optFilename);
+      } else {
+        docComment = "File";
+      }
+    } else {
+      docComment = fmt::format("File: {}", stableFileId.path.asStringView());
+    }
+    *symbolInfo.add_documentation() = std::move(docComment);
+    this->saveDefinition(symbol, fileStartLoc, std::move(symbolInfo));
     return;
   }
   auto range =
@@ -471,7 +484,15 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   // saveDefinition, and we generally don't want to try to infer
   // doc comments for namespaces since preceding comments are
   // likely to be free-floating top-level comments.
-  this->saveDefinition(symbol, startLoc, scip::SymbolInformation{});
+  scip::SymbolInformation symbolInfo;
+  *symbolInfo.add_documentation() =
+      namespaceDecl.isAnonymousNamespace()
+          ? fmt::format("anonymous namespace")
+          : fmt::format("{}namespace {}",
+                        namespaceDecl.isInlineNamespace() ? "inline " : "",
+                        namespaceDecl.getName());
+
+  this->saveDefinition(symbol, startLoc, std::move(symbolInfo));
 }
 
 void TuIndexer::saveNestedNameSpecifierLoc(
@@ -840,6 +861,9 @@ void TuIndexer::saveDefinition(
   auto optStableFileId = this->getStableFileId(fileId);
   if (!optStableFileId.has_value()) {
     return;
+  }
+  if (optSymbolInfo.has_value() && optSymbolInfo->documentation_size() == 0) {
+    *optSymbolInfo->add_documentation() = "No documentation available.";
   }
   if (optStableFileId->isInProject) {
     auto &doc = this->saveOccurrence(symbol, expansionLoc,

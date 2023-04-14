@@ -113,6 +113,10 @@ public:
   friend std::strong_ordering operator<=>(const RootRelativePathRef &,
                                           const RootRelativePathRef &);
   DERIVE_EQ_VIA_CMP(RootRelativePathRef)
+
+  /// Try to get the file name by slicing off the prefix till the last
+  /// path separator.
+  std::optional<std::string_view> fileName() const;
 };
 
 class RootRelativePath {
