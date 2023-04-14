@@ -11,6 +11,14 @@
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 
+static std::optional<std::string_view> fileName(std::string_view path) {
+  auto i = path.find_last_of(std::filesystem::path::preferred_separator);
+  if (i == std::string::npos || i == path.size() - 1) {
+    return {};
+  }
+  return path.substr(i + 1);
+}
+
 namespace scip_clang {
 
 AbsolutePathRef::AbsolutePathRef(std::string_view value) : value(value) {
@@ -44,12 +52,7 @@ AbsolutePathRef::makeRelative(AbsolutePathRef longerPath) {
 }
 
 std::optional<std::string_view> AbsolutePathRef::fileName() const {
-  auto sview = this->asStringView();
-  auto i = sview.find_last_of(std::filesystem::path::preferred_separator);
-  if (i == std::string::npos || i == sview.size() - 1) {
-    return {};
-  }
-  return sview.substr(i + 1);
+  return ::fileName(this->asStringView());
 }
 
 AbsolutePathRef AbsolutePath::asRef() const {
@@ -92,6 +95,10 @@ std::strong_ordering operator<=>(const RootRelativePathRef &lhs,
   CMP_STR(lhs.asStringView(), rhs.asStringView());
   CMP_EXPR(lhs._kind, rhs._kind);
   return std::strong_ordering::equal;
+}
+
+std::optional<std::string_view> RootRelativePathRef::fileName() const {
+  return ::fileName(this->asStringView());
 }
 
 RootRelativePath::RootRelativePath(RootRelativePathRef ref)

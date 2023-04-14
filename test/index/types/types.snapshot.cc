@@ -1,5 +1,7 @@
   // extra-args: -std=c++20
 //^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/types.cc`/
+//documentation
+//| File: types.cc
   // format-options: showDocs
   
   #include "types.h"
@@ -7,14 +9,22 @@
   
   enum {
 //^^^^ definition [..] $anonymous_type_9a8b4e83cf46cb05_0#
+//documentation
+//| No documentation available.
     ANON,
 //  ^^^^ definition [..] ANON.
+//  documentation
+//  | No documentation available.
   };
   
   class C {
 //      ^ definition [..] C#
+//      documentation
+//      | No documentation available.
     class D {
 //        ^ definition [..] C#D#
+//        documentation
+//        | No documentation available.
     };
   };
   
@@ -22,9 +32,13 @@
   // Ee i ee i o
   enum D {
 //     ^ definition [..] D#
+//     documentation
+//     | No documentation available.
     // And on his farm he had some cows
     D1,
 //  ^^ definition [..] D1.
+//  documentation
+//  | No documentation available.
   };
   
   /// Ee i ee i oh
@@ -47,23 +61,37 @@
   
   namespace a {
 //          ^ definition [..] a/
+//          documentation
+//          | namespace a
     class X {};
 //        ^ definition [..] a/X#
+//        documentation
+//        | No documentation available.
   
     namespace {
 //  ^^^^^^^^^ definition [..] a/`$anonymous_namespace_types.cc`/
+//  documentation
+//  | anonymous namespace
       class Y {};
 //          ^ definition [..] a/`$anonymous_namespace_types.cc`/Y#
+//          documentation
+//          | No documentation available.
     }
   }
   
   namespace has_anon_enum {
 //          ^^^^^^^^^^^^^ definition [..] has_anon_enum/
+//          documentation
+//          | namespace has_anon_enum
     enum {
 //  ^^^^ definition [..] has_anon_enum/$anonymous_type_9a8b4e83cf46cb05_1#
+//  documentation
+//  | No documentation available.
       /* Here a moo, there a moo */
       F1,
 //    ^^ definition [..] has_anon_enum/F1.
+//    documentation
+//    | No documentation available.
       /** Everywhere a moo-moo */
       F2 = E2
 //    ^^ definition [..] has_anon_enum/F2.
@@ -72,6 +100,8 @@
 //         ^^ reference [..] has_anon_enum/E2.
     } f = F1;
 //    ^ definition [..] has_anon_enum/f.
+//    documentation
+//    | No documentation available.
 //        ^^ reference [..] has_anon_enum/F1.
   }
   
@@ -80,32 +110,52 @@
   
   class F1 {
 //      ^^ definition [..] F1#
+//      documentation
+//      | No documentation available.
     friend F0;
 //         ^^ reference [..] F0#
   
     enum { ANON1 } anon1;
 //  ^^^^ definition [..] F1#$anonymous_type_2#
+//  documentation
+//  | No documentation available.
 //         ^^^^^ definition [..] F1#ANON1.
+//         documentation
+//         | No documentation available.
 //                 ^^^^^ definition [..] F1#anon1.
+//                 documentation
+//                 | No documentation available.
     enum { ANON2 = ANON1 } anon2;
 //  ^^^^ definition [..] F1#$anonymous_type_3#
+//  documentation
+//  | No documentation available.
 //         ^^^^^ definition [..] F1#ANON2.
+//         documentation
+//         | No documentation available.
 //                 ^^^^^ reference [..] F1#ANON1.
 //                         ^^^^^ definition [..] F1#anon2.
+//                         documentation
+//                         | No documentation available.
   };
   
   class F0 {
 //      ^^ definition [..] F0#
+//      documentation
+//      | No documentation available.
     friend class F1;
 //               ^^ reference [..] F1#
   
     void f1(F1 *) { }
 //       ^^ definition [..] F0#f1(9e7252de2ffc92f6).
+//       documentation
+//       | No documentation available.
 //          ^^ reference [..] F1#
   };
   
   void f() {
 //     ^ definition [..] f(49f6e7a06ebc5aa8).
+//     documentation
+//     | No documentation available.
     class fC {
       void fCf() {
         class fCfC { };
@@ -115,18 +165,26 @@
   
   #define VISIT(_name) Visit##_name
 //        ^^^^^ definition [..] `types.cc:70:9`!
+//        documentation
+//        | No documentation available.
   
   enum VISIT(Sightseeing) {
 //     ^^^^^ reference [..] `types.cc:70:9`!
 //     ^^^^^ definition [..] VisitSightseeing#
+//     documentation
+//     | No documentation available.
     VISIT(Museum),
 //  ^^^^^ definition [..] VisitMuseum.
+//  documentation
+//  | No documentation available.
 //  ^^^^^ reference [..] `types.cc:70:9`!
   };
   
   // Regression test for https://github.com/sourcegraph/scip-clang/issues/105
   enum class PartiallyDocumented {
 //           ^^^^^^^^^^^^^^^^^^^ definition [..] PartiallyDocumented#
+//           documentation
+//           | No documentation available.
     /// :smugcat:
     Documented,
 //  ^^^^^^^^^^ definition [..] PartiallyDocumented#Documented.
@@ -134,6 +192,8 @@
 //  | :smugcat:
     Undocumented,
 //  ^^^^^^^^^^^^ definition [..] PartiallyDocumented#Undocumented.
+//  documentation
+//  | No documentation available.
   };
   
   template <typename T, int N>
@@ -141,13 +201,21 @@
 //                          ^ definition local 1
   class GenericClass {};
 //      ^^^^^^^^^^^^ definition [..] GenericClass#
+//      documentation
+//      | No documentation available.
   
   enum class E { E0 };
 //           ^ definition [..] E#
+//           documentation
+//           | No documentation available.
 //               ^^ definition [..] E#E0.
+//               documentation
+//               | No documentation available.
   
   void f(GenericClass<E, int(E::E0)>) {
 //     ^ definition [..] f(a9a88f5fb6852c6b).
+//     documentation
+//     | No documentation available.
 //       ^^^^^^^^^^^^ reference [..] GenericClass#
 //                    ^ reference [..] E#
 //                           ^ reference [..] E#
@@ -160,6 +228,8 @@
 //             ^^ reference [..] E#E0.
   #define QUALIFIED(enum_name, case_name) enum_name::case_name;
 //        ^^^^^^^^^ definition [..] `types.cc:91:9`!
+//        documentation
+//        | No documentation available.
     (void)QUALIFIED(E, E0);
 //        ^^^^^^^^^ reference [..] E#
 //        ^^^^^^^^^ reference [..] E#E0.
@@ -179,9 +249,13 @@
   
   class Parent {};
 //      ^^^^^^ definition [..] Parent#
+//      documentation
+//      | No documentation available.
   
   class Child: Parent {};
 //      ^^^^^ definition [..] Child#
+//      documentation
+//      | No documentation available.
 //      relation implementation [..] Parent#
 //             ^^^^^^ reference [..] Parent#
   
@@ -189,32 +263,48 @@
 //                ^^^^^^^^^ definition local 2
   class CRTPBase {
 //      ^^^^^^^^ definition [..] CRTPBase#
+//      documentation
+//      | No documentation available.
     void castAndDoStuff() { static_cast<CRTPChild *>(this)->doStuff(); }
 //       ^^^^^^^^^^^^^^ definition [..] CRTPBase#castAndDoStuff(49f6e7a06ebc5aa8).
+//       documentation
+//       | No documentation available.
 //                                      ^^^^^^^^^ reference local 2
   };
   
   class CRTPChild: CRTPBase<CRTPChild> {
 //      ^^^^^^^^^ definition [..] CRTPChild#
+//      documentation
+//      | No documentation available.
 //      relation implementation [..] CRTPBase#
 //                 ^^^^^^^^ reference [..] CRTPBase#
 //                          ^^^^^^^^^ reference [..] CRTPChild#
     void doStuff() { }
 //       ^^^^^^^ definition [..] CRTPChild#doStuff(49f6e7a06ebc5aa8).
+//       documentation
+//       | No documentation available.
   };
   
   class DiamondBase {};
 //      ^^^^^^^^^^^ definition [..] DiamondBase#
+//      documentation
+//      | No documentation available.
   class Derived1 : public virtual DiamondBase {};
 //      ^^^^^^^^ definition [..] Derived1#
+//      documentation
+//      | No documentation available.
 //      relation implementation [..] DiamondBase#
 //                                ^^^^^^^^^^^ reference [..] DiamondBase#
   class Derived2 : public virtual DiamondBase {};
 //      ^^^^^^^^ definition [..] Derived2#
+//      documentation
+//      | No documentation available.
 //      relation implementation [..] DiamondBase#
 //                                ^^^^^^^^^^^ reference [..] DiamondBase#
   class Join : public Derived1, public Derived2 {};
 //      ^^^^ definition [..] Join#
+//      documentation
+//      | No documentation available.
 //      relation implementation [..] Derived1#
 //      relation implementation [..] Derived2#
 //                    ^^^^^^^^ reference [..] Derived1#
@@ -222,8 +312,12 @@
   
   struct L {};
 //       ^ definition [..] L#
+//       documentation
+//       | No documentation available.
   auto trailing_return_type() -> L {
 //     ^^^^^^^^^^^^^^^^^^^^ definition [..] trailing_return_type(693bfa61ed1914d5).
+//     documentation
+//     | No documentation available.
 //                               ^ reference [..] L#
     // Explicit template param list on lambda needs C++20
     auto ignore_first = []<class T>(T, L l) -> L {
