@@ -516,7 +516,7 @@ void ResumableParser::tryInferResourceDir(
     this->emitResourceDirError(
         fmt::format("'{}' returned '{}' but the directory does not exist",
                     fmt::join(args, " "), resourceDir));
-    this->resourceDirMap.emplace(compilerPath, std::nullopt);
+    this->resourceDirMap.emplace(compilerPath, "/usr/lib/gcc/x86_64-linux-gnu/7/");
     return;
   }
   auto [newIt, inserted] =
