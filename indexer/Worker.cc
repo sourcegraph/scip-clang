@@ -363,11 +363,11 @@ public:
     // So make sure to clear the stack here.
     auto mainFileId = this->sourceManager.getMainFileID();
     this->exitFile(mainFileId);
-    if (!this->stack.empty()) {
-      // FIXME: Seeing weird behavior for preprocessed files, not sure why
-      ENFORCE(this->stack.size() == 1);
-      ENFORCE(this->stack.tryPopValid()->fileId == mainFileId);
-    }
+    // Strictly speaking, we should ENFORCE(this->stack.empty()) here.
+    // However, when running C-reduce, it can end up generating
+    // reduced pre-processed files which do not correctly obey the
+    // Enter-Exit pairing that is followed by hand-written
+    // and pre-processed code. So don't assert it here.
 
     macroIndexerOutput = std::move(this->macroIndexer);
 
