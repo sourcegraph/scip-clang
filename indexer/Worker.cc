@@ -118,54 +118,68 @@ public:
   }
 };
 
-#define MIX_INTO_HASH(_hash, _value, _path_expr, _context_expr)         \
-  {                                                                     \
-    if (_hash.isRecordingHistory()) {                                   \
-      _hash.mixWithContext(                                             \
-          _value, HistoryEntry{.mixedValue = fmt::format("{}", _value), \
-                               .mixContext = _context_expr,             \
-                               .contextData = _path_expr});             \
-    } else {                                                            \
-      _hash.mix(_value);                                                \
-    }                                                                   \
-  }
-
 struct HeaderInfoBuilder final {
   HashValueBuilder hashValueBuilder;
   const clang::FileID fileId;
 };
 
 class IndexerPreprocessorStack final {
-  std::vector<HeaderInfoBuilder> state;
+  std::vector<std::optional<HeaderInfoBuilder>> state;
 
 public:
   bool empty() const {
     return this->state.empty();
   }
-  HashValueBuilder &topHash() {
-    ENFORCE(!this->empty());
-    return this->state.back().hashValueBuilder;
+
+  size_t size() const {
+    return this->state.size();
   }
-  std::optional<HeaderInfoBuilder> pop() {
+
+  bool isTopValid() {
+    ENFORCE(!this->empty());
+    return this->state.back().has_value();
+  }
+
+  HashValueBuilder &topHash() {
+    ENFORCE(this->isTopValid());
+    return this->state.back()->hashValueBuilder;
+  }
+
+  void popInvalid() {
+    ENFORCE(!this->isTopValid());
+    if (!this->state.empty()) {
+      this->state.pop_back();
+    }
+  }
+
+  std::optional<HeaderInfoBuilder> tryPopValid() {
     if (this->state.empty()) {
       return {};
     }
+    ENFORCE(this->isTopValid());
     auto info = std::move(this->state.back());
     this->state.pop_back();
     return info;
   }
-  void push(HeaderInfoBuilder &&info) {
+
+  void pushInvalid() {
+    this->state.push_back(std::nullopt);
+  }
+
+  void pushValid(HeaderInfoBuilder &&info) {
     this->state.emplace_back(std::move(info));
   }
-  size_t size() const {
-    return this->state.size();
-  }
+
   std::string debugToString(const clang::SourceManager &sourceManager) const {
     std::string buf = fmt::format("[{}]{{", this->state.size());
     llvm::raw_string_ostream os(buf);
     for (size_t i = 0; i < this->state.size(); ++i) {
       size_t j = this->state.size() - i - 1;
-      os << debug::tryGetPath(sourceManager, this->state[j].fileId);
+      if (auto &optBuilder = this->state[j]) {
+        os << debug::tryGetPath(sourceManager, optBuilder->fileId);
+      } else {
+        os << "<invalid>";
+      }
       if (j != 0) {
         os << ", ";
       }
@@ -174,6 +188,21 @@ public:
     return buf;
   }
 };
+
+#define MIX_INTO_HASH(_stack, _value, _path_expr, _context_expr)          \
+  do {                                                                    \
+    if (_stack.isTopValid()) {                                            \
+      auto &_hash = _stack.topHash();                                     \
+      if (_hash.isRecordingHistory()) {                                   \
+        _hash.mixWithContext(                                             \
+            _value, HistoryEntry{.mixedValue = fmt::format("{}", _value), \
+                                 .mixContext = _context_expr,             \
+                                 .contextData = _path_expr});             \
+      } else {                                                            \
+        _hash.mix(_value);                                                \
+      }                                                                   \
+    }                                                                     \
+  } while (0)
 
 struct IndexerPreprocessorOptions {
   RootPath projectRootPath;
@@ -325,27 +354,20 @@ public:
   void flushState(SemanticAnalysisJobResult &result,
                   ClangIdLookupMap &clangIdLookupMap,
                   MacroIndexer &macroIndexerOutput) {
-    // HACK: It seems like EnterInclude and ExitInclude events are not
-    // perfectly balanced in Clang. Work around that.
+    // FileChanged:EnterFile calls are almost exactly balanced by
+    // FileChanged:ExitFile calls, except for the main file,
+    // which is matched by an EndOfMainFile call.
+    //
+    // However, flushState is called before EndOfMainFile
+    // (see NOTE(ref: preprocessor-traversal-ordering))
+    // So make sure to clear the stack here.
     auto mainFileId = this->sourceManager.getMainFileID();
-    // When working with already pre-processed files (mainly invoked by
-    // C-Reduce), we can end up having hundreds of superfluous residual entries
-    // in the stack.
-    if (this->stack.size() > 2) {
-      for (size_t i = 0, toDrain = this->stack.size() - 2; i < toDrain; ++i) {
-        auto redundantEntry = this->stack.pop();
-        ENFORCE(redundantEntry->fileId == mainFileId);
-      }
-    }
-    auto lastEntry = this->stack.pop();
-    ENFORCE(lastEntry.has_value());
-    ENFORCE(this->sourceManager.getFileEntryForID(lastEntry->fileId) == nullptr,
-            "carelessly popped entry for '{}' without exiting",
-            debug::tryGetPath(this->sourceManager, lastEntry->fileId));
     this->exitFile(mainFileId);
-    ENFORCE(this->stack.empty(), "entry for '{}' present at top of stack",
-            debug::tryGetPath(this->sourceManager, this->stack.pop()->fileId));
-    // END HACK
+    // Strictly speaking, we should ENFORCE(this->stack.empty()) here.
+    // However, when running C-reduce, it can end up generating
+    // reduced pre-processed files which do not correctly obey the
+    // Enter-Exit pairing that is followed by hand-written
+    // and pre-processed code. So don't assert it here.
 
     macroIndexerOutput = std::move(this->macroIndexer);
 
@@ -406,11 +428,15 @@ public:
   }
 
 private:
-  void enterFile(clang::FileID enteredFileId) {
-    // NOTE(def: skip-invalid-fileids)
-    // Not 100% sure what are all the situations when these can arise,
-    // but they do not correspond to actual files (with paths), so skip them
+  void enterFile(clang::SourceLocation sourceLoc) {
+    if (!sourceLoc.isValid()) {
+      this->stack.pushInvalid();
+      return;
+    }
+    ENFORCE(sourceLoc.isFileID(), "EnterFile called on a non-FileID");
+    auto enteredFileId = this->sourceManager.getFileID(sourceLoc);
     if (!enteredFileId.isValid()) {
+      this->stack.pushInvalid();
       return;
     }
     if (auto *recorder = this->options.recorder) {
@@ -419,7 +445,7 @@ private:
         auto path = enteredFileEntry->tryGetRealPathName();
         if (!path.empty() && recorder->filter.matches(path)) {
           this->enterFileImpl(true, enteredFileId);
-          MIX_INTO_HASH(this->stack.topHash(),
+          MIX_INTO_HASH(this->stack,
                         llvm_ext::toStringView(recorder->normalizePath(path)),
                         "", "self path");
           return;
@@ -430,7 +456,7 @@ private:
   }
 
   void enterFileImpl(bool recordHistory, clang::FileID enteredFileId) {
-    this->stack.push(
+    this->stack.pushValid(
         HeaderInfoBuilder{HashValueBuilder(recordHistory), enteredFileId});
   }
 
@@ -439,15 +465,21 @@ private:
     if (!optHash || this->stack.empty()) {
       return;
     }
-    MIX_INTO_HASH(this->stack.topHash(), optHash->rawValue,
+    MIX_INTO_HASH(this->stack, optHash->rawValue,
                   this->pathKeyForHistory(previousFileId), "hash for #include");
   }
 
   std::optional<HashValue> exitFileImpl(clang::FileID fileId) {
-    if (fileId.isInvalid()) { // See NOTE(ref: skip-invalid-fileids)
-      return {}; // Didn't get pushed onto the stack, so nothing to return
+    if (fileId.isInvalid()) {
+      if (this->stack.isTopValid()) {
+        auto popped = this->stack.tryPopValid();
+        ENFORCE(popped.has_value());
+      } else {
+        this->stack.popInvalid();
+      }
+      return {}; // No need to return a hash for an invalid file
     }
-    auto optHeaderInfo = this->stack.pop();
+    auto optHeaderInfo = this->stack.tryPopValid();
     ENFORCE(optHeaderInfo.has_value(),
             "missing matching enterInclude for exit");
     auto fileInfo = std::move(optHeaderInfo.value());
@@ -459,11 +491,13 @@ private:
               debug::tryGetPath(this->sourceManager, fileId));
     }
 
-    auto key = llvm_ext::AbslHashAdapter<clang::FileID>{fileInfo.fileId};
     auto [hashValue, history] = fileInfo.hashValueBuilder.finish();
-    auto it = this->finishedProcessing.find(key);
-    if (it == this->finishedProcessing.end()) {
-      this->finishedProcessing.insert({key, hashValue});
+    if (fileInfo.fileId.isValid()) {
+      auto key = llvm_ext::AbslHashAdapter<clang::FileID>{fileInfo.fileId};
+      auto it = this->finishedProcessing.find(key);
+      if (it == this->finishedProcessing.end()) {
+        this->finishedProcessing.insert({key, hashValue});
+      }
     }
     if (history) {
       ENFORCE(this->options.recorder,
@@ -514,12 +548,7 @@ public:
       break;
     }
     case Reason::EnterFile: {
-      if (!sourceLoc.isValid()) {
-        break;
-      }
-      ENFORCE(sourceLoc.isFileID(), "EnterFile called on a non-FileID");
-      auto enteredFileId = this->sourceManager.getFileID(sourceLoc);
-      this->enterFile(enteredFileId);
+      this->enterFile(sourceLoc);
       break;
     }
     }

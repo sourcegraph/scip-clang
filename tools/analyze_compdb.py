@@ -167,7 +167,7 @@ def parse_arguments() -> tuple[Path, dict[str, bool]]:
     )
     parser.add_argument(
         "--compdb-path",
-        help="Path to compilation database containing a single entry",
+        help="Path to compilation database",
         default="compile_commands.json",
     )
     cases = [str(m) for m in list(Measurement)]
