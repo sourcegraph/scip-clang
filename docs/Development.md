@@ -188,15 +188,20 @@ First, build `pp-trace` from source in your LLVM checkout,
 making sure to include `clang-tools-extra` in `LLVM_ENABLE_PROJECTS`.
 After that, it can be invoked like so:
 
+```bash
+# -isysroot is needed for pp-trace to find standard library headers
+/path/to/llvm-project/build/bin/pp-trace mytestfile.cpp --extra-arg="-isysroot" --extra-arg="$(xcrun --show-sdk-path)" > pp-trace.yaml
 ```
-/path/to/llvm-project/build/bin/pp-trace mytestfile.cpp --extra-arg="-isysroot" --extra-arg="$(xcrun --show-sdk-path)"
-```
-
-The `isysroot` argument is particularly important,
-as `pp-trace` will not find standard library headers without it.
 
 See the [pp-trace](https://clang.llvm.org/extra/pp-trace.html) docs
 or  the `--help` text for information about other supported flags.
+
+One can check that the structure of the YAML file matches what we expect
+
+```bash
+bazel build //tools:analyze_pp_trace
+./bazel-bin/tools/analyze_pp_trace --yaml-path pp-trace.yaml
+```
 
 ## Implementation notes
 

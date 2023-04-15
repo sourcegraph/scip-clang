@@ -32,10 +32,25 @@ history:
 ...
 ---
 path:            main.cc
-hash:            0xDEF5A12720EECE42
+hash:            0xB25C8F86D1DB5852
 history:
   - before-hash:     0x0
     mixed-value:     main.cc
     mix-context:     self path
     after-hash:      0xDEF5A12720EECE42
+  - before-hash:     0xDEF5A12720EECE42
+    mixed-value:     '0'
+    mix-context:     'hash for #include'
+    context-data:    '<built-in>'
+    after-hash:      0xD4AC502AF67BAD51
+  - before-hash:     0xD4AC502AF67BAD51
+    mixed-value:     '15889175248104027844'
+    mix-context:     'hash for #include'
+    context-data:    ill_behaved.h
+    after-hash:      0x8DD8E415248346B1
+  - before-hash:     0x8DD8E415248346B1
+    mixed-value:     '6015781471367135490'
+    mix-context:     'hash for #include'
+    context-data:    ill_behaved.h
+    after-hash:      0xB25C8F86D1DB5852
 ...

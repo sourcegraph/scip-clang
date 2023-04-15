@@ -32,3 +32,9 @@ py_binary(
     srcs = ["reformat_python.py"],
     deps = [pip_requirement("black")],
 )
+
+py_binary(
+    name = "analyze_pp_trace",
+    srcs = ["analyze_pp_trace.py"],
+    deps = [pip_requirement("ruamel.yaml")],
+)

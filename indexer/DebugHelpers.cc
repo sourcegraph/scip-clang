@@ -39,7 +39,15 @@ llvm::StringRef tryGetPath(const clang::SourceManager &sourceManager,
       }
       return "<empty-path>";
     }
-    return "<null-FileEntry>";
+    bool invalid = false;
+    auto slocEntry = sourceManager.getSLocEntry(fileId, &invalid);
+    if (invalid) {
+      return "<null-FileEntry>";
+    }
+    if (slocEntry.isFile()) {
+      return slocEntry.getFile().getName();
+    }
+    return "<non-file-SlocEntry-for-FileId>";
   }
   return "<invalid-FileID>";
 }

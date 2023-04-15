@@ -1,2 +1,3 @@
 # Syntax reference: https://pip.pypa.io/en/stable/reference/requirements-file-format/#requirements-file-format
 black
+ruamel.yaml
