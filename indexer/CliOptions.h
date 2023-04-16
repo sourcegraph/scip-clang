@@ -18,6 +18,7 @@
 namespace scip_clang {
 
 struct IpcOptions {
+  size_t ipcSizeHintBytes;
   std::chrono::seconds receiveTimeout;
   std::string driverId;
   uint64_t workerId;
@@ -31,6 +32,7 @@ struct CliOptions {
   std::string statsFilePath;
   bool showCompilerDiagnostics;
 
+  size_t ipcSizeHintBytes;
   std::chrono::seconds receiveTimeout;
   uint32_t numWorkers;
 

@@ -15,8 +15,6 @@ Status: Ready for early adopters.
   - [Initial scip-clang testing](#initial-scip-clang-testing)
   - [Running scip-clang on the entire codebase](#running-scip-clang-on-the-entire-codebase)
 - [Troubleshooting](#troubleshooting)
-  - [Timeouts](#timeouts)
-  - [Crashes](#crashes)
 - [Reporting issues](#reporting-issues)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
@@ -130,42 +128,7 @@ for each translation unit in which the header is included.
 
 ## Troubleshooting
 
-scip-clang may report errors and/or warnings
-for diagnosing issues even when indexing completes successfully,
-which is marked by a `Finished indexing ...` message,
-along with a non-empty `index.scip` file.
-
-The most common problems are timeouts and crashes,
-which are discussed below.
-
-### Timeouts
-
-scip-clang sets a timeout for indexing an individual translation unit,
-so that any hangs or crashes during indexing a single translation unit
-do not cause indexing to fail.
-
-The default timeout value is 5 minutes,
-which should be sufficient to handle most code.
-That said, if you see this error a lot,
-[file a bug report](#reporting-issues).
-
-If you're debugging an issue using a `-dev` build of `scip-clang`,
-this value may need to be adjusted,
-as the dev build performs more runtime checks.
-To change the tieout value, pass `--receive-timeout-seconds 600`
-when invoking `scip-clang`.
-However, we do not recommend using this flag with the release build,
-as a higher value will lead to [reduced concurrency](https://github.com/sourcegraph/scip-clang/issues/45)
-for the duration of the timeout value if an indexing process crashes.
-
-### Crashes
-
-If you are able, run the following with a [`-dev` binary](https://github.com/sourcegraph/scip-clang/releases)
-for your release.
-
-Re-run the failing `scip-clang` command with `--log-level=debug`
-and `--show-compiler-diagnostics`, and include those
-when you [submit an issue](#reporting-issues)
+See the [Troubleshooting docs](/Troubleshooting.md).
 
 ## Reporting issues
 

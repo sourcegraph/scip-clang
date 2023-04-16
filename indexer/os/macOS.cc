@@ -1,12 +1,15 @@
 #ifdef __APPLE__
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <mach-o/dyld.h> /* _NSGetExecutablePath */
 #import <mach/thread_act.h>
 #include <string>
 #include <sys/sysctl.h>
 #include <sys/types.h>
+#include <system_error>
 #include <unistd.h>
+#include <variant>
 
 #include "spdlog/spdlog.h"
 
@@ -72,6 +75,11 @@ bool setCurrentThreadName(std::string_view name) {
   auto truncatedName = std::string(name.substr(0, maxLen));
   auto retCode = ::pthread_setname_np(truncatedName.c_str());
   return retCode == 0;
+}
+
+std::variant<uint64_t, std::error_code> availableSpaceForIpc() {
+  // TODO: Figure out a good way to calculate this on macOS.
+  return scip_clang::availableSpaceUnknown;
 }
 
 } // namespace scip_clang

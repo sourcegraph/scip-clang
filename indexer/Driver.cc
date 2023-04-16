@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <chrono>
 #include <compare>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -11,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "indexer/Enforce.h" // Defines ENFORCE required by rapidjson headers
@@ -49,6 +51,7 @@
 #include "indexer/Statistics.h"
 #include "indexer/Timer.h"
 #include "indexer/Version.h"
+#include "indexer/os/Os.h"
 
 namespace boost_ip = boost::interprocess;
 
@@ -56,7 +59,10 @@ namespace scip_clang {
 namespace {
 
 // Type representing the driver<->worker queues, as used by the driver;
-struct MessageQueues {
+class MessageQueues final {
+  using Self = MessageQueues;
+
+public:
   std::vector<JsonIpcQueue> driverToWorker;
   JsonIpcQueue workerToDriver;
 
@@ -71,20 +77,90 @@ struct MessageQueues {
     boost_ip::message_queue::remove(w2d.c_str());
   }
 
-  MessageQueues(std::string_view driverId, size_t numWorkers,
-                std::pair<size_t, size_t> elementSizes) {
-    spdlog::debug("creating queues for IPC");
-    for (WorkerId workerId = 0; workerId < numWorkers; workerId++) {
-      auto d2w = scip_clang::driverToWorkerQueueName(driverId, workerId);
-      driverToWorker.emplace_back(
-          JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
-              boost_ip::create_only, d2w.c_str(), 1, elementSizes.first)));
+  MessageQueues(std::string_view driverId, size_t numWorkersHint,
+                size_t perWorkerSizeHintBytes) {
+    auto maxNumWorkers = Self::numWorkersUpperBound(perWorkerSizeHintBytes);
+    ENFORCE(maxNumWorkers > 0);
+    if (maxNumWorkers < numWorkersHint) {
+      spdlog::warn(
+          "will spawn at most {} workers due to limited available space "
+          "in /dev/shm",
+          maxNumWorkers);
+      Self::logIpcInfo({.docker = true});
     }
-    auto w2d = scip_clang::workerToDriverQueueName(driverId);
-    this->workerToDriver =
-        JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
-            boost_ip::create_only, w2d.c_str(), numWorkers,
-            elementSizes.second));
+
+    auto numWorkers = std::min(size_t(maxNumWorkers), numWorkersHint);
+
+    spdlog::debug("creating queues for IPC");
+    auto recvElementSize = perWorkerSizeHintBytes / 2;
+    auto sendElementSize = perWorkerSizeHintBytes / 2;
+    BOOST_TRY {
+      auto w2d = scip_clang::workerToDriverQueueName(driverId);
+      this->workerToDriver =
+          JsonIpcQueue::create(std::move(w2d), numWorkers, recvElementSize);
+      for (WorkerId workerId = 0; workerId < numWorkers; workerId++) {
+        auto d2w = scip_clang::driverToWorkerQueueName(driverId, workerId);
+        this->driverToWorker.emplace_back(
+            JsonIpcQueue::create(std::move(d2w), 1, sendElementSize));
+      }
+    }
+    BOOST_CATCH(boost_ip::interprocess_exception & ex) {
+      if (this->driverToWorker.empty()) {
+        spdlog::error("failed to create IPC queues: {}", ex.what());
+        Self::logIpcInfo({.docker = true});
+        std::exit(EXIT_FAILURE);
+      }
+      spdlog::warn("encountered error when creating IPC queues: {}", ex.what());
+      spdlog::info("proceeding with {} worker processes",
+                   this->driverToWorker.size());
+    }
+    BOOST_CATCH_END
+  }
+
+private:
+  struct IpcInfo {
+    bool docker;
+  };
+
+  static void logIpcInfo(IpcInfo info) {
+    // clang-format off
+    if (info.docker) {
+      spdlog::info("if running inside Docker, consider increasing the size of /dev/shm using --shm-size");
+    }
+    spdlog::info("see also: https://github.com/sourcegraph/scip-clang/blob/main/docs/Troubleshooting.md#disk-space-for-ipc");
+    // clang-format on
+  }
+
+  static uint64_t numWorkersUpperBound(size_t perWorkerSizeHintBytes) {
+    auto spaceOrError = scip_clang::availableSpaceForIpc();
+    uint64_t maxNumWorkers = UINT64_MAX;
+    if (std::holds_alternative<std::error_code>(spaceOrError)) {
+      auto error_code = std::get<std::error_code>(spaceOrError);
+      if (error_code == std::errc::read_only_file_system) {
+        spdlog::error("/dev/shm is read-only, making it unusable for IPC");
+        Self::logIpcInfo({.docker = false});
+        std::exit(EXIT_FAILURE);
+      }
+      spdlog::warn("failed to determine available space for IPC (error: {});"
+                   " setting up IPC may fail",
+                   error_code.message());
+      Self::logIpcInfo({.docker = false});
+      return maxNumWorkers;
+    }
+    uint64_t space = std::get<uint64_t>(spaceOrError);
+    if (space != scip_clang::availableSpaceUnknown) {
+      spdlog::debug("free space available for IPC: {} bytes", space);
+    }
+    auto sizeWithOverhead = double(perWorkerSizeHintBytes) * 1.2;
+    maxNumWorkers = uint64_t(double(space) / sizeWithOverhead);
+    if (maxNumWorkers == 0) {
+      spdlog::error("/dev/shm only has {} free bytes, need at least ~{} bytes "
+                    "for IPC with 1 worker",
+                    space, uint64_t(sizeWithOverhead));
+      Self::logIpcInfo({.docker = true});
+      std::exit(EXIT_FAILURE);
+    }
+    return maxNumWorkers;
   }
 };
 
@@ -114,6 +190,11 @@ struct WorkerInfo {
         currentlyProcessing() {}
 };
 
+struct DriverIpcOptions {
+  size_t ipcSizeHintBytes;
+  std::chrono::seconds receiveTimeout;
+};
+
 struct DriverOptions {
   AbsolutePath workerExecutablePath;
   RootPath projectRootPath;
@@ -121,8 +202,8 @@ struct DriverOptions {
   AbsolutePath indexOutputPath;
   AbsolutePath statsFilePath;
   bool showCompilerDiagnostics;
+  DriverIpcOptions ipcOptions;
   size_t numWorkers;
-  std::chrono::seconds receiveTimeout;
   bool deterministic;
   std::string preprocessorRecordHistoryFilterRegex;
   StdPath supplementaryOutputDir;
@@ -139,8 +220,8 @@ struct DriverOptions {
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
         indexOutputPath(), statsFilePath(),
         showCompilerDiagnostics(cliOpts.showCompilerDiagnostics),
-        numWorkers(cliOpts.numWorkers), receiveTimeout(cliOpts.receiveTimeout),
-        deterministic(cliOpts.deterministic),
+        ipcOptions{cliOpts.ipcSizeHintBytes, cliOpts.receiveTimeout},
+        numWorkers(cliOpts.numWorkers), deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
         supplementaryOutputDir(cliOpts.supplementaryOutputDir),
@@ -224,10 +305,10 @@ struct DriverOptions {
                         WorkerId workerId) const {
     args.push_back(fmt::format(
         "--log-level={}", spdlog::level::to_string_view(spdlog::get_level())));
-    static_assert(std::is_same<decltype(this->receiveTimeout),
+    static_assert(std::is_same<decltype(this->ipcOptions.receiveTimeout),
                                std::chrono::seconds>::value);
     args.push_back(fmt::format("--receive-timeout-seconds={}",
-                               this->receiveTimeout.count()));
+                               this->ipcOptions.receiveTimeout.count()));
     if (this->deterministic) {
       args.push_back("--deterministic");
     }
@@ -367,6 +448,8 @@ class Scheduler final {
   /// ∀ j ∈ pendingJobs, |{w ∈ workers | w.currentlyProcessing == p}| == 1
   absl::flat_hash_set<JobId> wipJobs;
 
+  // TODO(def: track-errored-jobs)
+  // Create a flat_hash_set here and track which jobs ran into errors.
 public:
   using Process = boost::process::child;
 
@@ -422,6 +505,26 @@ public:
     }());
   }
 
+  /// Kill a single worker for a specific \p workerId.
+  ///
+  /// \p killAndRespawn should not call back into the scheduler.
+  void
+  killRunningWorker(const char *cause, WorkerId workerId,
+                    absl::FunctionRef<Process(Process &&)> killAndRespawn) {
+    auto &workerInfo = this->workers[workerId];
+    spdlog::info("killing worker {}, pid {}", workerId,
+                 workerInfo.processHandle.id());
+    auto oldJobId = workerInfo.currentlyProcessing.value();
+    bool erased = this->wipJobs.erase(oldJobId);
+    ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
+    spdlog::warn("skipping job {} due to {}", oldJobId, cause);
+    this->logJobSkip(oldJobId);
+    auto newHandle = killAndRespawn(std::move(workerInfo.processHandle));
+    workerInfo = WorkerInfo(std::move(newHandle));
+    this->idleWorkers.push_back(workerId);
+    this->checkInvariants();
+  }
+
   /// Kills all workers which started before \p startedBefore and respawns them.
   ///
   /// \p killAndRespawn should not call back into the Scheduler (to make
@@ -439,18 +542,10 @@ public:
         continue;
       case WorkerInfo::Status::Busy:
         if (workerInfo.startTime < startedBefore) {
-          spdlog::info("killing worker {}, pid {}", workerId,
-                       workerInfo.processHandle.id());
-          auto oldJobId = workerInfo.currentlyProcessing.value();
-          bool erased = this->wipJobs.erase(oldJobId);
-          ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
-          spdlog::warn("skipping job {} due to worker timeout", oldJobId);
-          this->logJobSkip(oldJobId);
-          auto newHandle =
-              killAndRespawn(std::move(workerInfo.processHandle), workerId);
-          workerInfo = WorkerInfo(std::move(newHandle));
-          this->idleWorkers.push_back(workerId);
-          this->checkInvariants();
+          this->killRunningWorker(
+              "worker timeout", workerId, [&](Process &&p) -> Process {
+                return killAndRespawn(std::move(p), workerId);
+              });
         }
       }
     }
@@ -487,7 +582,7 @@ public:
     ENFORCE(absl::c_find(this->idleWorkers, workerId.getValueNonConsuming())
             == this->idleWorkers.end());
     // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
-    spdlog::debug("assigning jobId {} to worker {}", jobId,
+    spdlog::debug("assigning job {} to worker {}", jobId,
                   workerId.getValueNonConsuming());
     ENFORCE(this->wipJobs.contains(jobId),
             "should've marked job WIP before scheduling");
@@ -495,6 +590,16 @@ public:
     auto it = this->allJobList.find(jobId);
     ENFORCE(it != this->allJobList.end(), "trying to assign unknown job");
     return IndexJobRequest{it->first, it->second};
+  }
+
+  /// Undoes the state changes involved in scheduling a task onto a worker.
+  void descheduleJobDueToSendError(WorkerId workerId, JobId jobId) {
+    spdlog::debug("descheduling job {} from worker {}", jobId, workerId);
+    ENFORCE(this->workers[workerId].currentlyProcessing == jobId);
+    this->markWorkerIdle(workerId);
+    bool erased = this->wipJobs.erase(jobId);
+    ENFORCE(erased, "job should've been marked WIP");
+    // See TODO(ref: track-errored-jobs)
   }
 
   [[nodiscard]] LatestIdleWorkerId markCompleted(WorkerId workerId, JobId jobId,
@@ -508,11 +613,16 @@ public:
   }
 
   /// Pre-condition: \p refillJobs should stay fixed at 0 once it reaches 0.
+  ///
+  /// \p tryAssignJobToWorker will attempt to call one of the scheduling
+  /// routines to mark the job as 'scheduled', and then send a job to
+  /// the worker. If sending the job fails, it should call the appropriate
+  /// descheduling routine. It should return true if the assignment succeeded.
   void
   runJobsTillCompletion(absl::FunctionRef<void()> processOneJobResult,
                         absl::FunctionRef<size_t()> refillJobs,
-                        absl::FunctionRef<void(ToBeScheduledWorkerId &&, JobId)>
-                            assignJobToWorker) {
+                        absl::FunctionRef<bool(ToBeScheduledWorkerId &&, JobId)>
+                            tryAssignJobToWorker) {
     this->checkInvariants();
     size_t refillCount = refillJobs();
     ENFORCE(refillCount > 0);
@@ -531,7 +641,7 @@ public:
           refillCount = refillJobs();
         }
       } else if (!this->idleWorkers.empty()) {
-        this->assignJobsToIdleWorkers(assignJobToWorker);
+        this->assignJobsToIdleWorkers(tryAssignJobToWorker);
       }
       ENFORCE(!this->wipJobs.empty());
       processOneJobResult();
@@ -567,18 +677,22 @@ private:
     nextWorkerInfo.startTime = std::chrono::steady_clock::now();
   }
 
+  /// \p tryAssignJobToWorker will attempt to call one of the scheduling
+  /// routines to mark the job as 'scheduled', and then send a job to
+  /// the worker. If sending the job fails, it should call the appropriate
+  /// descheduling routine. It should return true if the assignment succeeded.
   void assignJobsToIdleWorkers(
-      absl::FunctionRef<void(ToBeScheduledWorkerId &&, JobId)> assignJob) {
-    auto numJobsToAssign =
-        std::min(this->idleWorkers.size(), this->pendingJobs.size());
-    ENFORCE(numJobsToAssign >= 1, "no workers or pending jobs");
-    for (unsigned i = 0; i < numJobsToAssign; ++i) {
+      absl::FunctionRef<bool(ToBeScheduledWorkerId &&, JobId)>
+          tryAssignJobToWorker) {
+    ENFORCE(this->idleWorkers.size() > 0, "no idle workers");
+    ENFORCE(this->pendingJobs.size() > 0, "no pending jobs");
+    while (this->idleWorkers.size() > 0 && this->pendingJobs.size() > 0) {
       JobId nextJob = this->pendingJobs.front();
       this->pendingJobs.pop_front();
       auto [_, inserted] = this->wipJobs.insert(nextJob);
       ENFORCE(inserted, "job from pendingJobs was not already WIP");
       auto nextWorkerId = this->claimIdleWorker();
-      assignJob(std::move(nextWorkerId), nextJob);
+      (void)tryAssignJobToWorker(std::move(nextWorkerId), nextJob);
       this->checkInvariants();
     }
   }
@@ -609,7 +723,11 @@ public:
         planner(this->options.projectRootPath), shardPaths(), compdbParser() {
     MessageQueues::deleteIfPresent(this->id, this->numWorkers());
     this->queues = MessageQueues(this->id, this->numWorkers(),
-                                 {IPC_BUFFER_MAX_SIZE, IPC_BUFFER_MAX_SIZE});
+                                 options.ipcOptions.ipcSizeHintBytes);
+    auto numSendQueues = this->queues.driverToWorker.size();
+    ENFORCE(numSendQueues > 0);
+    ENFORCE(numSendQueues <= this->options.numWorkers);
+    this->options.numWorkers = numSendQueues;
   }
   ~Driver() {
     if (this->options.deleteTemporaryOutputDir) {
@@ -842,7 +960,7 @@ private:
     return this->options.compdbPath;
   }
   std::chrono::seconds receiveTimeout() const {
-    return this->options.receiveTimeout;
+    return this->options.ipcOptions.receiveTimeout;
   }
 
   /// Call \c openCompilationDatabase before this method. The \p _compdbToken
@@ -880,11 +998,12 @@ private:
           numJobs++;
         },
         [this]() -> size_t { return this->refillJobs(); },
-        [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> void {
-          this->assignJobToWorker(std::move(workerId), jobId);
+        [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> bool {
+          return this->tryAssignJobToWorker(std::move(workerId), jobId);
         });
     this->shutdownAllWorkers();
     this->scheduler.waitForAllWorkers();
+    // FIXME: This estimate will be wrong in the presence of IPC failures...
     return numJobs / 2; // Each TU has exactly 2 jobs.
   }
 
@@ -943,15 +1062,49 @@ private:
     case IndexJob::Kind::SemanticAnalysis: {
       auto &semaResult = response.result.semanticAnalysis;
       std::vector<PreprocessedFileInfo> filesToBeIndexed{};
+
+      auto numFilesReceived = semaResult.illBehavedFiles.size()
+                              + semaResult.wellBehavedFiles.size();
       this->planner.saveSemaResult(std::move(semaResult), filesToBeIndexed);
-      auto &queue = this->queues.driverToWorker[latestIdleWorkerId.id];
-      queue.send(this->scheduler.createSubtaskAndScheduleOnWorker(
-          latestIdleWorkerId, response.jobId,
-          IndexJob{
-              IndexJob::Kind::EmitIndex,
-              SemanticAnalysisJobDetails{},
-              EmitIndexJobDetails{std::move(filesToBeIndexed)},
-          }));
+      auto numFilesSending = filesToBeIndexed.size();
+
+      auto workerId = latestIdleWorkerId.id;
+      auto &queue = this->queues.driverToWorker[workerId];
+      IndexJobRequest newRequest{
+          this->scheduler.createSubtaskAndScheduleOnWorker(
+              latestIdleWorkerId, response.jobId,
+              IndexJob{
+                  IndexJob::Kind::EmitIndex,
+                  SemanticAnalysisJobDetails{},
+                  EmitIndexJobDetails{std::move(filesToBeIndexed)},
+              })};
+      auto newRequestJobId = newRequest.id;
+      auto sendError = queue.send(std::move(newRequest));
+      if (sendError.has_value()) {
+        spdlog::warn("failed to send message to worker indicating the subset "
+                     "of files to be indexed: {}",
+                     sendError->what());
+        spdlog::info("this is probably a scip-clang bug; please report it "
+                     "(https://github.com/sourcegraph/scip-clang/issues/new)");
+        spdlog::info("received {} files, attempted to send {} files",
+                     numFilesReceived, numFilesSending);
+        // NOTE(def: terminate-on-send-emit-index)
+        // There are several things we could do here.
+        // 1. Kill the worker and start with a new job.
+        // 2. Send a smaller message (e.g. with an empty list) for the
+        //    worker to detect and reset itself (instead of waiting
+        //    for the list of files to be indexed).
+        // 3. Try serializing smaller subsets until something succeeds.
+        // For simplicity, let's go with option 1 here.
+        this->scheduler.descheduleJobDueToSendError(workerId, newRequestJobId);
+        this->scheduler.killRunningWorker(
+            "failure to communicate over IPC", workerId,
+            [&](Scheduler::Process &&oldHandle) -> Scheduler::Process {
+              oldHandle.terminate();
+              return this->spawnWorker(workerId);
+            });
+        return;
+      }
       break;
     }
     case IndexJob::Kind::EmitIndex: {
@@ -993,15 +1146,31 @@ private:
   // Assign a job to a specific worker. When this method is called,
   // the worker has already been "claimed", so it should not be in the
   // availableWorkers list.
-  void assignJobToWorker(ToBeScheduledWorkerId &&workerId, JobId jobId) {
-    auto &queue = this->queues.driverToWorker[workerId.getValueNonConsuming()];
-    queue.send(this->scheduler.scheduleJobOnWorker(std::move(workerId), jobId));
+  //
+  // Returns true iff we successfully sent the job to the worker.
+  [[nodiscard]] bool tryAssignJobToWorker(ToBeScheduledWorkerId &&workerId,
+                                          JobId jobId) {
+    auto rawWorkerId = workerId.getValueNonConsuming();
+    auto &queue = this->queues.driverToWorker[rawWorkerId];
+    auto sendError = queue.send(
+        this->scheduler.scheduleJobOnWorker(std::move(workerId), jobId));
+    if (sendError.has_value()) {
+      spdlog::warn("failed to send job to worker: {}", sendError->what());
+      this->scheduler.descheduleJobDueToSendError(rawWorkerId, jobId);
+      return false;
+    }
+    return true;
   }
 
   void shutdownAllWorkers() {
     for (unsigned i = 0; i < this->numWorkers(); ++i) {
-      this->queues.driverToWorker[i].send(
+      auto sendError = this->queues.driverToWorker[i].send(
           IndexJobRequest{JobId::Shutdown(), {}});
+      ENFORCE(
+          !sendError.has_value(),
+          "shutdown messages are tiny and shouldn't fail to send, but got: {}",
+          sendError->what());
+      (void)sendError;
     }
   }
 };
@@ -1011,17 +1180,17 @@ private:
 int driverMain(CliOptions &&cliOptions) {
   auto driverId = cliOptions.driverId.empty() ? fmt::format("{}", ::getpid())
                                               : cliOptions.driverId;
-  size_t numWorkers = cliOptions.numWorkers;
   BOOST_TRY {
     Driver driver(driverId, DriverOptions(driverId, std::move(cliOptions)));
     driver.run();
   }
   BOOST_CATCH(boost_ip::interprocess_exception & ex) {
     spdlog::error("driver caught exception {}", ex.what());
+    // MessageQueues::deleteIfPresent(driverId, numWorkers);
     return 1;
   }
   BOOST_CATCH_END
-  MessageQueues::deleteIfPresent(driverId, numWorkers);
+  // MessageQueues::deleteIfPresent(driverId, numWorkers);
   return 0;
 }
 

@@ -1,4 +1,5 @@
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "boost/date_time/posix_time/posix_time.hpp"
@@ -14,15 +15,42 @@
 
 namespace scip_clang {
 
+JsonIpcQueue::~JsonIpcQueue() {
+  switch (this->queueInit) {
+  case QueueInit::OpenOnly:
+    return;
+  case QueueInit::CreateOnly:
+    if (auto *innerQueue = this->queue.get()) {
+      innerQueue->remove(this->name.c_str());
+    }
+  }
+}
+
 char TimeoutError::ID = 0;
 
-void JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
+[[nodiscard]] std::optional<boost::interprocess::interprocess_exception>
+JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
   auto buffer = llvm_ext::format(jsonValue);
-  this->queue->send(buffer.c_str(), buffer.size(), 1);
-  if (buffer.size() > IPC_BUFFER_MAX_SIZE) {
-    spdlog::warn("previous message exceeded IPC_BUFFER_MAX_SIZE: {}...{}",
-                 buffer.substr(0, 25), buffer.substr(buffer.size() - 25, 25));
+  BOOST_TRY {
+    this->queue->send(buffer.c_str(), buffer.size(), 1);
   }
+  BOOST_CATCH(boost::interprocess::interprocess_exception & ex) {
+    if (ex.get_error_code() == boost::interprocess::size_error) {
+      ENFORCE(buffer.size() > 25); // it must be kilobytes anyways...
+      spdlog::error("message size ({}) exceeded IPC buffer size ({}): {}...{}",
+                    buffer.size(), this->queue->get_max_msg_size(),
+                    buffer.substr(0, 25),
+                    buffer.substr(buffer.size() - 25, 25));
+      if (buffer.size() < 10 * 1024 * 1024) {
+        spdlog::info(
+            "try passing --ipc-size-hint-bytes {} when invoking scip-clang",
+            size_t(double(buffer.size()) * 1.5));
+      }
+    }
+    return ex;
+  }
+  BOOST_CATCH_END
+  return {};
 }
 
 static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
@@ -39,7 +67,7 @@ static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
 llvm::Expected<llvm::json::Value>
 JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   std::vector<char> readBuffer;
-  readBuffer.resize(IPC_BUFFER_MAX_SIZE);
+  readBuffer.resize(this->queue->get_max_msg_size());
   size_t recvCount;
   unsigned recvPriority;
   spdlog::debug("will wait for atmost {}ms", waitMillis);
@@ -55,12 +83,9 @@ MessageQueuePair MessageQueuePair::forWorker(const IpcOptions &ipcOptions) {
   auto d2w = scip_clang::driverToWorkerQueueName(ipcOptions.driverId,
                                                  ipcOptions.workerId);
   auto w2d = scip_clang::workerToDriverQueueName(ipcOptions.driverId);
-  namespace boost_ip = boost::interprocess;
   MessageQueuePair mqp;
-  mqp.driverToWorker = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
-      boost_ip::open_only, d2w.c_str()));
-  mqp.workerToDriver = JsonIpcQueue(std::make_unique<boost_ip::message_queue>(
-      boost_ip::open_only, w2d.c_str()));
+  mqp.driverToWorker = JsonIpcQueue::open(std::move(d2w));
+  mqp.workerToDriver = JsonIpcQueue::open(std::move(w2d));
   return mqp;
 }
 

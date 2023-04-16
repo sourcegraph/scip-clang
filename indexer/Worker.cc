@@ -1300,8 +1300,14 @@ void Worker::emitIndex(scip::Index &&scipIndex, const StdPath &outputPath) {
 void Worker::sendResult(JobId requestId, IndexJobResult &&result) {
   ENFORCE(this->options.mode == WorkerMode::Ipc);
   spdlog::debug("sending result for {}", requestId);
-  this->messageQueues->workerToDriver.send(IndexJobResponse{
+  auto sendError = this->messageQueues->workerToDriver.send(IndexJobResponse{
       this->ipcOptions().workerId, requestId, std::move(result)});
+  if (sendError.has_value()) {
+    spdlog::warn(
+        "exiting after failing to send response from worker to driver: {}",
+        sendError->what());
+    std::exit(EXIT_FAILURE);
+  }
   this->flushStreams();
 }
 
