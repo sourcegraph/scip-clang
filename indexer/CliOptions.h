@@ -29,7 +29,7 @@ struct CliOptions {
   std::string temporaryOutputDir;
   std::string indexOutputPath;
   std::string statsFilePath;
-  bool showCompilerDiagonstics;
+  bool showCompilerDiagnostics;
 
   std::chrono::seconds receiveTimeout;
   uint32_t numWorkers;

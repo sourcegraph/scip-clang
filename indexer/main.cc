@@ -53,7 +53,7 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "show-compiler-diagnostics",
     "Show Clang diagnostics triggered when running semantic analysis."
     " Useful for debugging issues related to missing headers.",
-    cxxopts::value<bool>(cliOptions.showCompilerDiagonstics));
+    cxxopts::value<bool>(cliOptions.showCompilerDiagnostics));
   parser.add_options("")("version", "Show the version", cxxopts::value<bool>());
   parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
   parser.add_options("Advanced")(

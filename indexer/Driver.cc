@@ -119,7 +119,7 @@ struct DriverOptions {
   AbsolutePath compdbPath;
   AbsolutePath indexOutputPath;
   AbsolutePath statsFilePath;
-  bool showCompilerDiagonstics;
+  bool showCompilerDiagnostics;
   size_t numWorkers;
   std::chrono::seconds receiveTimeout;
   bool deterministic;
@@ -137,7 +137,7 @@ struct DriverOptions {
       : workerExecutablePath(),
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
         indexOutputPath(), statsFilePath(),
-        showCompilerDiagonstics(cliOpts.showCompilerDiagonstics),
+        showCompilerDiagnostics(cliOpts.showCompilerDiagnostics),
         numWorkers(cliOpts.numWorkers), receiveTimeout(cliOpts.receiveTimeout),
         deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
@@ -233,7 +233,7 @@ struct DriverOptions {
     if (!this->statsFilePath.asStringRef().empty()) {
       args.push_back("--measure-statistics");
     }
-    if (this->showCompilerDiagonstics) {
+    if (this->showCompilerDiagnostics) {
       args.push_back("--show-compiler-diagnostics");
     }
     if (!this->preprocessorRecordHistoryFilterRegex.empty()) {
