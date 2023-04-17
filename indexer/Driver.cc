@@ -703,8 +703,10 @@ private:
     fullIndex.SerializeToOstream(&outputStream);
   }
 
-  bool isMultiplyIndexedApproximate(const std::string &relativePath,
-                                    AbsolutePathRef shardPath) const {
+  bool
+  isMultiplyIndexedApproximate(const std::string &relativePath,
+                               AbsolutePathRef shardPath,
+                               absl::flat_hash_set<uint32_t> &badJobIds) const {
     auto multiplyIndexed = this->planner.isMultiplyIndexed(
         RootRelativePathRef{relativePath, RootKind::Project});
     bool isMultiplyIndexed;
@@ -719,15 +721,7 @@ private:
       if (auto optFileName = shardPath.fileName()) {
         if (auto optJobId = ShardPaths::tryParseJobId(*optFileName)) {
           auto jobId = optJobId.value();
-          spdlog::info("the unknown header was encountered when processing "
-                       "the compilation command at index {} in the "
-                       "compilation database",
-                       jobId);
-          spdlog::info(
-              "it may be possible to reproduce this issue by subsetting the "
-              "compilation database using `jq '.[{}:{}]` {} > bad.json` and "
-              "re-running `scip-clang --compdb-path=bad.json <flags...>`",
-              jobId, jobId + 1, this->options.compdbPath.asStringRef());
+          badJobIds.insert(jobId);
         }
       }
       // Be conservative here
@@ -787,6 +781,8 @@ private:
       return true;
     };
 
+    absl::flat_hash_set<uint32_t> badJobIds{};
+
     scip::IndexBuilder builder{fullIndex};
     // TODO: Measure how much time this is taking and parallelize if too slow.
     for (auto &paths : this->shardPaths) {
@@ -796,7 +792,7 @@ private:
       }
       for (auto &doc : *indexShard.mutable_documents()) {
         bool isMultiplyIndexed = this->isMultiplyIndexedApproximate(
-            doc.relative_path(), paths.docsAndExternals.asRef());
+            doc.relative_path(), paths.docsAndExternals.asRef(), badJobIds);
         builder.addDocument(std::move(doc), isMultiplyIndexed);
       }
       // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
@@ -806,6 +802,21 @@ private:
       for (auto &extSym : *indexShard.mutable_external_symbols()) {
         builder.addExternalSymbol(std::move(extSym));
       }
+    }
+
+    if (!badJobIds.empty()) {
+      std::vector<uint32_t> badJobIdsSorted{badJobIds.begin(), badJobIds.end()};
+      absl::c_sort(badJobIdsSorted);
+      spdlog::info("previously unseen headers were encountered when processing"
+                   " the compilation commands at indexes [{}] in the "
+                   "compilation database",
+                   fmt::join(badJobIdsSorted, ","));
+      spdlog::info(
+          "it may be possible to reproduce this issue by subsetting the "
+          "compilation database using `jq '[.[{}]]` {} > bad.json` and "
+          "re-running `scip-clang --compdb-path=bad.json <flags...>`",
+          fmt::join(badJobIdsSorted, ","),
+          this->options.compdbPath.asStringRef());
     }
 
     auto symbolToInfoMap = builder.populateSymbolToInfoMap();
