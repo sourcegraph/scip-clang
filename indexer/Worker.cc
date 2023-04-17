@@ -1380,10 +1380,9 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     return ReceiveStatus::OK;
   }
 
-  StdPath prefix =
-      this->options.temporaryOutputDir
-      / fmt::format("job-{}-worker-{}", emitIndexRequestId.taskId(),
-                    this->ipcOptions().workerId);
+  StdPath prefix = this->options.temporaryOutputDir
+                   / ShardPaths::prefix(emitIndexRequestId.taskId(),
+                                        this->ipcOptions().workerId);
   StdPath docsAndExternalsOutputPath =
       prefix.concat("-docs_and_externals.shard.scip");
   StdPath forwardDeclsOutputPath = prefix.concat("-forward_decls.shard.scip");
