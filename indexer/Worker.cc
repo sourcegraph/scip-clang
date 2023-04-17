@@ -1476,7 +1476,7 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
     spdlog::debug("shutting down");
     return Status::Shutdown;
   }
-  spdlog::debug("received job {}", request.id.debugString());
+  spdlog::debug("received job {}", request.id);
   this->triggerFaultIfApplicable();
   return Status::OK;
 }

@@ -61,10 +61,6 @@ bool fromJSON(const llvm::json::Value &value, JobId &jobId,
   return JobId::fromJSON(value, jobId, path);
 }
 
-std::string JobId::debugString() const {
-  return fmt::format("{}.{}", this->_taskId, this->subtaskId);
-}
-
 llvm::json::Value toJSON(const IndexJob::Kind &kind) {
   switch (kind) {
   case IndexJob::Kind::SemanticAnalysis:

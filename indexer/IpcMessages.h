@@ -57,6 +57,8 @@ private:
   }
 
 public:
+  friend fmt::formatter<scip_clang::JobId>;
+
   DERIVE_HASH_1(JobId, self.to64Bit())
   DERIVE_EQ_ALL(JobId)
 
@@ -66,10 +68,30 @@ public:
 
   static llvm::json::Value toJSON(const JobId &);
   static bool fromJSON(const llvm::json::Value &, JobId &, llvm::json::Path);
-
-  std::string debugString() const;
 };
 SERIALIZABLE(JobId)
+
+} // namespace scip_clang
+
+template <> struct fmt::formatter<scip_clang::JobId> {
+  constexpr auto parse(fmt::format_parse_context &ctx)
+      -> decltype(ctx.begin()) {
+    auto it = ctx.begin();
+    if (it != ctx.end() && *it != '}')
+      throw fmt::format_error("unexpected format specifier for JobID");
+    return it;
+  }
+
+  template <typename FormatContext>
+  auto format(const scip_clang::JobId &jobId, FormatContext &ctx) const
+      -> decltype(ctx.out()) {
+    return fmt::format_to(
+        ctx.out(), "(compdb index: {}, subtask: {})", jobId.taskId(),
+        jobId.subtaskId == 0 ? "semantic analysis" : "emit index");
+  }
+};
+
+namespace scip_clang {
 
 struct SemanticAnalysisJobDetails {
   clang::tooling::CompileCommand command;

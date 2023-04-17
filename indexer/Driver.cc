@@ -433,8 +433,7 @@ public:
           auto oldJobId = workerInfo.currentlyProcessing.value();
           bool erased = this->wipJobs.erase(oldJobId);
           ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
-          spdlog::warn("skipping job {} due to worker timeout",
-                       oldJobId.debugString());
+          spdlog::warn("skipping job {} due to worker timeout", oldJobId);
           this->logJobSkip(oldJobId);
           auto newHandle =
               killAndRespawn(std::move(workerInfo.processHandle), workerId);
@@ -477,7 +476,7 @@ public:
     ENFORCE(absl::c_find(this->idleWorkers, workerId.getValueNonConsuming())
             == this->idleWorkers.end());
     // TODO(ref: add-job-debug-helper) Print abbreviated job data here.
-    spdlog::debug("assigning jobId {} to worker {}", jobId.debugString(),
+    spdlog::debug("assigning jobId {} to worker {}", jobId,
                   workerId.getValueNonConsuming());
     ENFORCE(this->wipJobs.contains(jobId),
             "should've marked job WIP before scheduling");
@@ -926,10 +925,9 @@ private:
                     llvm_ext::format(recvError));
       // Keep going instead of exiting early for robustness.
     } else {
-      // TODO(def: add-job-debug-helper): Add a simplified debug representation
-      // for printing jobs for debugging.
-      spdlog::debug("received response from worker {}", response.workerId);
       this->processWorkerResponse(std::move(response));
+      spdlog::debug("received response for {} from worker {}", response.jobId,
+                    response.workerId);
     }
     auto now = std::chrono::steady_clock::now();
     this->killLongRunningWorkersAndRespawn(now - workerTimeout);
