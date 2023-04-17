@@ -1,6 +1,11 @@
+#include <charconv>
 #include <compare>
+#include <cstdint>
+#include <string_view>
+#include <system_error>
 #include <type_traits>
 
+#include "absl/strings/str_split.h"
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
 
@@ -180,6 +185,26 @@ bool fromJSON(const llvm::json::Value &value, IndexJobResponse &r,
   llvm::json::ObjectMapper mapper(value, path);
   return mapper && mapper.map("workerId", r.workerId)
          && mapper.map("jobId", r.jobId) && mapper.map("result", r.result);
+}
+
+// static
+std::string ShardPaths::prefix(uint32_t taskId, WorkerId workerId) {
+  // SYNC(def: prefix-format): Keep in sync with tryParseJobId
+  return fmt::format("job-{}-worker-{}", taskId, workerId);
+}
+
+// static
+std::optional<uint32_t> ShardPaths::tryParseJobId(std::string_view fileName) {
+  // SYNC(id: prefix-format): Keep in sync with prefix
+  std::vector<std::string_view> parts = absl::StrSplit(fileName, '-');
+  uint32_t taskId;
+  if (parts.size() >= 3 && parts[0] == "job" && parts[2] == "worker"
+      && std::from_chars(parts[1].begin(), parts[1].end(), taskId).ec
+             == std::errc{}) {
+    return taskId;
+  }
+  return {};
+  // return fmt::format("job-{}-worker-{}", taskId, workerId);
 }
 
 } // namespace scip_clang

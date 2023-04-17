@@ -4,6 +4,7 @@
 #include <chrono>
 #include <compare>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -178,6 +179,10 @@ SERIALIZABLE(IndexingStatistics)
 struct ShardPaths {
   AbsolutePath docsAndExternals;
   AbsolutePath forwardDecls;
+
+  static std::string prefix(uint32_t taskId, WorkerId workerId);
+
+  static std::optional<uint32_t> tryParseJobId(std::string_view fileName);
 };
 SERIALIZABLE(ShardPaths)
 

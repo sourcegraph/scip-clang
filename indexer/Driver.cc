@@ -18,6 +18,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/str_split.h"
 #include "boost/interprocess/ipc/message_queue.hpp"
 #include "boost/process/child.hpp"
 #include "boost/process/io.hpp"
@@ -316,15 +317,24 @@ public:
     }
   }
 
-  bool isMultiplyIndexed(RootRelativePathRef relativePath) const {
+  enum class MultiplyIndexed {
+    True,
+    False,
+    Unknown,
+  };
+
+  MultiplyIndexed isMultiplyIndexed(RootRelativePathRef relativePath) const {
     auto absPath = this->projectRootPath.makeAbsolute(relativePath);
     auto it = this->hashesSoFar.find(absPath);
     if (it == this->hashesSoFar.end()) {
-      ENFORCE(false, "found path '{}' with no recorded hashes",
-              relativePath.asStringView());
-      return false;
+      spdlog::warn("found path '{}' with no recorded hashes; this is likely a "
+                   "scip-clang bug");
+      return MultiplyIndexed::Unknown;
     }
-    return it->second.size() > 1;
+    if (it->second.size() > 1) {
+      return MultiplyIndexed::True;
+    }
+    return MultiplyIndexed::False;
   }
 };
 
@@ -693,6 +703,40 @@ private:
     fullIndex.SerializeToOstream(&outputStream);
   }
 
+  bool isMultiplyIndexedApproximate(const std::string &relativePath,
+                                    AbsolutePathRef shardPath) const {
+    auto multiplyIndexed = this->planner.isMultiplyIndexed(
+        RootRelativePathRef{relativePath, RootKind::Project});
+    bool isMultiplyIndexed;
+    switch (multiplyIndexed) {
+    case FileIndexingPlanner::MultiplyIndexed::True:
+      isMultiplyIndexed = true;
+      break;
+    case FileIndexingPlanner::MultiplyIndexed::False:
+      isMultiplyIndexed = false;
+      break;
+    case FileIndexingPlanner::MultiplyIndexed::Unknown: {
+      if (auto optFileName = shardPath.fileName()) {
+        if (auto optJobId = ShardPaths::tryParseJobId(*optFileName)) {
+          auto jobId = optJobId.value();
+          spdlog::info("the unknown header was encountered when processing "
+                       "the compilation command at index {} in the "
+                       "compilation database",
+                       jobId);
+          spdlog::info(
+              "it may be possible to reproduce this issue by subsetting the "
+              "compilation database using `jq '.[{}:{}]` {} > bad.json` and "
+              "re-running `scip-clang --compdb-path=bad.json <flags...>`",
+              jobId, jobId + 1, this->options.compdbPath.asStringRef());
+        }
+      }
+      // Be conservative here
+      isMultiplyIndexed = true;
+    }
+    }
+    return isMultiplyIndexed;
+  }
+
   void mergeShards(scip::Index &fullIndex) const {
     LogTimerRAII timer("index merging");
 
@@ -751,8 +795,8 @@ private:
         continue;
       }
       for (auto &doc : *indexShard.mutable_documents()) {
-        bool isMultiplyIndexed = this->planner.isMultiplyIndexed(
-            RootRelativePathRef{doc.relative_path(), RootKind::Project});
+        bool isMultiplyIndexed = this->isMultiplyIndexedApproximate(
+            doc.relative_path(), paths.docsAndExternals.asRef());
         builder.addDocument(std::move(doc), isMultiplyIndexed);
       }
       // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
