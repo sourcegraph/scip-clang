@@ -15,7 +15,7 @@ constexpr bool debugMode = true;
 constexpr bool debugMode = false;
 #endif
 
-#define VERSION "0.0.2"
+#define VERSION "0.0.3"
 #define LLVM_COMMIT \
   "b6e344ce91c8796331fca7644eb8c748ac5391ec" // Keep in sync with setup.bzl
 
