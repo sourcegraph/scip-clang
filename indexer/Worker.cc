@@ -411,15 +411,16 @@ public:
               result.wellBehavedFiles.emplace_back(
                   PreprocessedFileInfo{AbsolutePath{absPathRef}, hashValue});
             }
-          } else {
-            std::vector<HashValue> hashes;
-            hashes.reserve(map.size());
-            for (auto &[hashValue, fileId] : map) {
-              hashes.push_back(hashValue);
-            }
-            result.illBehavedFiles.emplace_back(PreprocessedFileInfoMulti{
-                AbsolutePath{absPathRef}, std::move(hashes)});
+            return;
           }
+          ENFORCE(map.size() > 1, "clangIdLookupMap stores non-empty maps");
+          std::vector<HashValue> hashes;
+          hashes.reserve(map.size());
+          for (auto &[hashValue, fileId] : map) {
+            hashes.push_back(hashValue);
+          }
+          result.illBehavedFiles.emplace_back(PreprocessedFileInfoMulti{
+              AbsolutePath{absPathRef}, std::move(hashes)});
         });
     if (this->options.deterministic) {
       absl::c_sort(result.wellBehavedFiles);

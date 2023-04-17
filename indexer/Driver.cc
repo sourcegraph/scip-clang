@@ -293,6 +293,7 @@ public:
                       std::vector<PreprocessedFileInfo> &filesToBeIndexed) {
     absl::flat_hash_set<HashValue> emptyHashSet{};
     for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
+      ENFORCE(fileInfoMulti.hashValues.size() > 1);
       auto [it, _] = hashesSoFar.insert(
           {AbsolutePath(std::move(fileInfoMulti.path)), emptyHashSet});
       auto &[path, hashes] = *it;
