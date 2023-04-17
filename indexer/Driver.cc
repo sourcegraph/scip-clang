@@ -926,9 +926,9 @@ private:
                     llvm_ext::format(recvError));
       // Keep going instead of exiting early for robustness.
     } else {
-      this->processWorkerResponse(std::move(response));
       spdlog::debug("received response for {} from worker {}", response.jobId,
                     response.workerId);
+      this->processWorkerResponse(std::move(response));
     }
     auto now = std::chrono::steady_clock::now();
     this->killLongRunningWorkersAndRespawn(now - workerTimeout);

@@ -354,6 +354,7 @@ public:
   void flushState(SemanticAnalysisJobResult &result,
                   ClangIdLookupMap &clangIdLookupMap,
                   MacroIndexer &macroIndexerOutput) {
+    spdlog::debug("flushing preprocessor state");
     // FileChanged:EnterFile calls are almost exactly balanced by
     // FileChanged:ExitFile calls, except for the main file,
     // which is matched by an EndOfMainFile call.
@@ -1298,6 +1299,7 @@ void Worker::emitIndex(scip::Index &&scipIndex, const StdPath &outputPath) {
 
 void Worker::sendResult(JobId requestId, IndexJobResult &&result) {
   ENFORCE(this->options.mode == WorkerMode::Ipc);
+  spdlog::debug("sending result for {}", requestId);
   this->messageQueues->workerToDriver.send(IndexJobResponse{
       this->ipcOptions().workerId, requestId, std::move(result)});
   this->flushStreams();
