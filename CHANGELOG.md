@@ -1,5 +1,19 @@
 # scip-clang ChangeLog
 
+## v0.0.3 (testing)
+
+- Added documentation with adoption tips, including how to
+  troubleshoot common errors.
+  (https://github.com/sourcegraph/scip-clang/pull/186)
+- JobIDs printed when running `scip-clang` with `--log-level=debug`
+  are now more informative.
+  (https://github.com/sourcegraph/scip-clang/pull/189)
+- (Dev builds) Added workaround for ENFORCE being hit on encountering
+  previously unseen files during index merging.
+  (https://github.com/sourcegraph/scip-clang/pull/194)
+- (Dev builds) Fixed an ENFORCE being hit around pre-processor handling.
+  (https://github.com/sourcegraph/scip-clang/issues/156)
+
 ## v0.0.2 (testing)
 
 - Adds support for automatically inferring correct include
