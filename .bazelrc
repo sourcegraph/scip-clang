@@ -57,5 +57,8 @@ build:ci --config=ubsan
 build:dev --config=ci
 build:dev --copt="-Og" # For testing against large projects locally
 
+build:release -c opt
+# Temporarily to smoke out issues on large codebases...
+build:release --copt="-DFORCE_DEBUG=1"
 build:release --copt="-O2"
 build:release --config=stacktraces
