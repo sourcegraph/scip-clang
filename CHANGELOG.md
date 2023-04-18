@@ -1,5 +1,19 @@
 # scip-clang ChangeLog
 
+## v0.0.4 (testing)
+
+- Improved handling and docs for IPC-related errors, such as when
+  the amount of space available is limited (common in Docker),
+  as well as when a message size exceeds the IPC buffer size.
+  (https://github.com/sourcegraph/scip-clang/pull/187)
+- Improved error messages when certain assertions are hit in practice.
+  (https://github.com/sourcegraph/scip-clang/pull/196,
+  https://github.com/sourcegraph/scip-clang/pull/200,
+  https://github.com/sourcegraph/scip-clang/pull/205)
+- LLVM assertions are turned off in release builds.
+  scip-ruby's own `ENFORCE` checks are still enabled for debuggability.
+  (https://github.com/sourcegraph/scip-clang/pull/203)
+
 ## v0.0.3 (testing)
 
 - Added documentation with adoption tips, including how to
