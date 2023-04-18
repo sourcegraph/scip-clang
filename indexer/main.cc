@@ -207,5 +207,6 @@ int main(int argc, char *argv[]) {
   if (isWorker) {
     return scip_clang::workerMain(std::move(cliOptions));
   }
+  spdlog::debug("running {}", scip_clang::full_version_string);
   return scip_clang::driverMain(std::move(cliOptions));
 }
