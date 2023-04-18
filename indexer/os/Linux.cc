@@ -1,4 +1,5 @@
 #ifdef __linux__
+#include <cerrno>
 #include <climits>
 #include <csignal>
 #include <cstdio>
@@ -8,6 +9,8 @@
 #include <string>
 #include <string_view>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <system_error>
 #include <unistd.h>
 
 #include "absl/debugging/symbolize.h"
@@ -105,6 +108,24 @@ bool setCurrentThreadName(std::string_view name) {
   auto truncatedName = std::string(name.substr(0, maxLen));
   auto retCode = ::pthread_setname_np(::pthread_self(), truncatedName.c_str());
   return retCode == 0;
+}
+
+std::variant<uint64_t, std::error_code> availableSpaceForIpc() {
+  struct statvfs shm_info;
+  // clang-format off
+  // TODO: boost/interprocess uses shmget on Linux and macOS.
+  // https://sourcegraph.com/github.com/boostorg/interprocess@a0c5a8ff176434c9024d4540ce092a2eebb8c5c3/-/blob/include/boost/interprocess/xsi_shared_memory.hpp?L188:16
+  // 
+  // On Linux, it seems like this always ends up creating "files"
+  // under /dev/shm. Are there Linux distros where this is not the case?
+  // clang-format on
+  if (statvfs("/dev/shm", &shm_info) == -1) {
+    return std::error_code(errno, std::system_category());
+  }
+  if (shm_info.f_flag & ST_RDONLY) {
+    return std::make_error_code(std::errc::read_only_file_system);
+  }
+  return shm_info.f_bavail * shm_info.f_bsize;
 }
 
 } // namespace scip_clang

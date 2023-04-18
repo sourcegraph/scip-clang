@@ -2,6 +2,8 @@
 #define SCIP_CLANG_JSON_IPC_QUEUE_H
 
 #include <chrono>
+#include <memory>
+#include <optional>
 #include <system_error>
 
 #pragma clang diagnostic push
@@ -28,25 +30,61 @@ struct TimeoutError : public llvm::ErrorInfo<TimeoutError> {
   }
 };
 
-// I think 1MB should be enough to hold any CLI invocations.
-constexpr static size_t IPC_BUFFER_MAX_SIZE = 1 * 1024 * 1024;
+enum class QueueInit {
+  CreateOnly,
+  OpenOnly,
+};
 
 class JsonIpcQueue final {
-  std::unique_ptr<boost::interprocess::message_queue> queue;
+  using BoostQueue = boost::interprocess::message_queue;
+  std::unique_ptr<BoostQueue> queue;
+  std::string name;
+  QueueInit queueInit;
 
-  void sendValue(const llvm::json::Value &t);
+  [[nodiscard]] std::optional<boost::interprocess::interprocess_exception>
+  sendValue(const llvm::json::Value &t);
 
   // Tries to wait for waitMillis; if that succeeds, then attempts to parse the
   // result.
   llvm::Expected<llvm::json::Value> timedReceive(uint64_t waitMillis);
 
 public:
-  JsonIpcQueue() : queue() {}
-  JsonIpcQueue(std::unique_ptr<boost::interprocess::message_queue> queue)
-      : queue(std::move(queue)) {}
+  // Available for MessageQueues's constructor. DO NOT CALL DIRECTLY.
+  JsonIpcQueue() : queue(), name(), queueInit(QueueInit::OpenOnly) {}
 
-  template <typename T> void send(const T &t) {
-    this->sendValue(llvm::json::Value(t));
+  JsonIpcQueue(JsonIpcQueue &&) = default;
+  JsonIpcQueue &operator=(JsonIpcQueue &&) = default;
+  JsonIpcQueue(const JsonIpcQueue &) = delete;
+  JsonIpcQueue &operator=(const JsonIpcQueue &) = delete;
+
+  template <typename... Args>
+  static JsonIpcQueue create(std::string &&name, Args &&...args) {
+    JsonIpcQueue j{};
+    j.name = std::move(name);
+    j.queue = std::make_unique<BoostQueue>(boost::interprocess::create_only,
+                                           j.name.c_str(),
+                                           std::forward<Args>(args)...);
+    j.queueInit = QueueInit::CreateOnly;
+    return j;
+  }
+
+  static JsonIpcQueue open(std::string &&name) {
+    JsonIpcQueue j{};
+    j.name = std::move(name);
+    j.queue = std::make_unique<BoostQueue>(boost::interprocess::open_only,
+                                           j.name.c_str());
+    j.queueInit = QueueInit::OpenOnly;
+    return j;
+  }
+
+  /// The destructor removes the queue iff the constructor
+  /// created the queue.
+  ~JsonIpcQueue();
+
+  template <typename T>
+  [[nodiscard]] std::optional<boost::interprocess::interprocess_exception>
+  send(const T &t) {
+    return this->sendValue(llvm::json::Value(t));
   }
 
   enum class ReceiveStatus {

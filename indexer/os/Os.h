@@ -6,6 +6,8 @@
 
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <variant>
 
 namespace scip_clang {
 
@@ -27,6 +29,12 @@ bool amIBeingDebugged();
  *   - test the same executable outside of debugger without rebuilding.
  * */
 bool stopInDebugger();
+
+inline uint64_t availableSpaceUnknown = UINT64_MAX;
+
+/// Returns the available space for IPC messages in bytes
+/// or an error if we failed to determine that.
+std::variant<uint64_t, std::error_code> availableSpaceForIpc();
 
 } // namespace scip_clang
 

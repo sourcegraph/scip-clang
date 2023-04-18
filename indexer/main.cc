@@ -38,7 +38,9 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     cxxopts::value<std::string>(cliOptions.indexOutputPath)->default_value("index.scip"));
   parser.add_options("")(
     "j,jobs",
-    fmt::format("How many indexing processes to run in parallel? (default: NCPUs = {})", cliOptions.numWorkers),
+    fmt::format(
+      "Upper bound for number of indexing processes to run in parallel (default: NCPUs = {})",
+      cliOptions.numWorkers),
     cxxopts::value<uint32_t>(cliOptions.numWorkers));
   parser.add_options("")(
     "log-level",
@@ -56,6 +58,12 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     cxxopts::value<bool>(cliOptions.showCompilerDiagnostics));
   parser.add_options("")("version", "Show the version", cxxopts::value<bool>());
   parser.add_options("")("h,help", "Show help text", cxxopts::value<bool>());
+  parser.add_options("Advanced")(
+    "ipc-size-hint-bytes",
+    "A size hint for how space is available for IPC (per worker)."
+    " The actual space consumption may exceed this hint by ~15%.",
+    cxxopts::value<size_t>(cliOptions.ipcSizeHintBytes)->default_value("2000000"));
+    // ^ The default value of 2MB should be enough for typical invocations.
   parser.add_options("Advanced")(
     "print-statistics-path",
     "Print indexing related statistics in JSON format."

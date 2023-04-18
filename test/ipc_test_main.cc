@@ -63,7 +63,8 @@ static void toyWorkerMain(IpcOptions ipcOptions, Mode mode) {
     std::this_thread::sleep_for(ipcOptions.receiveTimeout * 5);
     // This reply is too late!
     IpcTestMessage reply{"no u"};
-    queues.workerToDriver.send(reply);
+    auto sendError = queues.workerToDriver.send(reply);
+    ENFORCE(!sendError.has_value());
   }
   }
 }
@@ -76,10 +77,8 @@ static void toyDriverMain(const char *testExecutablePath, IpcOptions ipcOptions,
   auto w2d = scip_clang::workerToDriverQueueName(ipcOptions.driverId);
   boost_ip::message_queue::remove(d2w.c_str());
   boost_ip::message_queue::remove(w2d.c_str());
-  JsonIpcQueue driverToWorker(std::make_unique<boost_ip::message_queue>(
-      boost_ip::create_only, d2w.c_str(), 1, 256));
-  JsonIpcQueue workerToDriver(std::make_unique<boost_ip::message_queue>(
-      boost_ip::create_only, w2d.c_str(), 1, 256));
+  auto driverToWorker = JsonIpcQueue::create(std::move(d2w), 1, 256);
+  auto workerToDriver = JsonIpcQueue::create(std::move(w2d), 1, 256);
 
   std::vector<std::string> args;
   args.push_back(std::string(testExecutablePath));
@@ -88,7 +87,8 @@ static void toyDriverMain(const char *testExecutablePath, IpcOptions ipcOptions,
   boost::process::child worker(args, boost::process::std_out > stdout);
 
   IpcTestMessage msg{"All your base are belong to us"};
-  driverToWorker.send(msg);
+  auto sendError = driverToWorker.send(msg);
+  ENFORCE(!sendError.has_value());
   IpcTestMessage reply;
   auto err = workerToDriver.timedReceive(reply, ipcOptions.receiveTimeout);
   ENFORCE(err.isA<TimeoutError>());
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
   } else {
     driverId = "ipc-test" + std::string(argv[1]);
   }
-  scip_clang::IpcOptions ipcOptions{1s, driverId, 0};
+  scip_clang::IpcOptions ipcOptions{32000, 1s, driverId, 0};
   Mode mode = ::modeFromString(argv[1]);
   if (argc == 3) {
     ::toyWorkerMain(ipcOptions, mode);

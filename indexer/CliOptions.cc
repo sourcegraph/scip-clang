@@ -11,7 +11,8 @@
 namespace scip_clang {
 
 IpcOptions CliOptions::ipcOptions() const {
-  return IpcOptions{this->receiveTimeout, this->driverId, this->workerId};
+  return IpcOptions{this->ipcSizeHintBytes, this->receiveTimeout,
+                    this->driverId, this->workerId};
 }
 
 HeaderFilter::HeaderFilter(std::string &&re) {
