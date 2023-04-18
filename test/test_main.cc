@@ -148,7 +148,7 @@ TEST_CASE("COMPDB_PARSING") {
       llvm::yaml::Output yamlOut(outStr);
       while (true) {
         std::vector<clang::tooling::CompileCommand> commands;
-        parser.parseMore(commands);
+        parser.parseMore(commands, /*checkFilesExist*/ false);
         if (commands.size() == 0) {
           break;
         }

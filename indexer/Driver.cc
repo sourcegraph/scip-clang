@@ -641,7 +641,11 @@ public:
                             tryAssignJobToWorker) {
     this->checkInvariants();
     size_t refillCount = refillJobs();
-    ENFORCE(refillCount > 0);
+    if (refillCount == 0) {
+      spdlog::error(
+          "compilation database has no entries that could be processed");
+      std::exit(EXIT_FAILURE);
+    }
     ENFORCE(this->pendingJobs.size() == refillCount);
     // NOTE(def: scheduling-invariant):
     // Jobs are refilled into the pending jobs list before WIP jobs are
