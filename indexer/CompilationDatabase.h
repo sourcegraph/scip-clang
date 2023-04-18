@@ -109,7 +109,8 @@ public:
 
   // Parses at most refillCount elements (passed during initialization)
   // from the compilation database passed during initialization.
-  void parseMore(std::vector<clang::tooling::CompileCommand> &out);
+  void parseMore(std::vector<clang::tooling::CompileCommand> &out,
+                 bool checkFilesExist = true);
 
 private:
   void tryInferResourceDir(std::vector<std::string> &commandLine);

@@ -541,7 +541,7 @@ void ResumableParser::initialize(CompilationDatabaseFile compdb,
 }
 
 void ResumableParser::parseMore(
-    std::vector<clang::tooling::CompileCommand> &out) {
+    std::vector<clang::tooling::CompileCommand> &out, bool checkFilesExist) {
   if (this->reader.IterativeParseComplete()) {
     if (this->reader.HasParseError()) {
       spdlog::error(
@@ -554,14 +554,48 @@ void ResumableParser::parseMore(
   ENFORCE(this->handler, "should've been handled by initializer method");
   ENFORCE(this->compDbStream, "should've been handled by initializer method");
 
-  while (!this->handler->reachedLimit()
-         && !this->reader.IterativeParseComplete()) {
-    this->reader.IterativeParseNext<rapidjson::kParseIterativeFlag>(
-        this->compDbStream.value(), this->handler.value());
+  std::string pathBuffer;
+  auto doesFileExist = [&](const std::string &path,
+                           const std::string &base) -> bool {
+    bool exists = false;
+    bool isAbsolute = false;
+    if (llvm::sys::path::is_absolute(path)) {
+      isAbsolute = true;
+      exists = llvm::sys::fs::exists(path);
+    } else {
+      pathBuffer.clear();
+      fmt::format_to(std::back_inserter(pathBuffer), "{}{}{}", base,
+                     std::filesystem::path::preferred_separator, path);
+      exists = llvm::sys::fs::exists(pathBuffer);
+    }
+    if (!exists) {
+      spdlog::warn(
+          R"("file": "{}" in compilation database{} not found on disk)", path,
+          isAbsolute ? "" : fmt::format(" (in directory '{}')", base));
+    }
+    return exists;
+  };
+
+  size_t initialSize = out.size();
+  while (out.size() == initialSize) {
+    while (!this->handler->reachedLimit()
+           && !this->reader.IterativeParseComplete()) {
+      this->reader.IterativeParseNext<rapidjson::kParseIterativeFlag>(
+          this->compDbStream.value(), this->handler.value());
+    }
+    if (this->handler->commands.size() == 0) {
+      break;
+    }
+    std::string pathBuffer;
+    for (auto &cmd : this->handler->commands) {
+      if (checkFilesExist && !doesFileExist(cmd.Filename, cmd.Directory)) {
+        continue;
+      }
+      out.emplace_back(std::move(cmd));
+    }
+    this->handler->commands.clear();
   }
-  for (auto &cmd : this->handler->commands) {
-    out.emplace_back(std::move(cmd));
-  }
+
   if (this->inferResourceDir) {
     for (auto &cmd : out) {
       if (cmd.CommandLine.empty()) {
@@ -570,7 +604,6 @@ void ResumableParser::parseMore(
       this->tryInferResourceDir(cmd.CommandLine);
     }
   }
-  this->handler->commands.clear();
 }
 
 void ResumableParser::tryInferResourceDir(
