@@ -2,8 +2,8 @@
 cc_library(
     name = "os",
     srcs = [
-        "Os.h",
         "Os.cc",
+        "Os.h",
     ] + select({
         "@platforms//os:linux": ["Linux.cc"],
         "@platforms//os:macos": ["macOS.cc"],
