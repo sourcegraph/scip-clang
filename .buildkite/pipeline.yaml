@@ -17,7 +17,7 @@ steps:
 
       ./tools/lint.sh
 
-      bazel build //... --bazelrc=.aspect/bazelrc/ci.bazelrc
+      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... 
 
       # Don't use //... as that will also try to update snapshots
-      bazel test //test --test_output=errors --bazelrc=.aspect/bazelrc/ci.bazelrc
+      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test 
