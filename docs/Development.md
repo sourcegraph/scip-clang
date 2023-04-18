@@ -13,6 +13,7 @@
   - [Inspecting Clang ASTs](#inspecting-clang-asts)
   - [Automated test case reduction](#automated-test-case-reduction)
   - [Debugging preprocessor issues](#debugging-preprocessor-issues)
+- [Publishing releases](#publishing-releases)
 - [Implementation notes](#implementation-notes)
 - [Notes on Clang internals](#notes-on-clang-internals)
 
@@ -202,6 +203,20 @@ One can check that the structure of the YAML file matches what we expect
 bazel build //tools:analyze_pp_trace
 ./bazel-bin/tools/analyze_pp_trace --yaml-path pp-trace.yaml
 ```
+
+## Publishing releases
+
+1. Land a PR with the following:
+   - A [CHANGELOG](/CHANGELOG.md) entry.
+   - Version bump in [Version.h](/indexer/Version.h).
+2. Once the PR is merged to main, run:
+   ```bash
+   NEW_VERSION="vM.N.P" bash -c 'git checkout main && git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"'
+   ```
+
+The release workflow can also be triggered against any branch
+in a "dry run" mode using the
+[GitHub Actions UI](https://github.com/sourcegraph/scip-clang/actions/workflows/release.yml).
 
 ## Implementation notes
 
