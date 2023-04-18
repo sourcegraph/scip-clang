@@ -592,10 +592,25 @@ public:
     return IndexJobRequest{it->first, it->second};
   }
 
+  void checkCurrentJob(WorkerId workerId, JobId jobId) const {
+    auto workerCurrentJob = this->workers[workerId].currentlyProcessing;
+    if (workerCurrentJob == jobId) {
+      return;
+    }
+    if (workerCurrentJob.has_value()) {
+      ENFORCE_OR_WARN(workerCurrentJob == jobId,
+                      "worker's current job is {} but expected {}",
+                      *workerCurrentJob, jobId);
+    } else {
+      ENFORCE_OR_WARN(workerCurrentJob == jobId,
+                      "worker has no current job, but expected {}", jobId);
+    }
+  }
+
   /// Undoes the state changes involved in scheduling a task onto a worker.
   void descheduleJobDueToSendError(WorkerId workerId, JobId jobId) {
     spdlog::debug("descheduling job {} from worker {}", jobId, workerId);
-    ENFORCE(this->workers[workerId].currentlyProcessing == jobId);
+    this->checkCurrentJob(workerId, jobId);
     this->markWorkerIdle(workerId);
     bool erased = this->wipJobs.erase(jobId);
     ENFORCE(erased, "job should've been marked WIP");
@@ -604,7 +619,8 @@ public:
 
   [[nodiscard]] LatestIdleWorkerId markCompleted(WorkerId workerId, JobId jobId,
                                                  IndexJob::Kind responseKind) {
-    ENFORCE(this->workers[workerId].currentlyProcessing == jobId);
+    spdlog::debug("marking job {} completed by {}", jobId, workerId);
+    this->checkCurrentJob(workerId, jobId);
     this->markWorkerIdle(workerId);
     bool erased = wipJobs.erase(jobId);
     ENFORCE(erased, "received response for job not marked WIP");
