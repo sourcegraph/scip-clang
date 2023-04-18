@@ -1318,7 +1318,7 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   JobId emitIndexRequestId;
   unsigned callbackInvoked = 0;
   auto callback =
-      [this, semaRequestId, &innerStatus, &emitIndexRequestId,
+      [this, semaRequestId, &innerStatus, &emitIndexRequestId, &tuMainFilePath,
        &callbackInvoked](SemanticAnalysisJobResult &&semaResult,
                          EmitIndexJobDetails &emitIndexDetails) -> bool {
     callbackInvoked++;
@@ -1335,14 +1335,25 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
       return true;
     }
     this->sendResult(semaRequestId,
-                     IndexJobResult{.kind = IndexJob::Kind::SemanticAnalysis,
-                                    .semanticAnalysis = std::move(semaResult)});
+                     IndexJobResult{IndexJob::Kind::SemanticAnalysis,
+                                    std::move(semaResult),
+                                    EmitIndexJobResult{}});
     IndexJobRequest emitIndexRequest{};
     innerStatus = this->waitForRequest(emitIndexRequest);
     if (innerStatus != ReceiveStatus::OK) {
       return false;
     }
-    ENFORCE(emitIndexRequest.job.kind == IndexJob::Kind::EmitIndex);
+    if (emitIndexRequest.id == JobId::Shutdown()) {
+      spdlog::warn(
+          "expected EmitIndex request for '{}' but got Shutdown signal",
+          tuMainFilePath);
+      std::exit(EXIT_FAILURE);
+    }
+    ENFORCE(emitIndexRequest.job.kind == IndexJob::Kind::EmitIndex,
+            "expected EmitIndex request for '{}' but got SemanticAnalysis "
+            "request for '{}'",
+            tuMainFilePath,
+            emitIndexRequest.job.semanticAnalysis.command.Filename);
     emitIndexDetails = std::move(emitIndexRequest.job.emitIndex);
     emitIndexRequestId = emitIndexRequest.id;
     return true;
@@ -1398,8 +1409,9 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
                  AbsolutePath{forwardDeclsOutputPath.string()}}};
 
   this->sendResult(emitIndexRequestId,
-                   IndexJobResult{.kind = IndexJob::Kind::EmitIndex,
-                                  .emitIndex = std::move(emitIndexResult)});
+                   IndexJobResult{IndexJob::Kind::EmitIndex,
+                                  SemanticAnalysisJobResult{},
+                                  std::move(emitIndexResult)});
   return Worker::ReceiveStatus::OK;
 }
 
@@ -1457,8 +1469,8 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
     auto &command = this->compileCommands[this->commandIndex];
     ++this->commandIndex;
     request.job =
-        IndexJob{.kind = IndexJob::Kind::SemanticAnalysis,
-                 .semanticAnalysis = SemanticAnalysisJobDetails{command}};
+        IndexJob{IndexJob::Kind::SemanticAnalysis,
+                 SemanticAnalysisJobDetails{command}, EmitIndexJobDetails{}};
     return Status::OK;
   }
 

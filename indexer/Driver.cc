@@ -948,8 +948,9 @@ private:
       queue.send(this->scheduler.createSubtaskAndScheduleOnWorker(
           latestIdleWorkerId, response.jobId,
           IndexJob{
-              .kind = IndexJob::Kind::EmitIndex,
-              .emitIndex = EmitIndexJobDetails{std::move(filesToBeIndexed)},
+              IndexJob::Kind::EmitIndex,
+              SemanticAnalysisJobDetails{},
+              EmitIndexJobDetails{std::move(filesToBeIndexed)},
           }));
       break;
     }
