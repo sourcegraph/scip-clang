@@ -3,12 +3,8 @@ steps:
   - label: ":bazel: Build and Test"
     agents:
       queue: bazel
-    env:
-      CI_BAZEL_REMOTE_CACHE: "https://storage.googleapis.com/sourcegraph_bazel_cache"
     key: build
     command: |
-      echo build --remote_cache=$$CI_BAZEL_REMOTE_CACHE --google_credentials=/mnt/gcloud-service-account/gcloud-service-account.json > ci.bazelrc
-
       ./tools/reformat.sh
       if ! git diff --quiet; then
         git diff
@@ -21,7 +17,7 @@ steps:
 
       ./tools/lint.sh
 
-      bazel build //... --config=ci
+      bazel build //...
 
       # Don't use //... as that will also try to update snapshots
-      bazel test //test --test_output=errors --config=ci
+      bazel test //test --test_output=errors
