@@ -128,7 +128,7 @@ for each translation unit in which the header is included.
 
 ## Troubleshooting
 
-See the [Troubleshooting docs](/Troubleshooting.md).
+See the [Troubleshooting docs](/docs/Troubleshooting.md).
 
 ## Reporting issues
 
