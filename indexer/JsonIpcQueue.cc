@@ -67,6 +67,7 @@ char TimeoutError::ID = 0;
 [[nodiscard]] std::optional<boost::interprocess::interprocess_exception>
 JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
   auto buffer = llvm_ext::format(jsonValue);
+  auto prevSize = this->queue->get_num_msg();
   BOOST_TRY {
     this->queue->send(buffer.c_str(), buffer.size(), 1);
   }
@@ -86,6 +87,8 @@ JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
     return ex;
   }
   BOOST_CATCH_END
+  spdlog::debug("queue '{}' size: {} -> {}", this->name, prevSize,
+                this->queue->get_num_msg());
   return {};
 }
 

@@ -350,6 +350,11 @@ struct LatestIdleWorkerId {
 
 struct TusIndexedCount {
   unsigned value = 0;
+
+  TusIndexedCount &operator+=(const TusIndexedCount &other) {
+    this->value += other.value;
+    return *this;
+  }
 };
 
 /// Type that decides which files to emit symbols and occurrences for
@@ -655,7 +660,7 @@ public:
   }
 
   struct RunCallbacks {
-    absl::FunctionRef<void()> processOneJobResult;
+    absl::FunctionRef<void()> processOneOrMoreJobResults;
 
     /// \c refillJobs should stay fixed at 0 once it reaches 0.
     absl::FunctionRef<size_t()> refillJobs;
@@ -714,7 +719,7 @@ public:
         }
       }
       ENFORCE(!this->wipJobs.empty());
-      callbacks.processOneJobResult();
+      callbacks.processOneOrMoreJobResults();
     }
     this->checkInvariants();
     ENFORCE(this->idleWorkers.size() == 0);
@@ -1087,7 +1092,7 @@ private:
     this->scheduler.runJobsTillCompletionAndShutdownWorkers(
         Scheduler::RunCallbacks{
             [this, &tusIndexedCount]() -> void {
-              tusIndexedCount.value += this->processOneJobResult().value;
+              tusIndexedCount += this->processOneOrMoreJobResults();
             },
             [this]() -> size_t { return this->refillJobs(); },
             [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> bool {
@@ -1213,7 +1218,7 @@ private:
     return tusIndexedCount;
   }
 
-  TusIndexedCount processOneJobResult() {
+  TusIndexedCount processOneOrMoreJobResults() {
     using namespace std::chrono_literals;
     auto workerTimeout = this->receiveTimeout();
     TusIndexedCount tusIndexedCount{};
@@ -1232,6 +1237,9 @@ private:
       spdlog::debug("received response for {} from worker {}", response.jobId,
                     response.workerId);
       tusIndexedCount = this->processWorkerResponse(std::move(response));
+      while (this->queues.workerToDriver.tryReceiveInstant(response)) {
+        tusIndexedCount += this->processWorkerResponse(std::move(response));
+      }
     }
     auto now = std::chrono::steady_clock::now();
     this->killLongRunningWorkersAndRespawn(now - workerTimeout);

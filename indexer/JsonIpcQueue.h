@@ -81,6 +81,15 @@ public:
     ParseSuccess,
   };
 
+  template <typename T> bool tryReceiveInstant(T &t) {
+    if (this->queue->get_num_msg() == 0) {
+      return false;
+    }
+    auto recvError = this->timedReceive(t, std::chrono::seconds(0));
+    ENFORCE(!recvError);
+    return true;
+  }
+
   template <typename T>
   llvm::Error timedReceive(T &t, std::chrono::seconds waitDuration) {
     auto durationMillis =
