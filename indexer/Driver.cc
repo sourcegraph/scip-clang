@@ -569,6 +569,20 @@ public:
     }
   }
 
+  void waitForAllWorkers() {
+    for (size_t workerId = 0; workerId < this->workers.size(); workerId++) {
+      auto &worker = this->workers[workerId];
+      BOOST_TRY {
+        worker.processHandle.wait_for(std::chrono::seconds(1));
+      }
+      BOOST_CATCH(boost::process::process_error & error) {
+        spdlog::warn("driver got error when waiting for child {} to exit: {}",
+                     workerId, error.what());
+      }
+      BOOST_CATCH_END
+    }
+  }
+
   void queueNewTask(IndexJob &&j) {
     auto jobId = JobId::newTask(this->nextTaskId);
     this->nextTaskId++;
@@ -653,15 +667,8 @@ public:
     absl::FunctionRef<bool(ToBeScheduledWorkerId &&, JobId)>
         tryAssignJobToWorker;
 
-    absl::FunctionRef<void(WorkerId, Process &)> shutdownWorker;
+    absl::FunctionRef<void(WorkerId)> shutdownWorker;
   };
-
-  void shutdown(WorkerId workerId,
-                absl::FunctionRef<void(WorkerId, Process &)> shutdownWorker) {
-    this->markWorkerStopped(workerId);
-    auto &workerInfo = this->workers[workerId];
-    shutdownWorker(workerId, workerInfo.processHandle);
-  }
 
   // Returns number of translation units indexed.
   void runJobsTillCompletionAndShutdownWorkers(RunCallbacks callbacks) {
@@ -677,7 +684,8 @@ public:
       while (!this->idleWorkers.empty()) {
         auto workerId = this->idleWorkers.back();
         this->idleWorkers.pop_back();
-        this->shutdown(workerId, callbacks.shutdownWorker);
+        this->markWorkerStopped(workerId);
+        callbacks.shutdownWorker(workerId);
       }
     };
 
@@ -1062,7 +1070,7 @@ private:
     return commands.size();
   }
 
-  void shutdownWorker(WorkerId workerId, Scheduler::Process &worker) {
+  void shutdownWorker(WorkerId workerId) {
     auto sendError = this->queues.driverToWorker[workerId].send(
         IndexJobRequest{JobId::Shutdown(), {}});
     ENFORCE(
@@ -1070,14 +1078,6 @@ private:
         "shutdown messages are tiny and shouldn't fail to send, but got: {}",
         sendError->what());
     (void)sendError;
-    BOOST_TRY {
-      worker.wait_for(std::chrono::seconds(1));
-    }
-    BOOST_CATCH(boost::process::process_error & error) {
-      spdlog::warn("driver got error when waiting for child {} to exit: {}",
-                   workerId, error.what());
-    }
-    BOOST_CATCH_END
   }
 
   /// Returns the number of TUs processed
@@ -1092,9 +1092,8 @@ private:
             [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> bool {
               return this->tryAssignJobToWorker(std::move(workerId), jobId);
             },
-            [this](WorkerId workerId, Scheduler::Process &worker) {
-              this->shutdownWorker(workerId, worker);
-            }});
+            [this](WorkerId workerId) { this->shutdownWorker(workerId); }});
+    this->scheduler.waitForAllWorkers();
     return tusIndexedCount;
   }
 
