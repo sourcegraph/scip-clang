@@ -9,6 +9,7 @@ Status: Ready for early adopters.
 
 - [Supported Platforms](#supported-platforms)
 - [Quick Start](#quick-start)
+- [System Requirements](#system-requirements)
 - [Usage](#usage)
   - [Generating a compilation database](#generating-a-compilation-database)
   - [Building code](#building-code)
@@ -65,7 +66,19 @@ which can be uploaded to a Sourcegraph instance using
 src code-intel upload -file=index.scip
 ```
 
-The next section covers more general usage.
+See the [Usage](#usage) section for step-by-step instructions.
+
+## System Requirements
+
+1. About 2MB of temporary space per compilation database entry.
+   ```bash
+   echo "$(perl -e "print $(jq 'length' build/compile_commands.json) / 512.0") GB"
+   ```
+2. On Linux, about 2MB of space in `/dev/shm` per core (`df -h /dev/shm`).
+   This may particularly be an issue when using Docker on a high core
+   count machine, as default size of `/dev/shm` in Docker is 64MB.
+   See also: how to [troubleshoot low disk space for IPC](/docs/Troubleshooting.md#disk-space-for-ipc).
+3. We recommend have 2GB RAM per core.
 
 ## Usage
 
