@@ -170,6 +170,7 @@ struct WorkerInfo {
   enum class Status {
     Busy,
     Idle,
+    Stopped,
   } status;
 
   boost::process::child processHandle;
@@ -347,6 +348,10 @@ struct LatestIdleWorkerId {
   WorkerId id;
 };
 
+struct TusIndexedCount {
+  unsigned value = 0;
+};
+
 /// Type that decides which files to emit symbols and occurrences for
 /// given a set of paths+hashes emitted by a worker.
 ///
@@ -426,6 +431,11 @@ class Scheduler final {
   /// Values are indexes into \c workers.
   std::deque<unsigned> idleWorkers;
 
+  /// Keep track of which workers have been stopped.
+  ///
+  /// Values are indexes into \c workers.
+  std::vector<unsigned> stoppedWorkers;
+
   /// Monotonically growing counter.
   uint32_t nextTaskId = 0;
   /// Monotonically growing map of all jobs that have been created so far.
@@ -440,17 +450,21 @@ class Scheduler final {
   /// FIFO queue holding jobs which haven't been scheduled yet.
   /// Elements must be valid keys in allJobList.
   ///
-  /// ∀ j ∈ pendingJobs, ∄ w ∈ workers. w.currentlyProcessing == p
+  /// ∀ j ∈ pendingJobs, ∄ w ∈ workers. w.currentlyProcessing == j
   std::deque<JobId> pendingJobs;
 
   /// Jobs that have been scheduled but not known to be completed.
   /// Elements must be valid keys in allJobList.
   ///
-  /// ∀ j ∈ pendingJobs, |{w ∈ workers | w.currentlyProcessing == p}| == 1
+  /// ∀ j ∈ wipJobs, |{w ∈ workers | w.currentlyProcessing == p}| == 1
   absl::flat_hash_set<JobId> wipJobs;
 
-  // TODO(def: track-errored-jobs)
-  // Create a flat_hash_set here and track which jobs ran into errors.
+  /// Jobs that completed with errors.
+  /// Elements must be valid keys in allJobList.
+  ///
+  /// ∀ j ∈ erroredJobs, ∄ w ∈ workers. w.currentlyProcessing == j
+  absl::flat_hash_set<JobId> erroredJobs;
+
 public:
   using Process = boost::process::child;
 
@@ -459,11 +473,12 @@ public:
   }
 
   void checkInvariants() const {
+    // clang-format off
     ENFORCE(
-        this->wipJobs.size() + this->idleWorkers.size() == this->workers.size(),
-        "wipJobs.size() ({}) + idleWorkers.size() ({}) != "
-        "workers.size() ({})",
-        this->wipJobs.size(), this->idleWorkers.size(), this->workers.size());
+        this->wipJobs.size() + this->idleWorkers.size() + this->stoppedWorkers.size() == this->workers.size(),
+        "wipJobs.size() ({}) + idleWorkers.size() ({}) + stoppedWorkers.size() ({}) != workers.size() ({})",
+        this->wipJobs.size(), this->idleWorkers.size(), this->stoppedWorkers.size(), this->workers.size());
+    // clang-format on
   }
 
   /// \p spawn should only create the process; it should not call back
@@ -517,6 +532,7 @@ public:
                  workerInfo.processHandle.id());
     auto oldJobId = workerInfo.currentlyProcessing.value();
     bool erased = this->wipJobs.erase(oldJobId);
+    this->erroredJobs.insert(oldJobId);
     ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
     spdlog::warn("skipping job {} due to {}", oldJobId, cause);
     this->logJobSkip(oldJobId);
@@ -540,6 +556,7 @@ public:
       auto &workerInfo = this->workers[workerId];
       switch (workerInfo.status) {
       case WorkerInfo::Status::Idle:
+      case WorkerInfo::Status::Stopped:
         continue;
       case WorkerInfo::Status::Busy:
         if (workerInfo.startTime < startedBefore) {
@@ -549,12 +566,6 @@ public:
               });
         }
       }
-    }
-  }
-
-  void waitForAllWorkers() {
-    for (auto &worker : this->workers) {
-      worker.processHandle.wait();
     }
   }
 
@@ -629,25 +640,47 @@ public:
     return LatestIdleWorkerId{workerId};
   }
 
-  /// Pre-condition: \p refillJobs should stay fixed at 0 once it reaches 0.
-  ///
-  /// \p tryAssignJobToWorker will attempt to call one of the scheduling
-  /// routines to mark the job as 'scheduled', and then send a job to
-  /// the worker. If sending the job fails, it should call the appropriate
-  /// descheduling routine. It should return true if the assignment succeeded.
-  void
-  runJobsTillCompletion(absl::FunctionRef<void()> processOneJobResult,
-                        absl::FunctionRef<size_t()> refillJobs,
-                        absl::FunctionRef<bool(ToBeScheduledWorkerId &&, JobId)>
-                            tryAssignJobToWorker) {
+  struct RunCallbacks {
+    absl::FunctionRef<void()> processOneJobResult;
+
+    /// \c refillJobs should stay fixed at 0 once it reaches 0.
+    absl::FunctionRef<size_t()> refillJobs;
+
+    /// \c tryAssignJobToWorker will attempt to call one of the scheduling
+    /// routines to mark the job as 'scheduled', and then send a job to
+    /// the worker. If sending the job fails, it should call the appropriate
+    /// descheduling routine. It should return true if the assignment succeeded.
+    absl::FunctionRef<bool(ToBeScheduledWorkerId &&, JobId)>
+        tryAssignJobToWorker;
+
+    absl::FunctionRef<void(WorkerId, Process &)> shutdownWorker;
+  };
+
+  void shutdown(WorkerId workerId,
+                absl::FunctionRef<void(WorkerId, Process &)> shutdownWorker) {
+    this->markWorkerStopped(workerId);
+    auto &workerInfo = this->workers[workerId];
+    shutdownWorker(workerId, workerInfo.processHandle);
+  }
+
+  // Returns number of translation units indexed.
+  void runJobsTillCompletionAndShutdownWorkers(RunCallbacks callbacks) {
     this->checkInvariants();
-    size_t refillCount = refillJobs();
+    size_t refillCount = callbacks.refillJobs();
     if (refillCount == 0) {
       spdlog::error(
           "compilation database has no entries that could be processed");
       std::exit(EXIT_FAILURE);
     }
     ENFORCE(this->pendingJobs.size() == refillCount);
+    auto shutdownIdleWorkers = [this, &callbacks]() {
+      while (!this->idleWorkers.empty()) {
+        auto workerId = this->idleWorkers.back();
+        this->idleWorkers.pop_back();
+        this->shutdown(workerId, callbacks.shutdownWorker);
+      }
+    };
+
     // NOTE(def: scheduling-invariant):
     // Jobs are refilled into the pending jobs list before WIP jobs are
     // marked as completed. This means that if there is at least one TU
@@ -657,19 +690,28 @@ public:
       this->checkInvariants();
       if (this->pendingJobs.empty()) {
         if (this->wipJobs.empty()) {
+          shutdownIdleWorkers();
           break;
-        } else if (refillCount != 0) {
-          refillCount = refillJobs();
         }
-      } else if (!this->idleWorkers.empty()) {
-        this->assignJobsToIdleWorkers(tryAssignJobToWorker);
+        if (refillCount != 0) { // see comment for RunCallbacks.refillJobs
+          refillCount = callbacks.refillJobs();
+          ENFORCE(refillCount == this->pendingJobs.size());
+        }
+      }
+      if (!this->idleWorkers.empty()) {
+        if (this->pendingJobs.empty()) {
+          shutdownIdleWorkers();
+        } else {
+          this->assignJobsToIdleWorkers(callbacks.tryAssignJobToWorker);
+        }
       }
       ENFORCE(!this->wipJobs.empty());
-      processOneJobResult();
+      callbacks.processOneJobResult();
     }
     this->checkInvariants();
-    ENFORCE(this->idleWorkers.size() == this->workers.size(),
-            "all workers should be idle after jobs have been completed");
+    ENFORCE(this->idleWorkers.size() == 0);
+    ENFORCE(this->stoppedWorkers.size() == this->workers.size(),
+            "all workers should be stopped after jobs have been completed");
   }
 
 private:
@@ -696,6 +738,16 @@ private:
     ENFORCE(!nextWorkerInfo.currentlyProcessing.has_value());
     nextWorkerInfo.currentlyProcessing = {newJobId};
     nextWorkerInfo.startTime = std::chrono::steady_clock::now();
+  }
+
+  void markWorkerStopped(WorkerId workerId) {
+    auto &workerInfo = this->workers[workerId];
+    ENFORCE(!workerInfo.currentlyProcessing.has_value(),
+            "shutting down worker {} working on {}", workerId,
+            workerInfo.currentlyProcessing.value());
+    ENFORCE(workerInfo.status == WorkerInfo::Status::Idle);
+    workerInfo.status = WorkerInfo::Status::Stopped;
+    this->stoppedWorkers.push_back(workerId);
   }
 
   /// \p tryAssignJobToWorker will attempt to call one of the scheduling
@@ -793,7 +845,7 @@ public:
 
   void run() {
     ManualTimer total, indexing, merging;
-    unsigned numTus;
+    TusIndexedCount numTus;
 
     TIME_IT(total, {
       auto compdbGuard = this->openCompilationDatabase();
@@ -808,7 +860,7 @@ public:
     using secs = std::chrono::seconds;
     fmt::print("Finished indexing {} translation units in {:.1f}s (indexing: "
                "{:.1f}s, merging: {:.1f}s).\n",
-               numTus, total.value<secs>(), indexing.value<secs>(),
+               numTus.value, total.value<secs>(), indexing.value<secs>(),
                merging.value<secs>());
   }
 
@@ -1010,22 +1062,40 @@ private:
     return commands.size();
   }
 
+  void shutdownWorker(WorkerId workerId, Scheduler::Process &worker) {
+    auto sendError = this->queues.driverToWorker[workerId].send(
+        IndexJobRequest{JobId::Shutdown(), {}});
+    ENFORCE(
+        !sendError.has_value(),
+        "shutdown messages are tiny and shouldn't fail to send, but got: {}",
+        sendError->what());
+    (void)sendError;
+    BOOST_TRY {
+      worker.wait_for(std::chrono::seconds(1));
+    }
+    BOOST_CATCH(boost::process::process_error & error) {
+      spdlog::warn("driver got error when waiting for child {} to exit: {}",
+                   workerId, error.what());
+    }
+    BOOST_CATCH_END
+  }
+
   /// Returns the number of TUs processed
-  unsigned runJobsTillCompletionAndShutdownWorkers() {
-    unsigned numJobs = 0;
-    this->scheduler.runJobsTillCompletion(
-        [this, &numJobs]() -> void {
-          this->processOneJobResult();
-          numJobs++;
-        },
-        [this]() -> size_t { return this->refillJobs(); },
-        [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> bool {
-          return this->tryAssignJobToWorker(std::move(workerId), jobId);
-        });
-    this->shutdownAllWorkers();
-    this->scheduler.waitForAllWorkers();
-    // FIXME: This estimate will be wrong in the presence of IPC failures...
-    return numJobs / 2; // Each TU has exactly 2 jobs.
+  TusIndexedCount runJobsTillCompletionAndShutdownWorkers() {
+    TusIndexedCount tusIndexedCount{};
+    this->scheduler.runJobsTillCompletionAndShutdownWorkers(
+        Scheduler::RunCallbacks{
+            [this, &tusIndexedCount]() -> void {
+              tusIndexedCount.value += this->processOneJobResult().value;
+            },
+            [this]() -> size_t { return this->refillJobs(); },
+            [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> bool {
+              return this->tryAssignJobToWorker(std::move(workerId), jobId);
+            },
+            [this](WorkerId workerId, Scheduler::Process &worker) {
+              this->shutdownWorker(workerId, worker);
+            }});
+    return tusIndexedCount;
   }
 
   FileGuard openCompilationDatabase() {
@@ -1076,7 +1146,8 @@ private:
 
   void processSemanticAnalysisResult(SemanticAnalysisJobResult &&) {}
 
-  void processWorkerResponse(IndexJobResponse &&response) {
+  TusIndexedCount processWorkerResponse(IndexJobResponse &&response) {
+    TusIndexedCount tusIndexedCount{};
     auto latestIdleWorkerId = this->scheduler.markCompleted(
         response.workerId, response.jobId, response.result.kind);
     switch (response.result.kind) {
@@ -1124,7 +1195,7 @@ private:
               oldHandle.terminate();
               return this->spawnWorker(workerId);
             });
-        return;
+        return tusIndexedCount;
       }
       break;
     }
@@ -1135,15 +1206,17 @@ private:
                                          std::move(result.statistics));
       }
       this->shardPaths.emplace_back(std::move(result.shardPaths));
+      tusIndexedCount.value += 1;
       break;
     }
     }
+    return tusIndexedCount;
   }
 
-  void processOneJobResult() {
+  TusIndexedCount processOneJobResult() {
     using namespace std::chrono_literals;
     auto workerTimeout = this->receiveTimeout();
-
+    TusIndexedCount tusIndexedCount{};
     IndexJobResponse response;
     auto recvError =
         this->queues.workerToDriver.timedReceive(response, workerTimeout);
@@ -1158,10 +1231,11 @@ private:
     } else {
       spdlog::debug("received response for {} from worker {}", response.jobId,
                     response.workerId);
-      this->processWorkerResponse(std::move(response));
+      tusIndexedCount = this->processWorkerResponse(std::move(response));
     }
     auto now = std::chrono::steady_clock::now();
     this->killLongRunningWorkersAndRespawn(now - workerTimeout);
+    return tusIndexedCount;
   }
 
   // Assign a job to a specific worker. When this method is called,
@@ -1181,18 +1255,6 @@ private:
       return false;
     }
     return true;
-  }
-
-  void shutdownAllWorkers() {
-    for (unsigned i = 0; i < this->numWorkers(); ++i) {
-      auto sendError = this->queues.driverToWorker[i].send(
-          IndexJobRequest{JobId::Shutdown(), {}});
-      ENFORCE(
-          !sendError.has_value(),
-          "shutdown messages are tiny and shouldn't fail to send, but got: {}",
-          sendError->what());
-      (void)sendError;
-    }
   }
 };
 
