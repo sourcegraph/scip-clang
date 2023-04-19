@@ -1,5 +1,15 @@
 # scip-clang ChangeLog
 
+## v0.0.5 (testing)
+
+- Fixed spurious error messages showing up during shutdown,
+  where worker and driver both wait for each other.
+  (https://github.com/sourcegraph/scip-clang/pull/214)
+- We now check that the `"file"` keys in a compilation database
+  reference files that actually exist on disk, before starting indexing.
+  This prevents an assertion from being triggered due to indexing failure.
+  (https://github.com/sourcegraph/scip-clang/pull/209)
+
 ## v0.0.4 (testing)
 
 - Improved handling and docs for IPC-related errors, such as when
