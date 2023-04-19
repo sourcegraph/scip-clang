@@ -52,12 +52,12 @@
     }                                                                        \
   } while (false);
 
-#define ENFORCE_OR_WARN(_check, ...) \
-  do {                               \
-    ENFORCE(_check, __VA_ARGS__);    \
-    if (!::scip_clang::debugMode) {  \
-      spdlog::warn(__VA_ARGS__);     \
-    }                                \
+#define ENFORCE_OR_WARN(_check, ...)          \
+  do {                                        \
+    ENFORCE(_check, __VA_ARGS__);             \
+    if (!::scip_clang::debugMode && _check) { \
+      spdlog::warn(__VA_ARGS__);              \
+    }                                         \
   } while (false);
 
 namespace scip_clang {
