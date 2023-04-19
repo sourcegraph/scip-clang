@@ -409,7 +409,8 @@ public:
     auto it = this->hashesSoFar.find(absPath);
     if (it == this->hashesSoFar.end()) {
       spdlog::warn("found path '{}' with no recorded hashes; this is likely a "
-                   "scip-clang bug");
+                   "scip-clang bug",
+                   absPath.asStringRef());
       return MultiplyIndexed::Unknown;
     }
     if (it->second.size() > 1) {
