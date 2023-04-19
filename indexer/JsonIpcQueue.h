@@ -40,6 +40,9 @@ class JsonIpcQueue final {
   std::unique_ptr<BoostQueue> queue;
   std::string name;
   QueueInit queueInit;
+  std::vector<char> scratchBuffer;
+  /// The number of bytes read during the last receive call.
+  size_t prevRecvCount = 0;
 
   [[nodiscard]] std::optional<boost::interprocess::interprocess_exception>
   sendValue(const llvm::json::Value &t);
@@ -50,32 +53,17 @@ class JsonIpcQueue final {
 
 public:
   // Available for MessageQueues's constructor. DO NOT CALL DIRECTLY.
-  JsonIpcQueue() : queue(), name(), queueInit(QueueInit::OpenOnly) {}
+  JsonIpcQueue()
+      : queue(), name(), queueInit(QueueInit::OpenOnly), scratchBuffer() {}
 
   JsonIpcQueue(JsonIpcQueue &&) = default;
   JsonIpcQueue &operator=(JsonIpcQueue &&) = default;
   JsonIpcQueue(const JsonIpcQueue &) = delete;
   JsonIpcQueue &operator=(const JsonIpcQueue &) = delete;
 
-  template <typename... Args>
-  static JsonIpcQueue create(std::string &&name, Args &&...args) {
-    JsonIpcQueue j{};
-    j.name = std::move(name);
-    j.queue = std::make_unique<BoostQueue>(boost::interprocess::create_only,
-                                           j.name.c_str(),
-                                           std::forward<Args>(args)...);
-    j.queueInit = QueueInit::CreateOnly;
-    return j;
-  }
-
-  static JsonIpcQueue open(std::string &&name) {
-    JsonIpcQueue j{};
-    j.name = std::move(name);
-    j.queue = std::make_unique<BoostQueue>(boost::interprocess::open_only,
-                                           j.name.c_str());
-    j.queueInit = QueueInit::OpenOnly;
-    return j;
-  }
+  static JsonIpcQueue create(std::string &&name, size_t maxMsgCount,
+                             size_t maxMsgSize);
+  static JsonIpcQueue open(std::string &&name);
 
   /// The destructor removes the queue iff the constructor
   /// created the queue.
