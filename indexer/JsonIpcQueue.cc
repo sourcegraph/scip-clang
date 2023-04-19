@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -13,7 +14,42 @@
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/LlvmAdapter.h"
 
+static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
+  // Boost internally uses a spin-sleep loop which compares the passed end
+  // instant against the current instant in UTC.
+  // https://sourcegraph.com/github.com/boostorg/interprocess@4403b201bef142f07cdc43f67bf6477da5e07fe3/-/blob/include/boost/interprocess/sync/spin/condition.hpp?L171
+  // So use universal_time here instead of local_time.
+  auto now = boost::posix_time::microsec_clock::universal_time();
+  auto after = now + boost::posix_time::milliseconds(durationMillis);
+  // Hint: Use boost::posix_time::to_simple_string to debug if needed.
+  return after;
+}
+
 namespace scip_clang {
+
+// static
+JsonIpcQueue JsonIpcQueue::create(std::string &&name, size_t maxMsgCount,
+                                  size_t maxMsgSize) {
+  JsonIpcQueue j{};
+  j.name = std::move(name);
+  j.queue =
+      std::make_unique<BoostQueue>(boost::interprocess::create_only,
+                                   j.name.c_str(), maxMsgCount, maxMsgSize);
+  j.queueInit = QueueInit::CreateOnly;
+  j.scratchBuffer.resize(j.queue->get_max_msg_size());
+  return j;
+}
+
+// static
+JsonIpcQueue JsonIpcQueue::open(std::string &&name) {
+  JsonIpcQueue j{};
+  j.name = std::move(name);
+  j.queue = std::make_unique<BoostQueue>(boost::interprocess::open_only,
+                                         j.name.c_str());
+  j.queueInit = QueueInit::OpenOnly;
+  j.scratchBuffer.resize(j.queue->get_max_msg_size());
+  return j;
+}
 
 JsonIpcQueue::~JsonIpcQueue() {
   switch (this->queueInit) {
@@ -53,28 +89,15 @@ JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
   return {};
 }
 
-static boost::posix_time::ptime fromNow(uint64_t durationMillis) {
-  // Boost internally uses a spin-sleep loop which compares the passed end
-  // instant against the current instant in UTC.
-  // https://sourcegraph.com/github.com/boostorg/interprocess@4403b201bef142f07cdc43f67bf6477da5e07fe3/-/blob/include/boost/interprocess/sync/spin/condition.hpp?L171
-  // So use universal_time here instead of local_time.
-  auto now = boost::posix_time::microsec_clock::universal_time();
-  auto after = now + boost::posix_time::milliseconds(durationMillis);
-  // Hint: Use boost::posix_time::to_simple_string to debug if needed.
-  return after;
-}
-
 llvm::Expected<llvm::json::Value>
 JsonIpcQueue::timedReceive(uint64_t waitMillis) {
-  std::vector<char> readBuffer;
-  readBuffer.resize(this->queue->get_max_msg_size());
-  size_t recvCount;
+  auto &buf = this->scratchBuffer;
+  std::fill_n(buf.begin(), this->prevRecvCount, 0);
   unsigned recvPriority;
   spdlog::debug("will wait for atmost {}ms", waitMillis);
-  if (this->queue->timed_receive(readBuffer.data(), readBuffer.size(),
-                                 recvCount, recvPriority,
-                                 fromNow(waitMillis))) {
-    return llvm::json::parse(std::string_view(readBuffer.data(), recvCount));
+  if (this->queue->timed_receive(buf.data(), buf.size(), this->prevRecvCount,
+                                 recvPriority, ::fromNow(waitMillis))) {
+    return llvm::json::parse(std::string_view(buf.data(), this->prevRecvCount));
   }
   return llvm::make_error<TimeoutError>();
 }
