@@ -645,7 +645,7 @@ public:
 
   [[nodiscard]] LatestIdleWorkerId markCompleted(WorkerId workerId, JobId jobId,
                                                  IndexJob::Kind responseKind) {
-    spdlog::debug("marking job {} completed by {}", jobId, workerId);
+    spdlog::debug("marking job {} completed by worker {}", jobId, workerId);
     this->checkCurrentJob(workerId, jobId);
     this->markWorkerIdle(workerId);
     bool erased = wipJobs.erase(jobId);
@@ -1071,6 +1071,7 @@ private:
   }
 
   void shutdownWorker(WorkerId workerId) {
+    spdlog::debug("sending shutdown signal to worker {}", workerId);
     auto sendError = this->queues.driverToWorker[workerId].send(
         IndexJobRequest{JobId::Shutdown(), {}});
     ENFORCE(
