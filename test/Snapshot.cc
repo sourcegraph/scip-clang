@@ -440,6 +440,14 @@ void MultiTuSnapshotTest::iterateOverTus(PerTuCallback perTuCallback) {
 void MultiTuSnapshotTest::checkOrUpdate(
     SnapshotMode mode, SnapshotContentsMap &&output,
     const InputToOutputMap &inputToOutputMap) {
+  for (auto &[inputPath, _] : inputToOutputMap) {
+    if (!test::isTuMainFilePath(inputPath.asStringView())) {
+      continue;
+    }
+    auto it = output.find(RootRelativePath{inputPath});
+    ENFORCE(it != output.end(), "snapshot missing file for {}",
+            inputPath.asStringView());
+  }
   scip_clang::extractTransform(
       std::move(output), /*deterministic*/ true,
       absl::FunctionRef<void(RootRelativePath &&, std::string &&)>(
