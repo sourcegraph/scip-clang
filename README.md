@@ -78,7 +78,7 @@ See the [Usage](#usage) section for step-by-step instructions.
    This may particularly be an issue when using Docker on a high core
    count machine, as default size of `/dev/shm` in Docker is 64MB.
    See also: how to [troubleshoot low disk space for IPC](/docs/Troubleshooting.md#disk-space-for-ipc).
-3. We recommend have 2GB RAM per core.
+3. 2GB RAM per core is generally sufficient.
 
 ## Usage
 
