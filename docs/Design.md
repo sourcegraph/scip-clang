@@ -51,7 +51,7 @@ provided by the driver after completing an indexing job.
 This write is done after each job is complete,
 instead of after completing all jobs,
 because it reduces RSS as well as the blast radius
-in case the worker gets killed or crashes later.
+in case the worker gets terminated or crashes later.
 
 After all indexing work is completed, the driver
 assembles the shards into a full SCIP index.
