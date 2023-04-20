@@ -430,6 +430,11 @@ public:
   }
 };
 
+struct TrackedIndexJob {
+  IndexJob job;
+  std::optional<WorkerId> assignedWorker;
+};
+
 class Scheduler final {
   std::vector<WorkerInfo> workers;
   /// Keep track of which workers are available in FIFO order.
@@ -450,7 +455,7 @@ class Scheduler final {
   ///
   /// In principle, after a job is completed, we could start removing
   /// entries from this map, but leaving them around for debugging.
-  absl::flat_hash_map<JobId, IndexJob> allJobList;
+  absl::flat_hash_map<JobId, TrackedIndexJob> allJobList;
 
   /// FIFO queue holding jobs which haven't been scheduled yet.
   /// Elements must be valid keys in allJobList.
@@ -473,7 +478,7 @@ class Scheduler final {
 public:
   using Process = boost::process::child;
 
-  const absl::flat_hash_map<JobId, IndexJob> &getJobMap() const {
+  const absl::flat_hash_map<JobId, TrackedIndexJob> &getJobMap() const {
     return this->allJobList;
   }
 
@@ -505,12 +510,13 @@ public:
     spdlog::info("the worker was {}", [&]() -> std::string {
       auto it = this->allJobList.find(jobId);
       ENFORCE(it != this->allJobList.end());
-      switch (it->second.kind) {
+      auto &job = it->second.job;
+      switch (job.kind) {
       case IndexJob::Kind::SemanticAnalysis:
         return fmt::format("running semantic analysis for '{}'",
-                           it->second.semanticAnalysis.command.Filename);
+                           job.semanticAnalysis.command.Filename);
       case IndexJob::Kind::EmitIndex:
-        auto &fileInfos = it->second.emitIndex.filesToBeIndexed;
+        auto &fileInfos = job.emitIndex.filesToBeIndexed;
         auto fileInfoIt = absl::c_find_if(
             fileInfos, [](const PreprocessedFileInfo &fileInfo) -> bool {
               auto &sv = fileInfo.path.asStringRef();
@@ -591,7 +597,7 @@ public:
   void queueNewTask(IndexJob &&j) {
     auto jobId = JobId::newTask(this->nextTaskId);
     this->nextTaskId++;
-    this->allJobList.insert({jobId, std::move(j)});
+    this->allJobList.emplace(jobId, TrackedIndexJob{std::move(j), {}});
     this->pendingJobs.push_back(jobId);
   }
 
@@ -599,7 +605,7 @@ public:
   createSubtaskAndScheduleOnWorker(LatestIdleWorkerId workerId,
                                    JobId previousId, IndexJob &&job) {
     auto jobId = previousId.nextSubtask();
-    this->allJobList.insert({jobId, std::move(job)});
+    this->allJobList.emplace(jobId, TrackedIndexJob{std::move(job), {}});
     this->wipJobs.insert(jobId);
     ENFORCE(!this->idleWorkers.empty());
     ENFORCE(this->idleWorkers.front() == workerId.id);
@@ -617,46 +623,75 @@ public:
                   workerId.getValueNonConsuming());
     ENFORCE(this->wipJobs.contains(jobId),
             "should've marked job WIP before scheduling");
+    auto bareWorkerId = workerId.getValueNonConsuming();
     this->markWorkerBusy(std::move(workerId), jobId);
     auto it = this->allJobList.find(jobId);
     ENFORCE(it != this->allJobList.end(), "trying to assign unknown job");
-    return IndexJobRequest{it->first, it->second};
+    ENFORCE(!it->second.assignedWorker.has_value(),
+            "job {} was marked as assigned to worker {} earlier, but "
+            "re-scheduling it on worker {}",
+            jobId, *it->second.assignedWorker, bareWorkerId);
+    it->second.assignedWorker = bareWorkerId;
+    return IndexJobRequest{it->first, it->second.job};
   }
 
-  void checkCurrentJob(WorkerId workerId, JobId jobId) const {
-    auto workerCurrentJob = this->workers[workerId].currentlyProcessing;
-    if (workerCurrentJob == jobId) {
+  void checkAssignedWorker(JobId jobId, WorkerId workerId,
+                           const char *ctx) const {
+    auto it = this->allJobList.find(jobId);
+    ENFORCE(it != this->allJobList.end(),
+            "missing entry for job {} in allJobList (context: {})", jobId, ctx);
+    auto &assignedWorker = it->second.assignedWorker;
+    if (workerId == assignedWorker) {
       return;
     }
-    if (workerCurrentJob.has_value()) {
-      ENFORCE_OR_WARN(workerCurrentJob == jobId,
-                      "worker's current job is {} but expected {}",
-                      *workerCurrentJob, jobId);
+    if (assignedWorker.has_value()) {
+      ENFORCE_OR_WARN(workerId == assignedWorker,
+                      "job {} was assigned to worker {}, but asserting that "
+                      "was assigned to {} (context: {})",
+                      jobId, *assignedWorker, workerId, ctx);
     } else {
-      ENFORCE_OR_WARN(workerCurrentJob == jobId,
-                      "worker has no current job, but expected {}", jobId);
+      ENFORCE_OR_WARN(workerId == assignedWorker,
+                      "job {} was assigned no worker, but asserting that was "
+                      "assigned to {} (context: {})",
+                      jobId, workerId, ctx);
     }
   }
 
   /// Undoes the state changes involved in scheduling a task onto a worker.
   void descheduleJobDueToSendError(WorkerId workerId, JobId jobId) {
     spdlog::debug("descheduling job {} from worker {}", jobId, workerId);
-    this->checkCurrentJob(workerId, jobId);
+    this->checkAssignedWorker(jobId, workerId, "descheduling");
     this->markWorkerIdle(workerId);
     bool erased = this->wipJobs.erase(jobId);
     ENFORCE(erased, "job should've been marked WIP");
     // See TODO(ref: track-errored-jobs)
   }
 
-  [[nodiscard]] LatestIdleWorkerId markCompleted(WorkerId workerId, JobId jobId,
-                                                 IndexJob::Kind responseKind) {
+  [[nodiscard]] std::optional<LatestIdleWorkerId>
+  markCompleted(WorkerId workerId, JobId jobId, IndexJob::Kind responseKind) {
     spdlog::debug("marking job {} completed by worker {}", jobId, workerId);
-    this->checkCurrentJob(workerId, jobId);
-    this->markWorkerIdle(workerId);
-    bool erased = wipJobs.erase(jobId);
-    ENFORCE(erased, "received response for job not marked WIP");
-    ENFORCE(this->allJobList[jobId].kind == responseKind);
-    return LatestIdleWorkerId{workerId};
+    ENFORCE(this->allJobList[jobId].job.kind == responseKind);
+    // See NOTE(ref: mail-from-the-dead)
+    //
+    // It's possible that the the current job for workerId isn't jobId, because
+    // the worker may have written a result into the shared queue between
+    // the time the driver last checked the queue and the driver deciding
+    // to terminate workerId due to a timeout.
+    //
+    // So we need to compare the job's assignedWorker to workerId.
+    this->checkAssignedWorker(jobId, workerId, "completion");
+    // If the assigned worker was killed, then workerId's currentlyProcessing
+    // value will either be None or some new jobId. Otherwise, the worker
+    // must be in a busy state with currentlyProcessing == jobId.
+    if (this->workers[workerId].currentlyProcessing == jobId) {
+      this->markWorkerIdle(workerId);
+      bool erased = this->wipJobs.erase(jobId);
+      ENFORCE(erased, "received response for job not marked WIP");
+      return LatestIdleWorkerId{workerId};
+    }
+    bool erased = this->erroredJobs.erase(jobId);
+    ENFORCE(erased, "expected job {} to be in erroredJobs", jobId);
+    return {};
   }
 
   struct RunCallbacks {
@@ -721,6 +756,7 @@ public:
       ENFORCE(!this->wipJobs.empty());
       callbacks.processOneOrMoreJobResults();
     }
+    //
     this->checkInvariants();
     ENFORCE(this->idleWorkers.size() == 0);
     ENFORCE(this->stoppedWorkers.size() == this->workers.size(),
@@ -837,11 +873,11 @@ public:
       auto semaJobId = JobId::newTask(jobId.taskId());
       auto it = jobMap.find(semaJobId);
       ENFORCE(it != jobMap.end());
-      ENFORCE(it->second.kind == IndexJob::Kind::SemanticAnalysis);
+      auto &job = it->second.job;
+      ENFORCE(job.kind == IndexJob::Kind::SemanticAnalysis);
       perJobStats.emplace_back(
           jobId.taskId(),
-          StatsEntry{it->second.semanticAnalysis.command.Filename,
-                     std::move(stats)});
+          StatsEntry{job.semanticAnalysis.command.Filename, std::move(stats)});
     }
     absl::c_sort(perJobStats, [](const auto &p1, const auto &p2) -> bool {
       ENFORCE(p1.first != p2.first,
@@ -1153,8 +1189,15 @@ private:
 
   TusIndexedCount processWorkerResponse(IndexJobResponse &&response) {
     TusIndexedCount tusIndexedCount{};
-    auto latestIdleWorkerId = this->scheduler.markCompleted(
+    auto optLatestIdleWorkerId = this->scheduler.markCompleted(
         response.workerId, response.jobId, response.result.kind);
+    if (!optLatestIdleWorkerId.has_value()) {
+      spdlog::debug("worker {} was killed before job {}'s result "
+                    "was processed, so can't send an emit index job",
+                    response.workerId, response.jobId);
+      return tusIndexedCount;
+    }
+    auto latestIdleWorkerId = *optLatestIdleWorkerId;
     switch (response.result.kind) {
     case IndexJob::Kind::SemanticAnalysis: {
       auto &semaResult = response.result.semanticAnalysis;
@@ -1241,6 +1284,22 @@ private:
         tusIndexedCount += this->processWorkerResponse(std::move(response));
       }
     }
+    // NOTE(def: mail-from-the-dead)
+    //
+    // Suppose the following sequence of events occurs: (timeout = 10s)
+    // T = 0     - worker 1 is assigned a job, deadline = 10
+    // T = 0.1   - driver starts waiting until T = 10.1
+    // T = 10.1  - driver times out, no result yet
+    // T = 10.11 - worker writes result to queue
+    // T = 10.12 - driver checks if worker 1 needs to be killed;
+    //             and decides to kill worker 1 since T > deadline,
+    //             and the driver hasn't yet gotten a result
+    // T = 10.13 - driver proceeds to next iteration and processes
+    //             the result written out earlier
+    //
+    // Thus, it's possible for the driver to receive "mail from the dead",
+    // where all alive workers are idle, and a result in the receive queue
+    // was actually submitted by a worker which was killed.
     auto now = std::chrono::steady_clock::now();
     this->killLongRunningWorkersAndRespawn(now - workerTimeout);
     return tusIndexedCount;
@@ -1253,13 +1312,13 @@ private:
   // Returns true iff we successfully sent the job to the worker.
   [[nodiscard]] bool tryAssignJobToWorker(ToBeScheduledWorkerId &&workerId,
                                           JobId jobId) {
-    auto rawWorkerId = workerId.getValueNonConsuming();
-    auto &queue = this->queues.driverToWorker[rawWorkerId];
+    auto bareWorkerId = workerId.getValueNonConsuming();
+    auto &queue = this->queues.driverToWorker[bareWorkerId];
     auto sendError = queue.send(
         this->scheduler.scheduleJobOnWorker(std::move(workerId), jobId));
     if (sendError.has_value()) {
       spdlog::warn("failed to send job to worker: {}", sendError->what());
-      this->scheduler.descheduleJobDueToSendError(rawWorkerId, jobId);
+      this->scheduler.descheduleJobDueToSendError(bareWorkerId, jobId);
       return false;
     }
     return true;
