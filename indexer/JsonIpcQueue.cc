@@ -94,7 +94,7 @@ JsonIpcQueue::timedReceive(uint64_t waitMillis) {
   auto &buf = this->scratchBuffer;
   std::fill_n(buf.begin(), this->prevRecvCount, 0);
   unsigned recvPriority;
-  spdlog::debug("will wait for atmost {}ms", waitMillis);
+  spdlog::debug("will wait for at most {}ms", waitMillis);
   if (this->queue->timed_receive(buf.data(), buf.size(), this->prevRecvCount,
                                  recvPriority, ::fromNow(waitMillis))) {
     return llvm::json::parse(std::string_view(buf.data(), this->prevRecvCount));
