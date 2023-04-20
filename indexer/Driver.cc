@@ -469,11 +469,16 @@ class Scheduler final {
   /// ∀ j ∈ wipJobs, |{w ∈ workers | w.currentlyProcessing == p}| == 1
   absl::flat_hash_set<JobId> wipJobs;
 
-  /// Jobs that completed with errors.
+  /// Jobs that may have errored out (e.g. if the worker timed out).
   /// Elements must be valid keys in allJobList.
   ///
-  /// ∀ j ∈ erroredJobs, ∄ w ∈ workers. w.currentlyProcessing == j
-  absl::flat_hash_set<JobId> erroredJobs;
+  /// ∀ j ∈ maybeErroredJobs, ∄ w ∈ workers. w.currentlyProcessing == j
+  ///
+  /// The "maybe" is important because the presence of inherent raciness
+  /// between checking job results and terminating workers
+  /// (see NOTE(ref: mail-from-the-dead)) means that a job can transition
+  /// from a "maybe errored" to "completed successfully" state.
+  absl::flat_hash_set<JobId> maybeErroredJobs;
 
 public:
   using Process = boost::process::child;
@@ -536,20 +541,21 @@ public:
 
   /// Kill a single worker for a specific \p workerId.
   ///
-  /// \p killAndRespawn should not call back into the scheduler.
-  void
-  killRunningWorker(const char *cause, WorkerId workerId,
-                    absl::FunctionRef<Process(Process &&)> killAndRespawn) {
+  /// \p terminateAndRespawn should not call back into the scheduler.
+  void terminateRunningWorker(
+      std::string_view cause, WorkerId workerId,
+      absl::FunctionRef<Process(Process &&)> terminateAndRespawn) {
     auto &workerInfo = this->workers[workerId];
-    spdlog::info("killing worker {}, pid {}", workerId,
-                 workerInfo.processHandle.id());
     auto oldJobId = workerInfo.currentlyProcessing.value();
+    spdlog::warn("terminating worker {} (was running job {}) due to {}",
+                 workerId, oldJobId, cause);
     bool erased = this->wipJobs.erase(oldJobId);
-    this->erroredJobs.insert(oldJobId);
-    ENFORCE(erased, "*worker.currentlyProcessing was not marked WIP");
-    spdlog::warn("skipping job {} due to {}", oldJobId, cause);
+    this->maybeErroredJobs.insert(oldJobId);
+    ENFORCE(erased,
+            "worker {} was processing job {}, but the job was not marked WIP",
+            workerId, oldJobId);
     this->logJobSkip(oldJobId);
-    auto newHandle = killAndRespawn(std::move(workerInfo.processHandle));
+    auto newHandle = terminateAndRespawn(std::move(workerInfo.processHandle));
     workerInfo = WorkerInfo(std::move(newHandle));
     this->idleWorkers.push_back(workerId);
     this->checkInvariants();
@@ -557,11 +563,11 @@ public:
 
   /// Kills all workers which started before \p startedBefore and respawns them.
   ///
-  /// \p killAndRespawn should not call back into the Scheduler (to make
+  /// \p terminateAndRespawn should not call back into the Scheduler (to make
   /// reasoning about Scheduler state changes easier).
-  void killLongRunningWorkersAndRespawn(
+  void terminateLongRunningWorkersAndRespawn(
       Instant startedBefore,
-      absl::FunctionRef<Process(Process &&, WorkerId)> killAndRespawn) {
+      absl::FunctionRef<Process(Process &&, WorkerId)> terminateAndRespawn) {
     this->checkInvariants();
     // NOTE: N_workers <= 500. On the fast path, this boils down to
     // N_workers indexing ops + integer comparisons, so it should be cheap.
@@ -573,9 +579,9 @@ public:
         continue;
       case WorkerInfo::Status::Busy:
         if (workerInfo.startTime < startedBefore) {
-          this->killRunningWorker(
+          this->terminateRunningWorker(
               "worker timeout", workerId, [&](Process &&p) -> Process {
-                return killAndRespawn(std::move(p), workerId);
+                return terminateAndRespawn(std::move(p), workerId);
               });
         }
       }
@@ -638,7 +644,7 @@ public:
   }
 
   void checkAssignedWorker(JobId jobId, WorkerId workerId,
-                           const char *ctx) const {
+                           std::string_view ctx) const {
     auto it = this->allJobList.find(jobId);
     ENFORCE(it != this->allJobList.end(),
             "missing entry for job {} in allJobList (context: {})", jobId, ctx);
@@ -682,17 +688,19 @@ public:
     //
     // So we need to compare the job's assignedWorker to workerId.
     this->checkAssignedWorker(jobId, workerId, "completion");
-    // If the assigned worker was killed, then workerId's currentlyProcessing
-    // value will either be None or some new jobId. Otherwise, the worker
-    // must be in a busy state with currentlyProcessing == jobId.
+    // If the assigned worker was terminated, then
+    //   (workerId.currentlyProcessing == nullopt
+    //    || workerId.currentlyProcessing == some new JobId)
+    // Otherwise, the worker must be in a busy state with
+    //    workerId.currentlyProcessing == jobId
     if (this->workers[workerId].currentlyProcessing == jobId) {
       this->markWorkerIdle(workerId);
       bool erased = this->wipJobs.erase(jobId);
       ENFORCE(erased, "received response for job not marked WIP");
       return LatestIdleWorkerId{workerId};
     }
-    bool erased = this->erroredJobs.erase(jobId);
-    ENFORCE(erased, "expected job {} to be in erroredJobs", jobId);
+    bool erased = this->maybeErroredJobs.erase(jobId);
+    ENFORCE(erased, "expected job {} to be in maybeErroredJobs", jobId);
     return {};
   }
 
@@ -764,8 +772,10 @@ public:
             "all workers should be stopped after jobs have been completed");
   }
 
+  /// This method should only be called after completing all work, since the
+  /// result value may decrease with time. See NOTE(ref: mail-from-the-dead)
   size_t numErroredJobs() const {
-    return this->erroredJobs.size();
+    return this->maybeErroredJobs.size();
   }
 
 private:
@@ -826,7 +836,7 @@ private:
 };
 
 /// Type responsible for administrative tasks like timeouts, progressively
-/// queueing jobs and killing misbehaving workers.
+/// queueing jobs and terminating misbehaving workers.
 class Driver {
   DriverOptions options;
   std::string id;
@@ -1180,8 +1190,8 @@ private:
   }
 
   /// Kills all workers which started before \p startedBefore and respawns them.
-  void killLongRunningWorkersAndRespawn(Instant startedBefore) {
-    this->scheduler.killLongRunningWorkersAndRespawn(
+  void terminateLongRunningWorkersAndRespawn(Instant startedBefore) {
+    this->scheduler.terminateLongRunningWorkersAndRespawn(
         startedBefore,
         [&](Scheduler::Process &&oldHandle,
             WorkerId workerId) -> Scheduler::Process {
@@ -1197,7 +1207,7 @@ private:
     auto optLatestIdleWorkerId = this->scheduler.markCompleted(
         response.workerId, response.jobId, response.result.kind);
     if (!optLatestIdleWorkerId.has_value()) {
-      spdlog::debug("worker {} was killed before job {}'s result "
+      spdlog::debug("worker {} was terminated before job {}'s result "
                     "was processed, so can't send an emit index job",
                     response.workerId, response.jobId);
       return tusIndexedCount;
@@ -1242,7 +1252,7 @@ private:
         // 3. Try serializing smaller subsets until something succeeds.
         // For simplicity, let's go with option 1 here.
         this->scheduler.descheduleJobDueToSendError(workerId, newRequestJobId);
-        this->scheduler.killRunningWorker(
+        this->scheduler.terminateRunningWorker(
             "failure to communicate over IPC", workerId,
             [&](Scheduler::Process &&oldHandle) -> Scheduler::Process {
               oldHandle.terminate();
@@ -1296,17 +1306,17 @@ private:
     // T = 0.1   - driver starts waiting until T = 10.1
     // T = 10.1  - driver times out, no result yet
     // T = 10.11 - worker writes result to queue
-    // T = 10.12 - driver checks if worker 1 needs to be killed;
-    //             and decides to kill worker 1 since T > deadline,
+    // T = 10.12 - driver checks if worker 1 needs to be terminated;
+    //             and decides to terminate worker 1 since T > deadline,
     //             and the driver hasn't yet gotten a result
     // T = 10.13 - driver proceeds to next iteration and processes
     //             the result written out earlier
     //
     // Thus, it's possible for the driver to receive "mail from the dead",
     // where all alive workers are idle, and a result in the receive queue
-    // was actually submitted by a worker which was killed.
+    // was actually submitted by a worker which was terminated.
     auto now = std::chrono::steady_clock::now();
-    this->killLongRunningWorkersAndRespawn(now - workerTimeout);
+    this->terminateLongRunningWorkersAndRespawn(now - workerTimeout);
     return tusIndexedCount;
   }
 
