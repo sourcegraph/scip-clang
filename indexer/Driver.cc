@@ -482,6 +482,7 @@ public:
     return this->allJobList;
   }
 
+private:
   void checkInvariants() const {
     // clang-format off
     ENFORCE(
@@ -491,6 +492,7 @@ public:
     // clang-format on
   }
 
+public:
   /// \p spawn should only create the process; it should not call back
   /// into the Scheduler (to make reasoning about Scheduler state changes
   /// easier).
@@ -756,11 +758,14 @@ public:
       ENFORCE(!this->wipJobs.empty());
       callbacks.processOneOrMoreJobResults();
     }
-    //
     this->checkInvariants();
     ENFORCE(this->idleWorkers.size() == 0);
     ENFORCE(this->stoppedWorkers.size() == this->workers.size(),
             "all workers should be stopped after jobs have been completed");
+  }
+
+  size_t numErroredJobs() const {
+    return this->erroredJobs.size();
   }
 
 private:
@@ -894,7 +899,7 @@ public:
 
   void run() {
     ManualTimer total, indexing, merging;
-    TusIndexedCount numTus;
+    std::pair<TusIndexedCount, size_t> numTus;
 
     TIME_IT(total, {
       auto compdbGuard = this->openCompilationDatabase();
@@ -908,9 +913,9 @@ public:
 
     using secs = std::chrono::seconds;
     fmt::print("Finished indexing {} translation units in {:.1f}s (indexing: "
-               "{:.1f}s, merging: {:.1f}s).\n",
-               numTus.value, total.value<secs>(), indexing.value<secs>(),
-               merging.value<secs>());
+               "{:.1f}s, merging: {:.1f}s, num errored TUs: {}).\n",
+               numTus.first.value, total.value<secs>(), indexing.value<secs>(),
+               merging.value<secs>(), numTus.second);
   }
 
 private:
@@ -1123,7 +1128,7 @@ private:
   }
 
   /// Returns the number of TUs processed
-  TusIndexedCount runJobsTillCompletionAndShutdownWorkers() {
+  std::pair<TusIndexedCount, size_t> runJobsTillCompletionAndShutdownWorkers() {
     TusIndexedCount tusIndexedCount{};
     this->scheduler.runJobsTillCompletionAndShutdownWorkers(
         Scheduler::RunCallbacks{
@@ -1136,7 +1141,7 @@ private:
             },
             [this](WorkerId workerId) { this->shutdownWorker(workerId); }});
     this->scheduler.waitForAllWorkers();
-    return tusIndexedCount;
+    return {tusIndexedCount, this->scheduler.numErroredJobs()};
   }
 
   FileGuard openCompilationDatabase() {
