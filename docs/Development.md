@@ -21,12 +21,10 @@
 
 1. [Bazelisk](https://github.com/bazelbuild/bazelisk): This handles Bazel versions
    transparently.
+2. (Linux only) On Ubuntu, install `libc6-dev` for system headers like `feature.h`.
 
 Bazel manages the C++ toolchain and other tool dependencies like formatters,
 so they don't need to be downloaded separately.
-(For unclear reasons, Bazel still requires
-a host toolchain to be present for configuring _something_
-but it will not be used for building the code in this project.)
 
 ## Building
 
