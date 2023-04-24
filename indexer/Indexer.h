@@ -39,6 +39,7 @@ class LangOptions;
 class MacroDefinition;
 class MacroInfo;
 class NestedNameSpecifierLoc;
+class QualType;
 class SourceManager;
 class TagDecl;
 class TagTypeLoc;

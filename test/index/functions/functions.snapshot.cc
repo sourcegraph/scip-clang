@@ -41,3 +41,4 @@
 //     ^^^^^^^^^^^^^^ definition [..] int_to_void_fn(d4f767463ce0a6b3).
   void same_hash_as_previous(IntAlias) {}
 //     ^^^^^^^^^^^^^^^^^^^^^ definition [..] same_hash_as_previous(d4f767463ce0a6b3).
+//                           ^^^^^^^^ reference [..] IntAlias#

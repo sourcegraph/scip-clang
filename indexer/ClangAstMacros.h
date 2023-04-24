@@ -13,6 +13,7 @@
   F(TemplateTemplateParm)              \
   F(TemplateTypeParm)                  \
   F(TypedefName)                       \
+  F(UsingShadow)                       \
   F(Var)
 
 #define FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(F) \
@@ -29,7 +30,9 @@
   F(Enum)                              \
   F(Record)                            \
   F(TemplateSpecialization)            \
-  F(TemplateTypeParm)
+  F(TemplateTypeParm)                  \
+  F(Typedef)                           \
+  F(Using)
 
 namespace clang {
 #define FORWARD_DECLARE(DeclName) class DeclName##Decl;
