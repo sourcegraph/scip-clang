@@ -388,21 +388,21 @@ void TuIndexer::saveEnumTypeLoc(const clang::EnumTypeLoc &enumTypeLoc) {
   this->saveTagTypeLoc(enumTypeLoc);
 }
 
-void TuIndexer::saveUsingTypeLoc(const clang::UsingTypeLoc &usingTypeLoc) {
-  if (auto *usingShadowDecl = usingTypeLoc.getFoundDecl()) {
-    if (auto optSymbol =
-            this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
-      this->saveReference(*optSymbol, usingTypeLoc.getNameLoc());
-    }
-  }
-}
-
 void TuIndexer::saveTypedefTypeLoc(
     const clang::TypedefTypeLoc &typedefTypeLoc) {
   if (auto *typedefNameDecl = typedefTypeLoc.getTypedefNameDecl()) {
     if (auto optSymbol =
             this->symbolFormatter.getTypedefNameSymbol(*typedefNameDecl)) {
       this->saveReference(*optSymbol, typedefTypeLoc.getNameLoc());
+    }
+  }
+}
+
+void TuIndexer::saveUsingTypeLoc(const clang::UsingTypeLoc &usingTypeLoc) {
+  if (auto *usingShadowDecl = usingTypeLoc.getFoundDecl()) {
+    if (auto optSymbol =
+            this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
+      this->saveReference(*optSymbol, usingTypeLoc.getNameLoc());
     }
   }
 }
@@ -706,6 +706,10 @@ void TuIndexer::saveTypedefNameDecl(
   }
   this->saveDefinition(*optSymbol, typedefNameDecl.getLocation(),
                        std::move(symbolInfo));
+}
+
+void TuIndexer::saveUsingShadowDecl(const clang::UsingShadowDecl &) {
+  // Created implicitly, so this method is never called.
 }
 
 void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
