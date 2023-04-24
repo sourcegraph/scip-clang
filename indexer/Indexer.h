@@ -16,29 +16,15 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include "indexer/ClangAstMacros.h"
 #include "indexer/Comparison.h"
 #include "indexer/Derive.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
-#include "indexer/SymbolFormatter.h"
-
-#define FOR_EACH_EXPR_TO_BE_INDEXED(F) \
-  F(CXXConstruct)                      \
-  F(DeclRef)                           \
-  F(Member)
-
-#define FOR_EACH_TYPE_TO_BE_INDEXED(F) \
-  F(Enum)                              \
-  F(Record)                            \
-  F(TemplateSpecialization)            \
-  F(TemplateTypeParm)
+#include "indexer/StableFileId.h"
 
 namespace clang {
-#define FORWARD_DECLARE(DeclName) class DeclName##Decl;
-FOR_EACH_DECL_TO_BE_INDEXED(FORWARD_DECLARE)
-#undef FORWARD_DECLARE
-
 #define FORWARD_DECLARE(ExprName) class ExprName##Expr;
 FOR_EACH_EXPR_TO_BE_INDEXED(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
@@ -49,6 +35,7 @@ FOR_EACH_TYPE_TO_BE_INDEXED(FORWARD_DECLARE)
 
 class ASTContext;
 class Decl;
+class LangOptions;
 class MacroDefinition;
 class MacroInfo;
 class NestedNameSpecifierLoc;
@@ -64,6 +51,10 @@ class Index;
 class Occurrence;
 class SymbolInformation;
 } // namespace scip
+
+namespace scip_clang {
+class SymbolFormatter;
+}
 
 namespace scip_clang {
 

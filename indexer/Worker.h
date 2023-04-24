@@ -14,23 +14,21 @@
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "scip/scip.pb.h"
-
+#include "indexer/AstConsumer.h"
 #include "indexer/CliOptions.h"
 #include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
 #include "indexer/Path.h"
+#include "indexer/Preprocessing.h"
+
+namespace scip {
+class Index;
+}
 
 namespace scip_clang {
 
 int workerMain(CliOptions &&);
-
-struct PreprocessorHistoryRecorder {
-  HeaderFilter filter;
-  llvm::yaml::Output yamlStream;
-  std::function<llvm::StringRef(llvm::StringRef)> normalizePath;
-};
 
 struct PreprocessorHistoryRecordingOptions {
   std::string filterRegex;
@@ -70,26 +68,6 @@ struct WorkerOptions {
   // implicit memberwise initializer is synthesized and available
   // for test code.
   static WorkerOptions fromCliOptions(const CliOptions &);
-};
-
-/// Callback passed into the AST consumer so that it can decide
-/// which files to index when traversing the translation unit.
-///
-/// The return value is true iff the indexing job should be run.
-using WorkerCallback = absl::FunctionRef<bool(SemanticAnalysisJobResult &&,
-                                              EmitIndexJobDetails &)>;
-
-struct TuIndexingOutput {
-  /// Index storing per-document output and external symbols
-  /// for symbols that have definitions.
-  scip::Index docsAndExternals;
-  /// Index storing information about forward declarations.
-  /// Only the external_symbols list is populated.
-  scip::Index forwardDecls;
-
-  TuIndexingOutput() = default;
-  TuIndexingOutput(const TuIndexingOutput &) = delete;
-  TuIndexingOutput &operator=(const TuIndexingOutput &) = delete;
 };
 
 class Worker final {
