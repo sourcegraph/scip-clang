@@ -388,6 +388,15 @@ void TuIndexer::saveEnumTypeLoc(const clang::EnumTypeLoc &enumTypeLoc) {
   this->saveTagTypeLoc(enumTypeLoc);
 }
 
+void TuIndexer::saveUsingTypeLoc(const clang::UsingTypeLoc &usingTypeLoc) {
+  auto innerType = usingTypeLoc.getType().getCanonicalType();
+  if (auto *tagDecl = innerType->getAsTagDecl()) {
+    if (auto optSymbol = this->symbolFormatter.getTagSymbol(*tagDecl)) {
+      this->saveReference(*optSymbol, usingTypeLoc.getNameLoc());
+    }
+  }
+}
+
 void TuIndexer::saveFieldDecl(const clang::FieldDecl &fieldDecl) {
   auto optSymbol = this->symbolFormatter.getFieldSymbol(fieldDecl);
   if (!optSymbol.has_value()) {

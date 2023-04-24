@@ -29,7 +29,8 @@
   F(Enum)                              \
   F(Record)                            \
   F(TemplateSpecialization)            \
-  F(TemplateTypeParm)
+  F(TemplateTypeParm)                  \
+  F(Using)
 
 namespace clang {
 #define FORWARD_DECLARE(DeclName) class DeclName##Decl;

@@ -42,6 +42,7 @@
     void f(R<S>) {}
 //       ^ definition [..] e/f(6824106dca99b347).
 //         ^ reference [..] e/R#
+//           ^ reference [..] a/S#
   }
   
   typedef a::S aS;
