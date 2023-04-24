@@ -13,7 +13,11 @@
 //          ^ definition [..] b/
     using a::S, a::T;
 //        ^ reference [..] a/
+//           ^ reference [..] a/S#
+//           ^ definition [..] b/S#
 //              ^ reference [..] a/
+//                 ^ reference [..] a/T#
+//                 ^ definition [..] b/T#
   }
   
   namespace c {
@@ -39,6 +43,8 @@
 //          ^ definition [..] e/
     using d::S; // equivalent to `using S = d::S;`
 //        ^ reference [..] d/
+//           ^ reference [..] d/S#
+//           ^ definition [..] e/S#
     using T = e::S;
 //        ^ definition [..] e/T#
 //            ^ reference [..] e/

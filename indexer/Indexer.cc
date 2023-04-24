@@ -708,8 +708,31 @@ void TuIndexer::saveTypedefNameDecl(
                        std::move(symbolInfo));
 }
 
-void TuIndexer::saveUsingShadowDecl(const clang::UsingShadowDecl &) {
-  // Created implicitly, so this method is never called.
+void TuIndexer::saveUsingShadowDecl(
+    const clang::UsingShadowDecl &usingShadowDecl) {
+  if (auto optSymbol =
+          this->symbolFormatter.getUsingShadowSymbol(usingShadowDecl)) {
+    if (auto *baseUsingDecl = usingShadowDecl.getIntroducer()) {
+      scip::SymbolInformation symbolInfo{};
+      for (auto &docComment : this->tryGetDocComment(usingShadowDecl).lines) {
+        *symbolInfo.add_documentation() = std::move(docComment);
+      }
+      this->saveDefinition(*optSymbol, usingShadowDecl.getLocation(),
+                           std::move(symbolInfo));
+    }
+    if (auto *namedDecl = usingShadowDecl.getTargetDecl()) {
+      if (auto optSymbol =
+              this->symbolFormatter.getNamedDeclSymbol(*namedDecl)) {
+        this->saveReference(*optSymbol, usingShadowDecl.getLocation());
+      }
+    }
+  }
+}
+
+void TuIndexer::saveUsingDecl(const clang::UsingDecl &usingDecl) {
+  for (auto *usingShadowDecl : usingDecl.shadows()) {
+    this->saveUsingShadowDecl(*usingShadowDecl);
+  }
 }
 
 void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
