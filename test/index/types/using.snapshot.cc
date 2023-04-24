@@ -19,7 +19,7 @@
 //               ^ reference [..] a/S#
     using T = S;
 //        ^ definition [..] c/T#
-//            ^ reference [..] a/S#
+//            ^ reference [..] c/S#
   }
   
   namespace d {
@@ -43,7 +43,7 @@
     void f(R<S>) {}
 //       ^ definition [..] e/f(6824106dca99b347).
 //         ^ reference [..] e/R#
-//           ^ reference [..] a/S#
+//           ^ reference [..] e/S#
   }
   
   typedef a::S aS;
@@ -51,16 +51,16 @@
 //           ^ reference [..] a/S#
 //             ^^ definition [..] aS#
   typedef aS aS1;
-//        ^^ reference [..] a/S#
+//        ^^ reference [..] aS#
 //           ^^^ definition [..] aS1#
   using aS2 = aS;
 //      ^^^ definition [..] aS2#
-//            ^^ reference [..] a/S#
+//            ^^ reference [..] aS#
   using aS3 = aS1;
 //      ^^^ definition [..] aS3#
-//            ^^^ reference [..] a/S#
+//            ^^^ reference [..] aS1#
   typedef aS2 aS4;
-//        ^^^ reference [..] a/S#
+//        ^^^ reference [..] aS2#
 //            ^^^ definition [..] aS4#
   
   namespace f {
@@ -74,5 +74,6 @@
 //            ^ reference local 1
     using C = B;
 //        ^ definition [..] f/A#C#
+//            ^ reference [..] f/A#B#
   };
   }

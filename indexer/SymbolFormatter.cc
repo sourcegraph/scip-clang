@@ -510,6 +510,47 @@ std::optional<std::string_view> SymbolFormatter::getTypedefNameSymbol(
       });
 }
 
+std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
+    const clang::UsingShadowDecl &usingShadowDecl) {
+  if (usingShadowDecl.getDeclName().isEmpty()) {
+    return {};
+  }
+  auto *canonicalDecl = usingShadowDecl.getUnderlyingDecl()->getCanonicalDecl();
+  if (!canonicalDecl) {
+    return {};
+  }
+  return this->getSymbolCached(
+      usingShadowDecl, [&]() -> std::optional<std::string> {
+        auto optContextSymbol =
+            this->getContextSymbol(*usingShadowDecl.getDeclContext());
+        if (!optContextSymbol) {
+          return {};
+        }
+        scip::Descriptor::Suffix suffix;
+        // NOTE: First two branches can't be re-ordered as all
+        // TemplateTypeParmDecls also TypeDecls
+        if (llvm::dyn_cast<clang::TemplateTypeParmDecl>(canonicalDecl)) {
+          suffix = scip::Descriptor::TypeParameter;
+        } else if (llvm::dyn_cast<clang::TypeDecl>(canonicalDecl)) {
+          suffix = scip::Descriptor::Type;
+        } else if (llvm::dyn_cast<clang::NamespaceDecl>(canonicalDecl)) {
+          suffix = scip::Descriptor::Namespace;
+        } else if (llvm::dyn_cast<clang::EnumConstantDecl>(canonicalDecl)
+                   || llvm::dyn_cast<clang::FieldDecl>(canonicalDecl)) {
+          suffix = scip::Descriptor::Term;
+        } else if (llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
+          suffix = scip::Descriptor::Method;
+        } else {
+          return {};
+        }
+        auto descriptor = DescriptorBuilder{
+            .name = llvm_ext::toStringView(usingShadowDecl.getName()),
+            .suffix = suffix,
+        };
+        return SymbolBuilder::formatContextual(*optContextSymbol, descriptor);
+      });
+}
+
 std::optional<std::string_view>
 SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
   if (varDecl.isLocalVarDeclOrParm()) {

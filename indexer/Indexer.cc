@@ -388,8 +388,10 @@ void TuIndexer::saveEnumTypeLoc(const clang::EnumTypeLoc &enumTypeLoc) {
   this->saveTagTypeLoc(enumTypeLoc);
 }
 
-void TuIndexer::saveCanonicalType(const clang::QualType &type, clang::SourceLocation loc) {
-  // TODO: Is there a better way to keep this in sync with the list of supported types?
+void TuIndexer::saveCanonicalType(const clang::QualType &type,
+                                  clang::SourceLocation loc) {
+  // TODO: Is there a better way to keep this in sync with the list of supported
+  // types?
   // TODO: Is this going to fail for template parameters?
   if (auto *tagDecl = type->getAsTagDecl()) {
     if (auto optSymbol = this->symbolFormatter.getTagSymbol(*tagDecl)) {
@@ -399,13 +401,22 @@ void TuIndexer::saveCanonicalType(const clang::QualType &type, clang::SourceLoca
 }
 
 void TuIndexer::saveUsingTypeLoc(const clang::UsingTypeLoc &usingTypeLoc) {
-  auto innerType = usingTypeLoc.getType().getCanonicalType();
-  this->saveCanonicalType(innerType, usingTypeLoc.getNameLoc());
+  if (auto *usingShadowDecl = usingTypeLoc.getFoundDecl()) {
+    if (auto optSymbol =
+            this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
+      this->saveReference(*optSymbol, usingTypeLoc.getNameLoc());
+    }
+  }
 }
 
-void TuIndexer::saveTypedefTypeLoc(const clang::TypedefTypeLoc &typedefTypeLoc) {
-  auto innerType = typedefTypeLoc.getType().getCanonicalType();
-  this->saveCanonicalType(innerType, typedefTypeLoc.getNameLoc());
+void TuIndexer::saveTypedefTypeLoc(
+    const clang::TypedefTypeLoc &typedefTypeLoc) {
+  if (auto *typedefNameDecl = typedefTypeLoc.getTypedefNameDecl()) {
+    if (auto optSymbol =
+            this->symbolFormatter.getTypedefNameSymbol(*typedefNameDecl)) {
+      this->saveReference(*optSymbol, typedefTypeLoc.getNameLoc());
+    }
+  }
 }
 
 void TuIndexer::saveFieldDecl(const clang::FieldDecl &fieldDecl) {

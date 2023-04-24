@@ -134,6 +134,8 @@
 //        ^^^^^ definition [..] IntConvertible#arr_t#
     operator arr_t*() const { return nullptr; }
 //  ^^^^^^^^ definition [..] IntConvertible#`operator int (*)[3]`(a00bb5473f10e296).
+//           ^^^^^ reference [..] IntConvertible#arr_t#
+//           ^^^^^ reference [..] IntConvertible#arr_t#
   };
   
   void test_implicit_conversion() {
@@ -165,8 +167,10 @@
   // Override global stuff
   void *operator new(size_t) { return nullptr; }
 //      ^^^^^^^^ definition [..] `operator new`(bfcfa4d6b7f7ef64).
+//                   ^^^^^^ reference [..] size_t#
   void *operator new[](size_t) { return nullptr; }
 //      ^^^^^^^^ definition [..] `operator new[]`(bfcfa4d6b7f7ef64).
+//                     ^^^^^^ reference [..] size_t#
   void operator delete(void *) noexcept {}
 //     ^^^^^^^^ definition [..] `operator delete`(bd21765a0afc8e3c).
   void operator delete[](void *) noexcept {}
@@ -179,6 +183,7 @@
 //       ^^^^^^^ definition [..] InArena#
     static void *operator new(size_t count, Arena &) {
 //               ^^^^^^^^ definition [..] InArena#`operator new`(747707f21471d499).
+//                            ^^^^^^ reference [..] size_t#
 //                                   ^^^^^ definition local 14
 //                                          ^^^^^ reference [..] Arena#
       return ::operator new(count);
@@ -187,6 +192,7 @@
     }
     static void *operator new[](size_t count, Arena &) {
 //               ^^^^^^^^ definition [..] InArena#`operator new[]`(747707f21471d499).
+//                              ^^^^^^ reference [..] size_t#
 //                                     ^^^^^ definition local 15
 //                                            ^^^^^ reference [..] Arena#
       return ::operator new[](count);
