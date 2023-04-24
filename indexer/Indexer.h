@@ -275,8 +275,6 @@ public:
   FOR_EACH_TYPE_TO_BE_INDEXED(SAVE_TYPE_LOC)
 #undef SAVE_TYPE_LOC
 
-  void saveCanonicalType(const clang::QualType &, clang::SourceLocation);
-
   void emitDocumentOccurrencesAndSymbols(bool deterministic, clang::FileID,
                                          scip::Document &);
 
