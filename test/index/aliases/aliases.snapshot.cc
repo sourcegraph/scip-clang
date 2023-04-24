@@ -1,5 +1,7 @@
+  // extra-args: -std=c++20
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/aliases.cc`/
+  
   namespace a {
-//^^^^^^^^^ definition [..] `<file>/using.cc`/
 //          ^ definition [..] a/
   struct S {};
 //       ^ definition [..] a/S#
@@ -76,4 +78,29 @@
 //        ^ definition [..] f/A#C#
 //            ^ reference [..] f/A#B#
   };
+  }
+  
+  enum class LongLongEnum {
+//           ^^^^^^^^^^^^ definition [..] LongLongEnum#
+    X
+//  ^ definition [..] LongLongEnum#X.
+  };
+  
+  namespace h {
+//          ^ definition [..] h/
+    enum class EvenLongerEnum {
+//             ^^^^^^^^^^^^^^ definition [..] h/EvenLongerEnum#
+      Y
+//    ^ definition [..] h/EvenLongerEnum#Y.
+    };
+  }
+  
+  void g() {
+//     ^ definition [..] g(49f6e7a06ebc5aa8).
+    // Since C++20
+    using enum LongLongEnum;
+//             ^^^^^^^^^^^^ reference [..] LongLongEnum#
+    using enum h::EvenLongerEnum;
+//             ^ reference [..] h/
+//                ^^^^^^^^^^^^^^ reference [..] h/EvenLongerEnum#
   }
