@@ -29,3 +29,11 @@ typedef aS aS1;
 using aS2 = aS;
 using aS3 = aS1;
 typedef aS2 aS4;
+
+namespace f {
+template <typename T>
+struct A {
+  using B = T;
+  using C = B;
+};
+}

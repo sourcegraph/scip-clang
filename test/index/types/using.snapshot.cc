@@ -57,3 +57,17 @@
 //      ^^^ definition [..] aS3#
   typedef aS2 aS4;
 //            ^^^ definition [..] aS4#
+  
+  namespace f {
+//          ^ definition [..] f/
+  template <typename T>
+//                   ^ definition local 1
+  struct A {
+//       ^ definition [..] f/A#
+    using B = T;
+//        ^ definition [..] f/A#B#
+//            ^ reference local 1
+    using C = B;
+//        ^ definition [..] f/A#C#
+  };
+  }
