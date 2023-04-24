@@ -1,3 +1,5 @@
+// extra-args: -std=c++20
+
 namespace a {
 struct S {};
 }
@@ -36,4 +38,20 @@ struct A {
   using B = T;
   using C = B;
 };
+}
+
+enum class LongLongEnum {
+  X
+};
+
+namespace h {
+  enum class EvenLongerEnum {
+    Y
+  };
+}
+
+void g() {
+  // Since C++20
+  using enum LongLongEnum;
+  using enum h::EvenLongerEnum;
 }
