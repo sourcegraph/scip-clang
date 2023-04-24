@@ -19,6 +19,7 @@
 //               ^ reference [..] a/S#
     using T = S;
 //        ^ definition [..] c/T#
+//            ^ reference [..] a/S#
   }
   
   namespace d {
@@ -50,12 +51,16 @@
 //           ^ reference [..] a/S#
 //             ^^ definition [..] aS#
   typedef aS aS1;
+//        ^^ reference [..] a/S#
 //           ^^^ definition [..] aS1#
   using aS2 = aS;
 //      ^^^ definition [..] aS2#
+//            ^^ reference [..] a/S#
   using aS3 = aS1;
 //      ^^^ definition [..] aS3#
+//            ^^^ reference [..] a/S#
   typedef aS2 aS4;
+//        ^^^ reference [..] a/S#
 //            ^^^ definition [..] aS4#
   
   namespace f {

@@ -30,6 +30,7 @@
   F(Record)                            \
   F(TemplateSpecialization)            \
   F(TemplateTypeParm)                  \
+  F(Typedef)                           \
   F(Using)
 
 namespace clang {
