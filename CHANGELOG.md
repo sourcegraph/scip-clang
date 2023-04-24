@@ -1,5 +1,14 @@
 # scip-clang ChangeLog
 
+## v0.0.7 (alpha)
+
+- Fixed an issue where using-declarations (`using X::Y::Z;`) were
+  missing definition and reference information.
+  (https://github.com/sourcegraph/scip-clang/pull/240)
+- Fixed an issue where references to typedefs and alias declarations
+  (`using A = B`) were not emitted correctly.
+  (https://github.com/sourcegraph/scip-clang/pull/237)
+
 ## v0.0.6 (alpha)
 
 - Added bulk processing for worker results.
