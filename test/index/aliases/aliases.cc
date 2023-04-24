@@ -2,10 +2,11 @@
 
 namespace a {
 struct S {};
+struct T {};
 }
 
 namespace b {
-  using a::S;
+  using a::S, a::T;
 }
 
 namespace c {
@@ -18,7 +19,8 @@ namespace d {
 }
 
 namespace e {
-  using d::S;
+  using d::S; // equivalent to `using S = d::S;`
+  using T = e::S;
 
   template <typename X>
   struct R {};

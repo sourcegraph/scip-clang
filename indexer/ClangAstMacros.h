@@ -14,6 +14,7 @@
   F(TemplateTypeParm)                  \
   F(TypedefName)                       \
   F(UsingShadow)                       \
+  F(Using)                             \
   F(Var)
 
 #define FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(F) \

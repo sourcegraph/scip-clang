@@ -552,6 +552,12 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
 }
 
 std::optional<std::string_view>
+SymbolFormatter::getUsingSymbol(const clang::UsingDecl &) {
+  ENFORCE(false, "call getUsingShadowSymbol instead");
+  return {};
+}
+
+std::optional<std::string_view>
 SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
   if (varDecl.isLocalVarDeclOrParm()) {
     return this->getLocalVarOrParmSymbol(varDecl);
