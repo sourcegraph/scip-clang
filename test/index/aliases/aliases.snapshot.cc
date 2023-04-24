@@ -5,12 +5,15 @@
 //          ^ definition [..] a/
   struct S {};
 //       ^ definition [..] a/S#
+  struct T {};
+//       ^ definition [..] a/T#
   }
   
   namespace b {
 //          ^ definition [..] b/
-    using a::S;
+    using a::S, a::T;
 //        ^ reference [..] a/
+//              ^ reference [..] a/
   }
   
   namespace c {
@@ -34,8 +37,12 @@
   
   namespace e {
 //          ^ definition [..] e/
-    using d::S;
+    using d::S; // equivalent to `using S = d::S;`
 //        ^ reference [..] d/
+    using T = e::S;
+//        ^ definition [..] e/T#
+//            ^ reference [..] e/
+//               ^ reference [..] e/S#
   
     template <typename X>
 //                     ^ definition local 0
