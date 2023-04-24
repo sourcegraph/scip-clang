@@ -14,28 +14,11 @@
 
 #include "scip/scip.pb.h"
 
+#include "indexer/ClangAstMacros.h"
 #include "indexer/Derive.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
-
-#define FOR_EACH_DECL_TO_BE_INDEXED(F) \
-  F(Binding)                           \
-  F(EnumConstant)                      \
-  F(Enum)                              \
-  F(Field)                             \
-  F(Function)                          \
-  F(Namespace)                         \
-  F(NonTypeTemplateParm)               \
-  F(Record)                            \
-  F(TemplateTemplateParm)              \
-  F(TemplateTypeParm)                  \
-  F(TypedefName)                       \
-  F(Var)
-
-#define FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(F) \
-  F(NonTypeTemplateParm)                        \
-  F(TemplateTemplateParm)                       \
-  F(TemplateTypeParm)
+#include "indexer/StableFileId.h"
 
 namespace clang {
 #define FORWARD_DECLARE(DeclName) class DeclName##Decl;
@@ -91,41 +74,6 @@ struct SymbolBuilder {
   static std::string formatContextual(std::string_view contextSymbol,
                                       const DescriptorBuilder &descriptor);
 };
-
-/// An identifier for a file that is stable across indexing runs,
-/// represented as a path.
-///
-/// There are 4 kinds of files:
-/// 1. In-project files.
-/// 2. Generated files: These are present in the build root,
-///    but not in the project root.
-/// 3. External files: From libraries (stdlib, SDKs etc.)
-/// 4. Magic files: Corresponding to the builtin header,
-///    and command-line arguments.
-///
-/// For 2, 3 and 4, we make up fake paths that are likely to be
-/// distinct from actual in-project paths.
-///
-/// In the future, for cross-repo, a directory layout<->project mapping
-/// may be supplied or inferred, which would enable us to use non-synthetic
-/// paths for external files.
-struct StableFileId {
-  RootRelativePathRef path;
-  bool isInProject;
-  /// Track this for debugging.
-  bool isSynthetic;
-
-  template <typename H>
-  friend H AbslHashValue(H h, const StableFileId &stableFileId) {
-    return H::combine(std::move(h), stableFileId.path, stableFileId.isInProject,
-                      stableFileId.isSynthetic);
-  }
-
-  DERIVE_EQ_ALL(StableFileId)
-};
-
-using GetStableFileId =
-    absl::FunctionRef<std::optional<StableFileId>(clang::FileID)>;
 
 class SymbolFormatter final {
   const clang::SourceManager &sourceManager;
