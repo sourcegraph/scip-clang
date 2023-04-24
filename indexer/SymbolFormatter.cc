@@ -544,7 +544,7 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
           return {};
         }
         auto descriptor = DescriptorBuilder{
-            .name = llvm_ext::toStringView(usingShadowDecl.getName()),
+            .name = this->formatTemporary(usingShadowDecl),
             .suffix = suffix,
         };
         return SymbolBuilder::formatContextual(*optContextSymbol, descriptor);
