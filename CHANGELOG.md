@@ -1,5 +1,15 @@
 # scip-clang ChangeLog
 
+## v0.0.8 (alpha)
+
+- Fixed two issues where relative paths in a compilation database
+  lead to standard search directories not being found.
+  (https://github.com/sourcegraph/scip-clang/pull/246 ,
+  https://github.com/sourcegraph/scip-clang/pull/249)
+- Assertion failures inside LLVM in dev builds (`-dev` binaries
+  under releases) will now print a stack trace.
+  (https://github.com/sourcegraph/scip-clang/pull/244)
+
 ## v0.0.7 (alpha)
 
 - Fixed an issue where using-declarations (`using X::Y::Z;`) were
