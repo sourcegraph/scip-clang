@@ -201,6 +201,8 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
   auto args = std::move(job.command.CommandLine);
   args.push_back("-fsyntax-only");   // Only type-checking, no codegen.
   args.push_back("-Wno-everything"); // Warnings aren't helpful.
+  args.push_back("-working-directory");
+  args.push_back(fileSystemOptions.WorkingDir);
   // clang-format off
   // TODO(def: flag-passthrough, issue: https://github.com/sourcegraph/scip-clang/issues/23)
   // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
