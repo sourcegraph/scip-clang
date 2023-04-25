@@ -5,7 +5,7 @@ _PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
 _BAZEL_TOOLCHAIN_VERSION = "0.8.2"
 _RULES_BOOST_COMMIT = "e83dfef18d91a3e35c8eac9b9aeb1444473c0efd"
 _LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec"  # Keep in sync with Version.h
-_ABSL_COMMIT = "9a2c7bf98fa2482d0cbba727dcc4499e6e7c5ee2"
+_ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
@@ -105,9 +105,11 @@ def fetch_direct_dependencies():
     # https://sourcegraph.com/github.com/protocolbuffers/protobuf/-/blob/protobuf_deps.bzl?L39-46
     http_archive(
         name = "com_google_absl",
-        sha256 = "0db3f1408edf4e0eb12bd6c46fc01465a009feb2789a2b21ef40f91744a25783",
+        sha256 = "fee8ec623d8bbf0ecb9563a8e08ae319d1ca9fdf8c1c84384520a6992f571659",
         strip_prefix = "abseil-cpp-%s" % _ABSL_COMMIT,
         urls = ["https://github.com/abseil/abseil-cpp/archive/%s.zip" % _ABSL_COMMIT],
+        patch_args = ["-p1"],
+        patches = ["//third_party:abseil.patch"],
     )
 
     # Abseil also has a flags/argument parsing library, but let's

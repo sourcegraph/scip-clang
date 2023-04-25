@@ -17,6 +17,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/debugging:failure_signal_handler",
         "@boost//:date_time",
         "@boost//:interprocess",
         "@boost//:process",
