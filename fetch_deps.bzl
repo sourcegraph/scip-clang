@@ -4,7 +4,7 @@ _BAZEL_SKYLIB_VERSION = "1.3.0"
 _PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
 _BAZEL_TOOLCHAIN_VERSION = "0.8.2"
 _RULES_BOOST_COMMIT = "e83dfef18d91a3e35c8eac9b9aeb1444473c0efd"
-_LLVM_COMMIT = "b6e344ce91c8796331fca7644eb8c748ac5391ec"  # Keep in sync with Version.h
+_LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
 _ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
@@ -77,8 +77,18 @@ def fetch_direct_dependencies():
     )
 
     http_archive(
-        name = "llvm_upstream",
-        sha256 = "e5be7d76ba3f801254e5110fc84e2ffbf38267dd5f1bb9f7243ba2099f2d8cdd",
+        name = "llvm_zstd",
+        build_file = "@llvm-raw//utils/bazel/third_party_build:zstd.BUILD",
+        sha256 = "7c42d56fac126929a6a85dbc73ff1db2411d04f104fae9bdea51305663a83fd0",
+        strip_prefix = "zstd-1.5.2",
+        urls = [
+            "https://github.com/facebook/zstd/releases/download/v1.5.2/zstd-1.5.2.tar.gz",
+        ],
+    )
+
+    http_archive(
+        name = "llvm-raw",
+        sha256 = "04b76a5be88331f71a4e4fe96bccfebec302ddd0dbd9418fd5c186a7361c54fb",
         strip_prefix = "llvm-project-%s" % _LLVM_COMMIT,
         build_file_content = "# empty",
         urls = ["https://github.com/llvm/llvm-project/archive/%s.tar.gz" % _LLVM_COMMIT],
