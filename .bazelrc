@@ -17,6 +17,8 @@ build --cxxopt="-std=c++20" --host_cxxopt="-std=c++20" --client_env=BAZEL_CXXOPT
 # Per grailbio/bazel-toolchain docs
 build --incompatible_enable_cc_toolchain_resolution
 
+build --@llvm_zstd//:llvm_enable_zstd=false
+
 build --copt="-Wall" --copt="-Wextra" --copt="-Wwrite-strings" --copt="-Wcast-qual" --copt="-Wmissing-field-initializers" --copt="-Wimplicit-fallthrough" --copt="-Wcovered-switch-default" --copt="-Wsuggest-override" --copt="-Wstring-concatenation" --copt="-Wstring-conversion" --copt="-Wmisleading-indentation"
 
 # For dependencies with .BUILD files in third_party, prefer adding flags there
