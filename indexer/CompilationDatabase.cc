@@ -78,9 +78,11 @@ static CompletedProcess runProcess(std::vector<std::string> &args,
 }
 
 /// Returns an empty path if we failed to determine the resource dir
-ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
-  ResourceDirResult out{
-      "", {compilerPath, "-print-resource-dir"}, CompilerKind::Clang};
+ResourceDirResult static determineResourceDir(
+    const scip_clang::AbsolutePath &compilerPath) {
+  ResourceDirResult out{"",
+                        {compilerPath.asStringRef(), "-print-resource-dir"},
+                        CompilerKind::Clang};
   auto printResourceDirResult =
       ::runProcess(out.cliInvocation, "attempting to find resource dir");
   if (printResourceDirResult.isSuccess()) {
@@ -94,7 +96,7 @@ ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
     return out;
   }
   out.compilerKind = CompilerKind::Gcc;
-  out.cliInvocation = {compilerPath, "-print-search-dirs"};
+  out.cliInvocation = {compilerPath.asStringRef(), "-print-search-dirs"};
   auto printSearchDirsResult =
       ::runProcess(out.cliInvocation, "attempting to find search dirs");
   auto noteStdlib = []() {
@@ -105,7 +107,7 @@ ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
   if (!printSearchDirsResult.isSuccess()) {
     spdlog::warn(
         "both -print-resource-dir and -print-search-dirs failed for {}",
-        compilerPath);
+        compilerPath.asStringRef());
     noteStdlib();
     return out;
   }
@@ -121,7 +123,7 @@ ResourceDirResult static determineResourceDir(const std::string &compilerPath) {
   if (out.resourceDir.empty()) {
     spdlog::warn(
         "missing 'install:' line in -print-search-dirs from GCC(-like?) {}",
-        compilerPath);
+        compilerPath.asStringRef());
     noteStdlib();
     return out;
   }
@@ -601,13 +603,13 @@ void ResumableParser::parseMore(
       if (cmd.CommandLine.empty()) {
         continue;
       }
-      this->tryInferResourceDir(cmd.CommandLine);
+      this->tryInferResourceDir(cmd.Directory, cmd.CommandLine);
     }
   }
 }
 
 void ResumableParser::tryInferResourceDir(
-    std::vector<std::string> &commandLine) {
+    const std::string &directoryPath, std::vector<std::string> &commandLine) {
   auto &compilerPath = commandLine.front();
   auto it = this->extraArgsMap.find(compilerPath);
   if (it != this->extraArgsMap.end()) {
@@ -616,11 +618,13 @@ void ResumableParser::tryInferResourceDir(
     }
     return;
   }
-  std::string compilerInvocationPath = compilerPath;
+  AbsolutePath compilerInvocationPath;
+  auto fail = [&]() { this->extraArgsMap.insert({compilerPath, {}}); };
+
   if (compilerPath.find(std::filesystem::path::preferred_separator)
       == std::string::npos) {
-    compilerInvocationPath = boost::process::search_path(compilerPath).native();
-    if (compilerInvocationPath.empty()) {
+    auto absPath = boost::process::search_path(compilerPath).native();
+    if (absPath.empty()) {
       this->emitResourceDirError(fmt::format(
           "scip-clang needs to be invoke '{0}' (found via the compilation"
           " database) to determine the resource directory, but couldn't find"
@@ -628,10 +632,28 @@ void ResumableParser::tryInferResourceDir(
           " or change the compilation database to use absolute paths"
           " for the compiler.",
           compilerPath));
-      return;
+      return fail();
     }
+    compilerInvocationPath =
+        AbsolutePath(std::string(absPath.data(), absPath.size()));
+  } else if (llvm::sys::path::is_relative(compilerPath)) {
+    if (llvm::sys::path::is_absolute(directoryPath)) {
+      compilerInvocationPath = AbsolutePath(fmt::format(
+          "{}{}{}", directoryPath, std::filesystem::path::preferred_separator,
+          compilerPath));
+    } else {
+      spdlog::warn(
+          R"("directory": "{}" key in compilation database is not an absolute path)"
+          "; unable to determine resource directory for compiler: {}",
+          directoryPath, compilerPath);
+    }
+  } else {
+    ENFORCE(llvm::sys::path::is_absolute(compilerPath));
+    compilerInvocationPath = AbsolutePath(std::string(compilerPath));
   }
-  auto fail = [&]() { this->extraArgsMap.insert({compilerPath, {}}); };
+  if (compilerInvocationPath.asStringRef().empty()) {
+    return fail();
+  }
   auto resourceDirResult = ::determineResourceDir(compilerInvocationPath);
   if (resourceDirResult.resourceDir.empty()) {
     return fail();

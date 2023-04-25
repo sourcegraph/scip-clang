@@ -113,7 +113,8 @@ public:
                  bool checkFilesExist = true);
 
 private:
-  void tryInferResourceDir(std::vector<std::string> &commandLine);
+  void tryInferResourceDir(const std::string &directoryPath,
+                           std::vector<std::string> &commandLine);
   void emitResourceDirError(std::string &&error);
 };
 
