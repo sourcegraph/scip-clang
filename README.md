@@ -1,8 +1,15 @@
 # scip-clang: SCIP indexer for C and C++
 
-Status: Ready for early adopters.
+Status: scip-clang currently supports single-repository precise code navigation
+for C and C++. It is ready for early adopters, with codebases smaller than 15M SLOC.
+Larger codebases may run into a [Protobuf limit on message sizes](https://stackoverflow.com/q/34128872/2682729)
+([tracking issue for fix](https://github.com/sourcegraph/scip/issues/143)).
 
-<!-- Add BETA status badge -->
+Code navigation examples in [llvm/llvm-project](https://sourcegraph.com/github.com/llvm/llvm-project):
+- [Find references for #include](https://sourcegraph.com/github.com/llvm/llvm-project@97a03eb2eb5acf269db6253fe540626b52950f97/-/blob/llvm/include/llvm/ADT/SmallSet.h?L1:1-1:81#tab=references)
+- [Find references for macros](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/llvm/include/llvm/Support/Debug.h?L101:9-101:19#tab=references)
+- [Find references for types](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/clang/include/clang/AST/ASTContext.h?L1472:34-1472:45#tab=references)
+
 <!-- Add Chromium index reference -->
 <!-- Add Pytorch index -->
 <!-- Add GIF of file navigation? -->
