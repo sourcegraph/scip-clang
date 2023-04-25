@@ -319,6 +319,8 @@ TEST_CASE("ROBUSTNESS") {
   args.push_back("--testing");
   args.push_back("--receive-timeout-seconds=3");
   args.push_back(fmt::format("--driver-id=robustness-{}", fault));
+  // Stack trace printed by abseil is not portable for snapshots
+  args.push_back("--no-stack-trace");
   TempFile tmpLogFile(fmt::format("{}.tmp.log", fault));
   boost::process::child driver(args,
                                boost::process::std_out > boost::process::null,
@@ -445,8 +447,7 @@ TEST_CASE("INDEX") {
 }
 
 int main(int argc, char *argv[]) {
-  scip_clang::initializeSymbolizer(argv[0]);
-
+  scip_clang::initializeSymbolizer(argv[0], /*printStacktrace*/ true);
   cxxopts::Options options("test_main", "Test runner for scip-clang");
   std::string testKind;
   options.add_options()("test-kind",

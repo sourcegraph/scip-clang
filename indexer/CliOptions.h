@@ -48,6 +48,7 @@ struct CliOptions {
   // For testing only
   bool isTesting;
   std::string workerFault;
+  bool noStacktrace;
 
   // Worker-specific options
 

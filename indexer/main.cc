@@ -101,6 +101,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "[worker-only] Measure various statistics related to indexing",
     cxxopts::value<bool>(cliOptions.measureStatistics));
   parser.add_options("Internal")(
+    "no-stack-trace",
+    "Skip printing the stack trace on crashes.",
+    cxxopts::value<bool>(cliOptions.noStacktrace));
+  parser.add_options("Internal")(
     "preprocessor-history-log-path",
     "[worker-only] Path to log preprocessor history, if applicable.",
     cxxopts::value<std::string>(cliOptions.preprocessorHistoryLogPath));
@@ -205,8 +209,8 @@ static void initializeGlobalLogger(std::string name,
 }
 
 int main(int argc, char *argv[]) {
-  scip_clang::initializeSymbolizer(argv[0]);
   auto cliOptions = parseArguments(argc, argv);
+  scip_clang::initializeSymbolizer(argv[0], !cliOptions.noStacktrace);
   bool isWorker = !cliOptions.workerMode.empty();
   auto loggerName =
       isWorker ? fmt::format("worker {}", cliOptions.workerId) : "driver";

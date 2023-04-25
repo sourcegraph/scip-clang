@@ -5,7 +5,6 @@
 // - EnforceNoTimer.h
 // - common/common.h
 
-#include "absl/debugging/symbolize.h"
 #include "spdlog/spdlog.h"
 
 #include "indexer/Exception.h"
@@ -62,9 +61,7 @@
 
 namespace scip_clang {
 
-inline void initializeSymbolizer(const char *argv0) {
-  absl::InitializeSymbolizer(argv0);
-}
+void initializeSymbolizer(const char *argv0, bool printStacktrace);
 
 } // namespace scip_clang
 

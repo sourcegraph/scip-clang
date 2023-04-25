@@ -210,6 +210,7 @@ struct DriverOptions {
   StdPath supplementaryOutputDir;
   std::string workerFault;
   bool isTesting;
+  bool noStacktrace;
 
   StdPath temporaryOutputDir;
   bool deleteTemporaryOutputDir;
@@ -227,6 +228,7 @@ struct DriverOptions {
             cliOpts.preprocessorRecordHistoryFilterRegex),
         supplementaryOutputDir(cliOpts.supplementaryOutputDir),
         workerFault(cliOpts.workerFault), isTesting(cliOpts.isTesting),
+        noStacktrace(cliOpts.noStacktrace),
         temporaryOutputDir(cliOpts.temporaryOutputDir),
         deleteTemporaryOutputDir(cliOpts.temporaryOutputDir.empty()),
         originalArgv(cliOpts.originalArgv) {
@@ -315,6 +317,9 @@ struct DriverOptions {
     }
     if (!this->statsFilePath.asStringRef().empty()) {
       args.push_back("--measure-statistics");
+    }
+    if (this->noStacktrace) {
+      args.push_back("--no-stack-trace");
     }
     if (this->showCompilerDiagnostics) {
       args.push_back("--show-compiler-diagnostics");

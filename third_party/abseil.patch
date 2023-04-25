@@ -1,0 +1,20 @@
+diff --git a/absl/debugging/failure_signal_handler.cc b/absl/debugging/failure_signal_handler.cc
+index 9f399d02..9d63cba4 100644
+--- a/absl/debugging/failure_signal_handler.cc
++++ b/absl/debugging/failure_signal_handler.cc
+@@ -238,5 +238,5 @@ static void InstallOneFailureHandler(FailureSignalData* data,
+ 
+-static void WriteToStderr(const char* data) {
+-  absl::raw_log_internal::AsyncSignalSafeWriteToStderr(data, strlen(data));
+-}
++// static void WriteToStderr(const char* data) {
++//  absl::raw_log_internal::AsyncSignalSafeWriteToStderr(data, strlen(data));
++// }
+ 
+@@ -381,4 +381,4 @@ static void AbslFailureSignalHandler(int signo, siginfo_t*, void* ucontext) {
+ 
+-  // First write to stderr.
+-  WriteFailureInfo(signo, ucontext, my_cpu, WriteToStderr);
++  // Don't write to stderr.
++  // WriteFailureInfo(signo, ucontext, my_cpu, WriteToStderr);
+ 
