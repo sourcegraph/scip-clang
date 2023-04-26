@@ -349,9 +349,10 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   StdPath prefix = this->options.temporaryOutputDir
                    / ShardPaths::prefix(emitIndexRequestId.taskId(),
                                         this->ipcOptions().workerId);
-  StdPath docsAndExternalsOutputPath =
-      prefix.concat("-docs_and_externals.shard.scip");
-  StdPath forwardDeclsOutputPath = prefix.concat("-forward_decls.shard.scip");
+  StdPath docsAndExternalsOutputPath = prefix;
+  docsAndExternalsOutputPath.concat("-docs_and_externals.shard.scip");
+  StdPath forwardDeclsOutputPath = prefix;
+  forwardDeclsOutputPath.concat("-forward_decls.shard.scip");
   this->emitIndex(std::move(tuIndexingOutput.docsAndExternals),
                   docsAndExternalsOutputPath);
   this->emitIndex(std::move(tuIndexingOutput.forwardDecls),
