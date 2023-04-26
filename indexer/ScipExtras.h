@@ -162,7 +162,7 @@ public:
 };
 
 class IndexBuilder final {
-  scip::Index &fullIndex;
+  std::vector<scip::Document> documents;
   // The key is deliberately the path only, not the path+hash, so that we can
   // aggregate information across different hashes into a single Document.
   absl::flat_hash_map<RootRelativePath, std::unique_ptr<DocumentBuilder>>
@@ -173,7 +173,7 @@ class IndexBuilder final {
   scip_clang::Bomb _bomb;
 
 public:
-  IndexBuilder(scip::Index &fullIndex);
+  IndexBuilder();
   void addDocument(scip::Document &&doc, bool isMultiplyIndexed);
   void addExternalSymbol(scip::SymbolInformation &&extSym);
 
@@ -182,7 +182,7 @@ public:
   void addForwardDeclaration(const SymbolToInfoMap &,
                              scip::SymbolInformation &&forwardDeclSym);
 
-  void finish(bool deterministic);
+  void finish(bool deterministic, std::ostream &);
 
 private:
   void addExternalSymbolUnchecked(SymbolName &&,

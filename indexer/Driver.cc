@@ -945,7 +945,6 @@ private:
       std::exit(EXIT_FAILURE);
     }
 
-    scip::Index fullIndex{};
     if (this->options.deterministic) {
       // Sorting before merging so that mergeShards can be const
       absl::c_sort(
@@ -959,8 +958,7 @@ private:
             return cmp == std::strong_ordering::less;
           });
     }
-    this->mergeShards(fullIndex);
-    fullIndex.SerializeToOstream(&outputStream);
+    this->mergeShardsAndEmit(outputStream);
   }
 
   bool
@@ -991,7 +989,7 @@ private:
     return isMultiplyIndexed;
   }
 
-  void mergeShards(scip::Index &fullIndex) const {
+  void mergeShardsAndEmit(std::ofstream &outputStream) const {
     LogTimerRAII timer("index merging");
 
     scip::ToolInfo toolInfo;
@@ -1009,6 +1007,10 @@ private:
     metadata.set_text_document_encoding(scip::TextEncoding::UTF8);
     *metadata.mutable_tool_info() = std::move(toolInfo);
 
+    scip::Index metadataFragment{};
+    *metadataFragment.mutable_metadata() = std::move(metadata);
+    metadataFragment.SerializeToOstream(&outputStream);
+
     // TODO(def: faster-index-merging): Right now, the index merging
     // implementation has the overhead of serializing + deserializing all data
     // twice (once in the worker and once in the driver). In principle, we
@@ -1022,7 +1024,6 @@ private:
     //
     // The implementation is also fully serial to avoid introducing
     // a dependency on a library with a concurrent hash table.
-    *fullIndex.mutable_metadata() = std::move(metadata);
 
     auto readIndexShard = [](const AbsolutePath &path,
                              scip::Index &indexShard) -> bool {
@@ -1043,7 +1044,7 @@ private:
 
     absl::flat_hash_set<uint32_t> badJobIds{};
 
-    scip::IndexBuilder builder{fullIndex};
+    scip::IndexBuilder builder{};
     // TODO: Measure how much time this is taking and parallelize if too slow.
     for (auto &paths : this->shardPaths) {
       scip::Index indexShard;
@@ -1092,7 +1093,7 @@ private:
       }
     }
 
-    builder.finish(this->options.deterministic);
+    builder.finish(this->options.deterministic, outputStream);
   }
 
   size_t numWorkers() const {

@@ -171,9 +171,8 @@ RootRelativePath::RootRelativePath(std::string &&value)
   ENFORCE(llvm::sys::path::is_relative(this->value));
 }
 
-IndexBuilder::IndexBuilder(scip::Index &fullIndex)
-    : fullIndex(fullIndex), multiplyIndexed(), externalSymbols(),
-      _bomb(BOMB_INIT("IndexBuilder")) {}
+IndexBuilder::IndexBuilder()
+    : multiplyIndexed(), externalSymbols(), _bomb(BOMB_INIT("IndexBuilder")) {}
 
 void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
   ENFORCE(!doc.relative_path().empty());
@@ -194,7 +193,7 @@ void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
             "Document with path '{}' found in multiplyIndexed map despite "
             "!isMultiplyIndexed",
             doc.relative_path());
-    *this->fullIndex.add_documents() = std::move(doc);
+    this->documents.emplace_back(std::move(doc));
   }
 }
 
@@ -234,7 +233,7 @@ void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
 
 std::unique_ptr<SymbolToInfoMap> IndexBuilder::populateSymbolToInfoMap() {
   SymbolToInfoMap symbolToInfoMap;
-  for (auto &document : *this->fullIndex.mutable_documents()) {
+  for (auto &document : this->documents) {
     for (auto &symbolInfo : *document.mutable_symbols()) {
       auto symbolName = std::string_view(symbolInfo.symbol());
       symbolToInfoMap.emplace(symbolName,
@@ -289,10 +288,41 @@ void IndexBuilder::addForwardDeclaration(
   }
 }
 
-void IndexBuilder::finish(bool deterministic) {
-  this->_bomb.defuse();
+struct IndexWriter {
+  scip::Index index;
+  std::ostream &outputStream;
 
-  this->fullIndex.mutable_documents()->Reserve(this->multiplyIndexed.size());
+  ~IndexWriter() {
+    this->write();
+  }
+
+  void writeDocument(scip::Document &&doc) {
+    *this->index.add_documents() = std::move(doc);
+    this->write();
+  }
+
+  void writeExternalSymbol(scip::SymbolInformation &&symbolInfo) {
+    *this->index.add_external_symbols() = std::move(symbolInfo);
+    if (this->index.external_symbols_size() % 1024 == 0) {
+      this->write();
+    }
+  }
+
+private:
+  void write() {
+    this->index.SerializeToOstream(&this->outputStream);
+    this->index.clear_documents();
+    this->index.clear_external_symbols();
+  }
+};
+
+void IndexBuilder::finish(bool deterministic, std::ostream &outputStream) {
+  this->_bomb.defuse();
+  IndexWriter writer{scip::Index{}, outputStream};
+
+  for (auto &doc : this->documents) {
+    writer.writeDocument(std::move(doc));
+  }
   scip_clang::extractTransform(
       std::move(this->multiplyIndexed), deterministic,
       absl::FunctionRef<void(RootRelativePath &&,
@@ -300,11 +330,8 @@ void IndexBuilder::finish(bool deterministic) {
           [&](auto && /*path*/, auto &&builder) -> void {
             scip::Document doc{};
             builder->finish(deterministic, doc);
-            *this->fullIndex.add_documents() = std::move(doc);
+            writer.writeDocument(std::move(doc));
           }));
-
-  this->fullIndex.mutable_external_symbols()->Reserve(
-      this->externalSymbols.size());
   scip_clang::extractTransform(
       std::move(this->externalSymbols), deterministic,
       absl::FunctionRef<void(SymbolName &&,
@@ -313,7 +340,7 @@ void IndexBuilder::finish(bool deterministic) {
             scip::SymbolInformation extSym{};
             extSym.set_symbol(std::move(name.asStringRefMut()));
             builder->finish(deterministic, extSym);
-            *this->fullIndex.add_external_symbols() = std::move(extSym);
+            writer.writeExternalSymbol(std::move(extSym));
           }));
 }
 
