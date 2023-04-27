@@ -1218,8 +1218,6 @@ private:
         });
   }
 
-  void processSemanticAnalysisResult(SemanticAnalysisJobResult &&) {}
-
   TusIndexedCount processWorkerResponse(IndexJobResponse &&response) {
     TRACE_EVENT(tracing::indexing, "Driver::processWorkerResponse",
                 perfetto::TerminatingFlow::Global(response.jobId.traceId()));
