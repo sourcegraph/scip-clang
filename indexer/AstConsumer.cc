@@ -1,4 +1,5 @@
 #include "absl/container/flat_hash_set.h"
+#include "perfetto/perfetto.h"
 
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -12,6 +13,7 @@
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Preprocessing.h"
 #include "indexer/SymbolFormatter.h"
+#include "indexer/Tracing.h"
 
 namespace scip_clang {
 namespace {
@@ -111,6 +113,9 @@ public:
         }
       }
     }
+    TRACE_EVENT("serialization", "IndexerAstVisitor::writeIndex", "fileCount",
+                indexedProjectFiles.size());
+
     if (this->deterministic) {
       auto comparePaths = [](const auto &p1, const auto &p2) -> bool {
         auto cmp = p1.first <=> p2.first;

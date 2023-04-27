@@ -25,6 +25,7 @@
 #include "boost/process/child.hpp"
 #include "boost/process/io.hpp"
 #include "boost/process/search_path.hpp"
+#include "perfetto/perfetto.h"
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/filereadstream.h"
@@ -50,6 +51,7 @@
 #include "indexer/ScipExtras.h"
 #include "indexer/Statistics.h"
 #include "indexer/Timer.h"
+#include "indexer/Tracing.h"
 #include "indexer/Version.h"
 #include "indexer/os/Os.h"
 
@@ -388,6 +390,7 @@ public:
 
   void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
                       std::vector<PreprocessedFileInfo> &filesToBeIndexed) {
+    TRACE_EVENT("planning", "FileIndexingPlanner::saveSemaResult");
     absl::flat_hash_set<HashValue> emptyHashSet{};
     for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
       ENFORCE(fileInfoMulti.hashValues.size() > 1);
@@ -1287,8 +1290,10 @@ private:
     auto workerTimeout = this->receiveTimeout();
     TusIndexedCount tusIndexedCount{};
     IndexJobResponse response;
+    TRACE_EVENT_BEGIN("ipc", "driver.waitForResponse");
     auto recvError =
         this->queues.workerToDriver.timedReceive(response, workerTimeout);
+    TRACE_EVENT_END("ipc");
     if (recvError.isA<TimeoutError>()) {
       spdlog::warn("timeout: no workers have responded yet");
       // All workers which are working have been doing so for too long,
