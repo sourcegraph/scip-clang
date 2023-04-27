@@ -390,7 +390,7 @@ public:
 
   void saveSemaResult(SemanticAnalysisJobResult &&semaResult,
                       std::vector<PreprocessedFileInfo> &filesToBeIndexed) {
-    TRACE_EVENT("planning", "FileIndexingPlanner::saveSemaResult");
+    TRACE_EVENT(tracing::planning, "FileIndexingPlanner::saveSemaResult");
     absl::flat_hash_set<HashValue> emptyHashSet{};
     for (auto &fileInfoMulti : semaResult.illBehavedFiles) {
       ENFORCE(fileInfoMulti.hashValues.size() > 1);
@@ -576,6 +576,10 @@ public:
   void terminateLongRunningWorkersAndRespawn(
       Instant startedBefore,
       absl::FunctionRef<Process(Process &&, WorkerId)> terminateAndRespawn) {
+    TRACE_EVENT(tracing::scheduling,
+                "Scheduler::terminateLongRunningWorkersAndRespawn",
+                "workers.size", this->workers.size(), "wipJobs.size",
+                this->wipJobs.size());
     this->checkInvariants();
     // NOTE: N_workers <= 500. On the fast path, this boils down to
     // N_workers indexing ops + integer comparisons, so it should be cheap.
@@ -1032,6 +1036,7 @@ private:
 
     auto readIndexShard = [](const AbsolutePath &path,
                              scip::Index &indexShard) -> bool {
+      TRACE_EVENT(tracing::indexIo, "(lambda readIndexShard)");
       auto &shardPath = path.asStringRef();
       std::ifstream inputStream(shardPath,
                                 std::ios_base::in | std::ios_base::binary);
@@ -1092,6 +1097,8 @@ private:
       if (!readIndexShard(paths.forwardDecls, indexShard)) {
         continue;
       }
+      TRACE_EVENT(tracing::indexMerging, "addForwardDeclarations", "size",
+                  indexShard.external_symbols_size());
       for (auto &forwardDeclSym : *indexShard.mutable_external_symbols()) {
         builder.addForwardDeclaration(*symbolToInfoMap,
                                       std::move(forwardDeclSym));
@@ -1214,6 +1221,8 @@ private:
   void processSemanticAnalysisResult(SemanticAnalysisJobResult &&) {}
 
   TusIndexedCount processWorkerResponse(IndexJobResponse &&response) {
+    TRACE_EVENT(tracing::indexing, "Driver::processWorkerResponse",
+                perfetto::TerminatingFlow::Global(response.jobId.traceId()));
     TusIndexedCount tusIndexedCount{};
     auto optLatestIdleWorkerId = this->scheduler.markCompleted(
         response.workerId, response.jobId, response.result.kind);
@@ -1292,10 +1301,10 @@ private:
     auto workerTimeout = this->receiveTimeout();
     TusIndexedCount tusIndexedCount{};
     IndexJobResponse response;
-    TRACE_EVENT_BEGIN("ipc", "driver.waitForResponse");
+    TRACE_EVENT_BEGIN(tracing::ipc, "driver.waitForResponse");
     auto recvError =
         this->queues.workerToDriver.timedReceive(response, workerTimeout);
-    TRACE_EVENT_END("ipc");
+    TRACE_EVENT_END(tracing::ipc);
     if (recvError.isA<TimeoutError>()) {
       spdlog::warn("timeout: no workers have responded yet");
       // All workers which are working have been doing so for too long,

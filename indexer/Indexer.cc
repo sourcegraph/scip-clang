@@ -7,6 +7,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
+#include "perfetto/perfetto.h"
 #include "spdlog/fmt/fmt.h"
 
 #include "clang/AST/ASTContext.h"
@@ -31,6 +32,7 @@
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
 #include "indexer/SymbolFormatter.h"
+#include "indexer/Tracing.h"
 
 namespace scip_clang {
 
@@ -221,6 +223,8 @@ void MacroIndexer::saveInclude(clang::FileID containingFileId,
 void MacroIndexer::emitDocumentOccurrencesAndSymbols(
     bool deterministic, SymbolFormatter &symbolFormatter, clang::FileID fileId,
     scip::Document &document) {
+  TRACE_EVENT(tracing::indexing,
+              "MacroIndexer::emitDocumentOccurrencesAndSymbols");
   auto it = this->table.find({fileId});
   if (it == this->table.end()) {
     return;
@@ -251,6 +255,7 @@ void MacroIndexer::emitDocumentOccurrencesAndSymbols(
 void MacroIndexer::emitExternalSymbols(bool deterministic,
                                        SymbolFormatter &symbolFormatter,
                                        scip::Index &index) {
+  TRACE_EVENT(tracing::indexing, "MacroIndexer::emitExternalSymbols");
   std::string message;
   ENFORCE(
       [&]() -> bool {
@@ -823,6 +828,9 @@ void TuIndexer::emitDocumentOccurrencesAndSymbols(
     return;
   }
   auto &doc = it->second;
+  TRACE_EVENT(tracing::indexIo, "TuIndexer::emitDocumentOccurrencesAndSymbols",
+              "occurrences.size", doc.occurrences.size(), "symbolInfos.size",
+              doc.symbolInfos.size());
   for (auto &occExt : doc.occurrences) {
     *scipDocument.add_occurrences() = std::move(occExt.occ);
   }
@@ -837,6 +845,8 @@ void TuIndexer::emitDocumentOccurrencesAndSymbols(
 
 void TuIndexer::emitExternalSymbols(bool deterministic,
                                     scip::Index &indexShard) {
+  TRACE_EVENT(tracing::indexing, "TuIndexer::emitExternalSymbols", "size",
+              this->externalSymbols.size());
   scip_clang::extractTransform(
       std::move(this->externalSymbols), deterministic,
       absl::FunctionRef<void(std::string_view &&, scip::SymbolInformation &&)>(
@@ -848,6 +858,8 @@ void TuIndexer::emitExternalSymbols(bool deterministic,
 
 void TuIndexer::emitForwardDeclarations(bool deterministic,
                                         scip::Index &forwardDeclIndex) {
+  TRACE_EVENT(tracing::indexing, "TuIndexer::emitForwardDeclarations", "size",
+              this->forwardDeclarations.size());
   scip_clang::extractTransform(
       std::move(this->forwardDeclarations), deterministic,
       absl::FunctionRef<void(std::string_view &&, DocComment &&)>(
