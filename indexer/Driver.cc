@@ -1209,8 +1209,6 @@ private:
         });
   }
 
-  void processSemanticAnalysisResult(SemanticAnalysisJobResult &&) {}
-
   TusIndexedCount processWorkerResponse(IndexJobResponse &&response) {
     TusIndexedCount tusIndexedCount{};
     auto optLatestIdleWorkerId = this->scheduler.markCompleted(
