@@ -600,7 +600,9 @@ public:
     for (size_t workerId = 0; workerId < this->workers.size(); workerId++) {
       auto &worker = this->workers[workerId];
       BOOST_TRY {
-        worker.processHandle.wait_for(std::chrono::seconds(1));
+        if (worker.processHandle.running()) {
+          worker.processHandle.wait_for(std::chrono::milliseconds(100));
+        }
       }
       BOOST_CATCH(boost::process::process_error & error) {
         spdlog::warn("driver got error when waiting for child {} to exit: {}",
