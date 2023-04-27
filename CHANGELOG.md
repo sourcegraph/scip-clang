@@ -1,5 +1,19 @@
 # scip-clang ChangeLog
 
+## v0.0.9 (alpha)
+
+- Fixed an issue where indexes over the size of 2GB would cause
+  a crash in the driver. The fix has been tested against Chromium,
+  where the SCIP index is about 6GB.
+  (https://github.com/sourcegraph/scip-clang/pull/256)
+- Fixed an issue where the driver would wait for workers to exit
+  even if the workers had already exited earlier.
+  This removes an NCPU second delay at the end of indexing.
+  (https://github.com/sourcegraph/scip-clang/pull/262)
+- Added support for tracing using [Perfetto](https://perfetto.dev/).
+  (https://github.com/sourcegraph/scip-clang/pull/260,
+  https://github.com/sourcegraph/scip-clang/pull/261)
+
 ## v0.0.8 (alpha)
 
 - Fixed two issues where relative paths in a compilation database
