@@ -8,6 +8,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/functional/function_ref.h"
+#include "perfetto/perfetto.h"
 
 #include "llvm/Support/Path.h"
 
@@ -17,6 +18,7 @@
 #include "indexer/Comparison.h"
 #include "indexer/Enforce.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/Tracing.h"
 
 namespace scip {
 
@@ -232,6 +234,10 @@ void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
 }
 
 std::unique_ptr<SymbolToInfoMap> IndexBuilder::populateSymbolToInfoMap() {
+  TRACE_EVENT(scip_clang::tracing::indexMerging,
+              "IndexBuilder::populateSymbolToInfoMap", "documents.size",
+              this->documents.size(), "multiplyIndexed.size",
+              this->multiplyIndexed.size());
   SymbolToInfoMap symbolToInfoMap;
   for (auto &document : this->documents) {
     for (auto &symbolInfo : *document.mutable_symbols()) {
@@ -317,6 +323,10 @@ private:
 };
 
 void IndexBuilder::finish(bool deterministic, std::ostream &outputStream) {
+  TRACE_EVENT(scip_clang::tracing::indexIo, "IndexBuilder::finish",
+              "documents.size", this->documents.size(), "multiplyIndexed.size",
+              this->multiplyIndexed.size(), "externalSymbols.size",
+              this->externalSymbols.size());
   this->_bomb.defuse();
   IndexWriter writer{scip::Index{}, outputStream};
 

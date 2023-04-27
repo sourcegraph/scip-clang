@@ -113,7 +113,7 @@ public:
         }
       }
     }
-    TRACE_EVENT("serialization", "IndexerAstVisitor::writeIndex", "fileCount",
+    TRACE_EVENT(tracing::indexIo, "IndexerAstVisitor::writeIndex", "fileCount",
                 indexedProjectFiles.size());
 
     if (this->deterministic) {

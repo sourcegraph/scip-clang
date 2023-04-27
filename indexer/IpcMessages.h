@@ -49,10 +49,15 @@ public:
     return this->_taskId;
   }
 
+  uint64_t traceId() const {
+    return this->to64Bit();
+  }
+
 private:
   uint64_t to64Bit() const {
     return (uint64_t(this->_taskId) << 32) + uint64_t(this->subtaskId);
   }
+
   static JobId from64Bit(uint64_t v) {
     return JobId(v >> 32, static_cast<uint32_t>(v));
   }

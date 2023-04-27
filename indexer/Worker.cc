@@ -264,6 +264,9 @@ void Worker::sendResult(JobId requestId, IndexJobResult &&result) {
 
 Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     IndexJobRequest &&semanticAnalysisRequest) {
+  TRACE_EVENT_BEGIN(
+      tracing::indexing, "worker.semanticAnalysis",
+      perfetto::Flow::Global(semanticAnalysisRequest.id.traceId()));
   ManualTimer indexingTimer{};
   indexingTimer.start();
 
@@ -278,6 +281,7 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
       [this, semaRequestId, &innerStatus, &emitIndexRequestId, &tuMainFilePath,
        &callbackInvoked](SemanticAnalysisJobResult &&semaResult,
                          EmitIndexJobDetails &emitIndexDetails) -> bool {
+    TRACE_EVENT_END(tracing::indexing);
     callbackInvoked++;
     if (this->options.mode == WorkerMode::Compdb) {
       for (auto &fileInfo : semaResult.wellBehavedFiles) {
@@ -306,6 +310,8 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
           tuMainFilePath);
       std::exit(EXIT_FAILURE);
     }
+    TRACE_EVENT_BEGIN(tracing::indexing, "worker.emitIndex",
+                      perfetto::Flow::Global(emitIndexRequest.id.traceId()));
     ENFORCE(emitIndexRequest.job.kind == IndexJob::Kind::EmitIndex,
             "expected EmitIndex request for '{}' but got SemanticAnalysis "
             "request for '{}'",
@@ -335,6 +341,7 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     indexingTimer.stop();
     this->statistics.totalTimeMicros =
         uint64_t(indexingTimer.value<std::chrono::microseconds>());
+    TRACE_EVENT_END(tracing::indexing);
   };
 
   if (this->options.mode == WorkerMode::Compdb) {
@@ -417,6 +424,8 @@ void Worker::triggerFaultIfApplicable() const {
 }
 
 Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
+  TRACE_EVENT(tracing::ipc, "Worker::waitForRequest");
+
   using Status = Worker::ReceiveStatus;
 
   if (this->options.mode == WorkerMode::Compdb) {
@@ -433,10 +442,8 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
   }
 
   ENFORCE(this->options.mode == WorkerMode::Ipc);
-  TRACE_EVENT_BEGIN("ipc", "worker.waitForDriver");
   auto recvError = this->messageQueues->driverToWorker.timedReceive(
       request, this->ipcOptions().receiveTimeout);
-  TRACE_EVENT_END("ipc");
   if (recvError.isA<TimeoutError>()) {
     spdlog::error("timeout in worker; is the driver dead?... shutting down");
     return Status::DriverTimeout;
