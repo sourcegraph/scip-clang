@@ -15,6 +15,7 @@
   - [Automated test case reduction](#automated-test-case-reduction)
   - [Debugging preprocessor issues](#debugging-preprocessor-issues)
 - [Profiling](#profiling)
+  - [Stack sampling](#stack-sampling)
   - [Tracing using Perfetto](#tracing-using-perfetto)
 - [Publishing releases](#publishing-releases)
 - [Implementation notes](#implementation-notes)
@@ -213,6 +214,25 @@ bazel build //tools:analyze_pp_trace
 ```
 
 ## Profiling
+
+### Stack sampling
+
+One can create flamegraphs using
+[Brendan Gregg's flamegraph docs](https://github.com/brendangregg/FlameGraph).
+
+Two caveats on macOS:
+- Invoking `dtrace` requires `sudo`.
+- Once the stacks are folded, running ``sed -e 's/scip-clang`//g'``
+  over the result should clean up the output a bit.
+
+On macOS, if Xcode is installed, one can use `xctrace` for profiling.
+Here's an example invocation:
+
+```
+xctrace record --template 'Time Profiler' --time-limit 60s --attach 'pid' --output out.trace
+```
+
+The resulting `out.trace` can be opened using Instruments.app.
 
 ### Tracing using Perfetto
 
