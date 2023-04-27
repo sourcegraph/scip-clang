@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "boost/interprocess/exceptions.hpp"
+#include "perfetto/perfetto.h"
 
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
@@ -20,6 +21,7 @@
 #include "indexer/Logging.h"
 #include "indexer/Preprocessing.h"
 #include "indexer/Statistics.h"
+#include "indexer/Tracing.h"
 #include "indexer/Worker.h"
 
 namespace scip_clang {
@@ -431,8 +433,10 @@ Worker::ReceiveStatus Worker::waitForRequest(IndexJobRequest &request) {
   }
 
   ENFORCE(this->options.mode == WorkerMode::Ipc);
+  TRACE_EVENT_BEGIN("ipc", "worker.waitForDriver");
   auto recvError = this->messageQueues->driverToWorker.timedReceive(
       request, this->ipcOptions().receiveTimeout);
+  TRACE_EVENT_END("ipc");
   if (recvError.isA<TimeoutError>()) {
     spdlog::error("timeout in worker; is the driver dead?... shutting down");
     return Status::DriverTimeout;

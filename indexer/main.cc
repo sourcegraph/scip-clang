@@ -15,6 +15,7 @@
 #include "indexer/CliOptions.h"
 #include "indexer/Driver.h"
 #include "indexer/Enforce.h"
+#include "indexer/Tracing.h"
 #include "indexer/Version.h"
 #include "indexer/Worker.h"
 
@@ -217,6 +218,7 @@ static void initializeGlobalLogger(std::string name,
 int main(int argc, char *argv[]) {
   auto cliOptions = parseArguments(argc, argv);
   scip_clang::initializeSymbolizer(argv[0], !cliOptions.noStacktrace);
+  scip_clang::initializeTracing();
   bool isWorker = !cliOptions.workerMode.empty();
   auto loggerName =
       isWorker ? fmt::format("worker {}", cliOptions.workerId) : "driver";

@@ -14,6 +14,8 @@
   - [Inspecting Clang ASTs](#inspecting-clang-asts)
   - [Automated test case reduction](#automated-test-case-reduction)
   - [Debugging preprocessor issues](#debugging-preprocessor-issues)
+- [Profiling](#profiling)
+  - [Tracing using Perfetto](#tracing-using-perfetto)
 - [Publishing releases](#publishing-releases)
 - [Implementation notes](#implementation-notes)
 - [Notes on Clang internals](#notes-on-clang-internals)
@@ -209,6 +211,42 @@ One can check that the structure of the YAML file matches what we expect
 bazel build //tools:analyze_pp_trace
 ./bazel-bin/tools/analyze_pp_trace --yaml-path pp-trace.yaml
 ```
+
+## Profiling
+
+### Tracing using Perfetto
+
+First, build the Perfetto tools from source in a separate directory.
+
+<!-- NOTE: Keep this version in sync with fetch_deps.bzl -->
+```bash
+git clone https://android.googlesource.com/platform/external/perfetto -b v33.1 && cd perfetto
+tools/install-build-deps
+tools/gn gen --args='is_debug=false' out/x
+tools/ninja -C out/x tracebox traced traced_probes perfetto
+```
+
+Make sure that `scip-clang` is built in release mode
+(using `--config=release`). In two different TTYs (e.g. tmux panes or iTerm tabs),
+start `traced` and `perfetto` respectively:
+
+```bash
+# Terminal 1
+out/x/traced
+
+# Terminal 2
+out/x/perfetto \
+  --txt --config ~/Code/scip-clang/tools/long_trace.pbtx \
+  --out "trace_$(date '+%Y-%m-%d_%H:%M:%S').pb"
+```
+
+Run the `scip-clang` invocation as usual in a separate terminal.
+
+Once the `scip-clang` invocation ends,
+kill the running `perfetto` process,
+to flush any buffered data.
+
+Open the saved trace file using the [online Perfetto UI](https://ui.perfetto.dev).
 
 ## Publishing releases
 

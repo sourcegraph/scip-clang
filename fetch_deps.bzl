@@ -16,6 +16,7 @@ _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 # in the types for which we implement hashing and comparison in
 # indexer/ScipExtras.{h,cc}
 
+_PERFETTO_VERSION = "33.1"  # Keep in sync with docs/Development.md
 _DOCTEST_VERSION = "2.4.9"
 _DTL_VERSION = "1.20"
 _RULES_PYTHON_VERSION = "0.18.1"
@@ -60,6 +61,14 @@ def fetch_direct_dependencies():
         sha256 = "d32835b26dd35aad8fd0ba0d712265df6565a3ad860d39e4c01ad41059ea7eda",
         strip_prefix = "bazel-compilation-database-0.5.2",
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
+    )
+
+    http_archive(
+        name = "com_google_perfetto",
+        sha256 = "09b3271d3829a13b400447353d442a65f8f88e2df5a26f96778ab66c4cd26ec1",
+        strip_prefix = "perfetto-%s/sdk" % _PERFETTO_VERSION,
+        build_file = "//third_party:perfetto.BUILD",
+        urls = ["https://github.com/google/perfetto/archive/v%s.tar.gz" % _PERFETTO_VERSION],
     )
 
     # Keep the name 'zlib' so that Protobuf doesn't pull in another copy.

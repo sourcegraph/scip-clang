@@ -1,0 +1,31 @@
+# Introductory docs: https://perfetto.dev/docs/concepts/config
+# Reference docs: https://perfetto.dev/docs/reference/trace-config-proto
+# Example: https://cs.android.com/android/platform/superproject/+/master:external/perfetto/test/configs/long_trace.cfg
+
+write_into_file: true
+
+# 5 hours is ~enough for indexing Chromium on a 22-core machine
+duration_ms: 18000000
+
+# Write output once every 5s.
+file_write_period_ms: 5000
+
+# Based on https://cs.android.com/android/platform/superproject/+/master:external/perfetto/test/configs/long_trace.cfg;l=13-16
+flush_period_ms: 20000
+
+buffers {
+  # 1MiB seems enough for 5s, the Example docs estimate
+  # 10MB-20MB per second when using ftrace. Since this config,
+  # doesn't have any ftrace events, it seems reasonable to use
+  # a smaller buffer. However, use a larger buffer so we don't
+  # have to worry about a losing data in other cases.
+  size_kb: 65536
+  fill_policy: RING_BUFFER
+}
+
+data_sources {
+  config {
+    name: "track_event"
+    target_buffer: 0
+  }
+}
