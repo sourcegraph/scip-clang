@@ -4,6 +4,7 @@
 - [Building](#building)
   - [Running the indexer](#running-the-indexer)
 - [Running tests](#running-tests)
+  - [Indexing large projects](#indexing-large-projects)
 - [Formatting](#formatting)
 - [IDE integration](#ide-integration)
 - [Debugging](#debugging)
@@ -74,6 +75,13 @@ Update snapshot tests:
 ```bash
 bazel test //update --spawn_strategy=local --config=dev
 ```
+
+### Indexing large projects
+
+At the moment, we don't have any integration testing jobs
+which index large projects in CI. Before making a release,
+we typically manually test the indexer against one or more projects
+([instructions](/docs/IndexingProjects.md)).
 
 ## Formatting
 
@@ -204,10 +212,12 @@ bazel build //tools:analyze_pp_trace
 
 ## Publishing releases
 
-1. Land a PR with the following:
+1. Manually double-check that
+   [indexing works on one or more large projects](#indexing-large-projects).
+2. Land a PR with the following:
    - A [CHANGELOG](/CHANGELOG.md) entry.
    - Version bump in [Version.h](/indexer/Version.h).
-2. Once the PR is merged to main, run:
+3. Once the PR is merged to main, run:
    ```bash
    NEW_VERSION="vM.N.P" bash -c 'git checkout main && git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"'
    ```
