@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+from dataclasses import dataclass
 import enum
 import io
 import json
@@ -14,6 +15,7 @@ import sys
 import tempfile
 import time
 import typing
+from typing import Any
 
 from compdb import *
 
@@ -190,8 +192,30 @@ def parse_arguments() -> tuple[Path, dict[str, bool]]:
     return (Path(args.compdb_path), requested_measurements)
 
 
-def default_main():
-    compdb_path, requested_measurements = parse_arguments()
+@dataclass
+class AnalysisResult:
+    columns: List[str]
+    result_table: List[List[Any]]
+
+    def write_csv(self, writer):
+        writer.writerow(["path"] + self.columns)
+        writer.writerows(self.result_table)
+
+    def to_dict(self) -> List[dict[str, Any]]:
+        return [dict(zip(self.columns, row[1:])) for row in self.result_table]
+
+
+# Returns two lists. The first list is a list of column names.
+#
+# The first column name is the path.
+# Other columns correspond to the list of requested measurements.
+#
+# The second list contains one row per compilation database entry.
+# The first element of the row is the path.
+# The other elements are various measurements.
+def analyze(
+    compdb_path: Path, requested_measurements: dict[str, bool]
+) -> AnalysisResult:
     compdb = CompilationDatabase.load(compdb_path)
     results = {}
     tu_main_file_pathlist = PathList.from_compdb(compdb)
@@ -247,9 +271,14 @@ def default_main():
                     val = -999
             row.append(val)
 
+    return AnalysisResult(columns=columns, result_table=result_table)
+
+
+def default_main():
+    compdb_path, requested_measurements = parse_arguments()
+    analysis_result = analyze(compdb_path, requested_measurements)
     writer = csv.writer(sys.stdout)
-    writer.writerow(["path"] + columns)
-    writer.writerows(result_table)
+    analysis_result.write_csv(writer)
 
 
 if __name__ == "__main__":
