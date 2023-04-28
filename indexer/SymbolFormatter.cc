@@ -7,9 +7,11 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
@@ -396,6 +398,22 @@ SymbolFormatter::getEnumSymbol(const clang::EnumDecl &enumDecl) {
   return this->getTagSymbol(enumDecl);
 }
 
+uint64_t
+SymbolFormatter::getCanonicalTypeHash(const clang::QualType &type,
+                                      const clang::ASTContext &astContext) {
+  auto typePtr = type.getCanonicalType().getTypePtr();
+  auto it = this->functionTypeHashCache.find(typePtr);
+  if (it != this->functionTypeHashCache.end()) {
+    return it->second;
+  }
+  this->scratchBuffer.clear();
+  llvm::raw_string_ostream os(this->scratchBuffer);
+  type.getCanonicalType().print(os, astContext.getPrintingPolicy());
+  auto hashValue = HashValue::forText(this->scratchBuffer);
+  this->functionTypeHashCache.emplace(typePtr, hashValue);
+  return hashValue;
+}
+
 std::optional<std::string_view>
 SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
   return this->getSymbolCached(
@@ -406,15 +424,17 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
           return {};
         }
         // See discussion in docs/Design.md for this choice of disambiguator.
-        auto typeString =
-            functionDecl.getType().getCanonicalType().getAsString();
-        auto name = functionDecl.getNameAsString();
+        auto typeHash = this->getCanonicalTypeHash(
+            functionDecl.getType(), functionDecl.getASTContext());
+        auto name = this->formatTemporary(functionDecl);
+        // Formatting a uint64_t as hex should take 16 characters.
+        char buf[17] = {0};
+        const char *end = fmt::format_to(buf, "{:x}", typeHash);
         return SymbolBuilder::formatContextual(
             optContextSymbol.value(),
             DescriptorBuilder{
                 .name = name,
-                .disambiguator = this->formatTemporary(
-                    "{:x}", HashValue::forText(typeString)),
+                .disambiguator = std::string_view(buf, end),
                 .suffix = scip::Descriptor::Method,
             });
       });

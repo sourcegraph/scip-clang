@@ -30,6 +30,10 @@ class DeclContext;
 class NamedDecl;
 class TagDecl;
 class ValueDecl;
+
+class ASTContext;
+class QualType;
+class Type;
 } // namespace clang
 
 namespace llvm {
@@ -85,6 +89,7 @@ class SymbolFormatter final {
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::SourceLocation>,
                       std::string>
       locationBasedCache;
+  absl::flat_hash_map<const clang::Type *, uint64_t> functionTypeHashCache;
   absl::flat_hash_map<const clang::Decl *, std::string> declBasedCache;
   absl::flat_hash_map<StableFileId, std::string> fileSymbolCache;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
@@ -101,6 +106,9 @@ public:
         localVariableCounters(), scratchBuffer() {}
   SymbolFormatter(const SymbolFormatter &) = delete;
   SymbolFormatter &operator=(const SymbolFormatter &) = delete;
+
+  uint64_t getCanonicalTypeHash(const clang::QualType &,
+                                const clang::ASTContext &);
 
   std::string_view getMacroSymbol(clang::SourceLocation defLoc);
 
