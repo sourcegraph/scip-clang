@@ -1,0 +1,13 @@
+diff --git a/perfetto.h b/perfetto.h
+index 1f6750d6c..e98be0980 100644
+--- a/perfetto.h
++++ b/perfetto.h
+@@ -1872,4 +1872,6 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
+   inline void WriteBytes(const uint8_t* src, size_t size) {
+-    uint8_t* const end = write_ptr_ + size;
+-    if (PERFETTO_LIKELY(end <= cur_range_.end))
++    static_assert(std::is_same<size_t, uintptr_t>::value, "Performing pointer arithmetic");
++    size_t write_ptr_val = reinterpret_cast<size_t>(write_ptr_);
++    size_t cur_range_end_val = reinterpret_cast<size_t>(cur_range_.end);
++    if (PERFETTO_LIKELY(write_ptr_val + size <= cur_range_end_val))
+       return WriteBytesUnsafe(src, size);

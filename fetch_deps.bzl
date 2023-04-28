@@ -16,6 +16,9 @@ _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 # in the types for which we implement hashing and comparison in
 # indexer/ScipExtras.{h,cc}
 
+# When bumping the Perfetto version, tweak the patch to also
+# remove the use of 'PERFETTO_NO_SANITIZE_UNDEFINED'
+# See https://github.com/google/perfetto/issues/271#issuecomment-1527691232
 _PERFETTO_VERSION = "33.1"  # Keep in sync with docs/Development.md
 _DOCTEST_VERSION = "2.4.9"
 _DTL_VERSION = "1.20"
@@ -69,6 +72,8 @@ def fetch_direct_dependencies():
         strip_prefix = "perfetto-%s/sdk" % _PERFETTO_VERSION,
         build_file = "//third_party:perfetto.BUILD",
         urls = ["https://github.com/google/perfetto/archive/v%s.tar.gz" % _PERFETTO_VERSION],
+        patch_args = ["-p1"],
+        patches = ["//third_party:perfetto.patch"],
     )
 
     # Keep the name 'zlib' so that Protobuf doesn't pull in another copy.
