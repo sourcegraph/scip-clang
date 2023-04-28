@@ -909,8 +909,6 @@ public:
           StatsEntry{job.semanticAnalysis.command.Filename, std::move(stats)});
     }
     absl::c_sort(perJobStats, [](const auto &p1, const auto &p2) -> bool {
-      ENFORCE(p1.first != p2.first,
-              "got multiple StatEntry values for the same TU");
       return p1.first < p2.first;
     });
     std::vector<StatsEntry> stats{};
@@ -956,16 +954,10 @@ private:
 
     if (this->options.deterministic) {
       // Sorting before merging so that mergeShards can be const
-      absl::c_sort(
-          this->shardPaths, [](const auto &paths1, const auto &paths2) -> bool {
-            auto cmp = paths1.docsAndExternals <=> paths2.docsAndExternals;
-            ENFORCE(cmp != 0, "2+ index parts have same path '{}'",
-                    paths1.docsAndExternals.asStringRef());
-            ENFORCE(paths1.forwardDecls != paths2.forwardDecls,
-                    "2+ index parts have same path '{}'",
-                    paths1.forwardDecls.asStringRef());
-            return cmp == std::strong_ordering::less;
-          });
+      absl::c_sort(this->shardPaths,
+                   [](const auto &paths1, const auto &paths2) -> bool {
+                     return paths1.docsAndExternals < paths2.docsAndExternals;
+                   });
     }
     this->mergeShardsAndEmit(outputStream);
   }
