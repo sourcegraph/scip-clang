@@ -17,7 +17,8 @@ steps:
 
       ./tools/lint.sh
 
-      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... 
+      # DO NOT remove --config=ci as that turns on sanitizers.
+      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... --config=ci
 
       # Don't use //... as that will also try to update snapshots
-      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test 
+      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test --config=ci
