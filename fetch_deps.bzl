@@ -210,8 +210,8 @@ def fetch_direct_dependencies():
     http_archive(
         name = "actionlint_darwin_arm64",
         build_file = "@scip_clang//third_party:actionlint.BUILD",
-        sha256 = "0eef36edd99798fa4ff7099257a847ecaad96a0ef41a5748e9091cd393ee20bc",
-        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.1.0/buildifier-darwin-arm64"],
+        sha256 = "7549b5f535219ac957aa2a6069d46fbfc9ea3f74abd85fd3d460af4b1a2099a6",
+        urls = ["https://github.com/bazelbuild/buildtools/releases/download/v6.1.2/buildifier-darwin-arm64"],
     )
 
     http_archive(
