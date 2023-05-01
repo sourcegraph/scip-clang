@@ -203,8 +203,8 @@ def fetch_direct_dependencies():
     http_file(
         name = "buildifier_linux_arm64",
         executable = True,
-        sha256 = "5acdd65684105f73d1c65ee4737f6cf388afff8674eb88045aa3c204811b02f3",
-        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.1.0/buildifier-linux-arm64"],
+        sha256 = "0ba6e8e3208b5a029164e542ddb5509e618f87b639ffe8cc2f54770022853080",
+        urls = ["https://github.com/bazelbuild/buildtools/releases/download/v6.1.2/buildifier-linux-arm64"],
     )
 
     http_archive(
