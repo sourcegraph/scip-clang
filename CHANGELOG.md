@@ -1,5 +1,13 @@
 # scip-clang ChangeLog
 
+## v0.1.0 (beta)
+
+- Fixed an issue with undefined behavior in a dependency.
+  (https://github.com/sourcegraph/scip-clang/pull/271)
+- Fixed an issue with an assertion being hit when emitting
+  detailed indexing statistics.
+  (https://github.com/sourcegraph/scip-clang/pull/268)
+
 ## v0.0.9 (alpha)
 
 - Fixed an issue where indexes over the size of 2GB would cause
