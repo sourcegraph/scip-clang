@@ -1,4 +1,4 @@
-# scip-clang: SCIP indexer for C and C++
+# scip-clang: SCIP indexer for C and C++ ![(Status: Beta)](https://img.shields.io/badge/status-beta-yellow?style=flat)
 
 Status: scip-clang currently supports single-repository precise code navigation
 for C and C++.
