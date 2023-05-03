@@ -2,6 +2,9 @@
 
 ## v0.1.0 (beta)
 
+- The Linux release build uses ThinLTO,
+  reducing indexing time by about 5%.
+  (https://github.com/sourcegraph/scip-clang/pull/281)
 - Fixed an issue with undefined behavior in a dependency.
   (https://github.com/sourcegraph/scip-clang/pull/271)
 - Fixed an issue with an assertion being hit when emitting
