@@ -8,7 +8,13 @@ import %workspace%/.aspect/bazelrc/debug.bazelrc
 import %workspace%/.aspect/bazelrc/javascript.bazelrc
 import %workspace%/.aspect/bazelrc/performance.bazelrc
 
-build --linkopt="-fuse-ld=lld"
+common --enable_platform_specific_config
+
+# LLD is technically good enough on macOS
+# (Chromium is using it: https://github.com/chromium/chromium/blob/main/docs/mac_lld.md)
+# but grailbio/bazel-toolchain doesn't support it.
+# https://sourcegraph.com/github.com/grailbio/bazel-toolchain@d52ce5d96915428a5ee6f7079078df706c5fddab/-/blob/toolchain/cc_toolchain_config.bzl?L154:11
+build:linux --linkopt="-fuse-ld=lld"
 
 # Not sure why setting all of these is necessary, but just setting cxxopt
 # Leads to usage of old C++ version when compiling LLVM, which needs C++14 or newer.
