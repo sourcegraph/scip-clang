@@ -81,3 +81,6 @@ build:release -c opt
 build:release --copt="-DFORCE_DEBUG=1"
 build:release --copt="-O2"
 build:release --config=stacktraces
+
+build:release-linux --config=release --config=linux
+build:release-linux --cxxopt="-flto=thin" --linkopt="-flto=thin"
