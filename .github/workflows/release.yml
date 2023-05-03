@@ -90,7 +90,13 @@ jobs:
             echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials"
           } > ci.bazelrc
           # Comment out the 'upload log' bit below for debugging
-          bazel build //indexer:scip-clang --config="$CONFIG" # --execution_log_binary_file=log
+          SUFFIX=""
+          if [ "$CONFIG" == "release" ]; then
+            if [ "$(uname -s)" == "Linux" ]; then
+              SUFFIX="-linux"
+            fi
+          fi
+          bazel build //indexer:scip-clang --config="$CONFIG$SUFFIX" # --execution_log_binary_file=log
           if [ "$RUNNER_OS" == "Linux" ]; then
             echo "--- GLIBC VERSIONS ---"
             objdump -T bazel-bin/indexer/scip-clang | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
