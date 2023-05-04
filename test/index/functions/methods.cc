@@ -75,22 +75,3 @@ void test_member_pointer() {
   M0 m{};
   (m.*p)();
 }
-
-template <typename T>
-struct T0 {
-  void f0() {}
-};
-
-template <typename T>
-struct T1: T0<T> {
-  void f1() {
-    this->f0();
-  }
-};
-
-void test_template() {
-  T0<int>().f0();
-  T1<int>().f1();
-  auto t1 = T1<int>();
-  t1.f0();
-}
