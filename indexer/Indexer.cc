@@ -855,7 +855,8 @@ void TuIndexer::trySaveMemberReferenceViaLookup(
   if (!recordDecl) {
     return;
   }
-  // FIXME(): We should try to use more standard code which takes
+  // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/296):
+  // We should try to use more standard code which takes
   // inheritance into account.
   auto lookupResult = recordDecl->lookup(memberNameInfo.getName());
   for (auto *namedDecl : lookupResult) {
