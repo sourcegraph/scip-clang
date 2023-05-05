@@ -18,3 +18,22 @@ void f() {
   // - Templated function-local classes
   // - Templates inside function-local classes
 }
+
+template <typename T>
+struct Z {
+  void f0() {}
+
+  void f1() {
+    f0();
+  }
+
+  template <typename U>
+  void g0() {
+    f0();
+  }
+
+  template <typename U>
+  void g1() {
+    g0<U>();
+  }
+};

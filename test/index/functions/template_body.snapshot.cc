@@ -31,3 +31,33 @@
     // - Templated function-local classes
     // - Templates inside function-local classes
   }
+  
+  template <typename T>
+//                   ^ definition local 2
+  struct Z {
+//       ^ definition [..] Z#
+    void f0() {}
+//       ^^ definition [..] Z#f0(49f6e7a06ebc5aa8).
+  
+    void f1() {
+//       ^^ definition [..] Z#f1(49f6e7a06ebc5aa8).
+      f0();
+//    ^^ reference [..] Z#f0(49f6e7a06ebc5aa8).
+    }
+  
+    template <typename U>
+//                     ^ definition local 3
+    void g0() {
+//       ^^ definition [..] Z#g0(49f6e7a06ebc5aa8).
+      f0();
+//    ^^ reference [..] Z#f0(49f6e7a06ebc5aa8).
+    }
+  
+    template <typename U>
+//                     ^ definition local 4
+    void g1() {
+//       ^^ definition [..] Z#g1(49f6e7a06ebc5aa8).
+      g0<U>();
+//       ^ reference local 4
+    }
+  };
