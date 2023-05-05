@@ -6,6 +6,7 @@
 #include "clang/AST/TemplateName.h"
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -35,6 +36,8 @@ std::string formatRange(const clang::SourceManager &,
 std::string formatDecl(const clang::Decl *);
 
 std::string formatTemplateNameKind(clang::TemplateName::NameKind);
+
+std::string formatTemplateSpecializationKind(clang::TemplateSpecializationKind);
 
 std::string formatTypeInternals(const clang::QualType &,
                                 const clang::ASTContext &);
