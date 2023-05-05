@@ -474,6 +474,11 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
   }
 }
 
+void TuIndexer::saveFunctionTemplateDecl(const clang::FunctionTemplateDecl &) {
+  // Handled by saveFunctionDecl.
+  return;
+}
+
 void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   auto optSymbol = this->symbolFormatter.getNamespaceSymbol(namespaceDecl);
   if (!optSymbol.has_value()) {

@@ -84,7 +84,11 @@
 //      ^^ reference [..] T0#g0(b07662a27bd562f9).
   
     h0<int>(0);
+//  ^^ reference [..] h0(9b289cee16747614).
     h0<void *>(0);
+//  ^^ reference [..] h0(9b289cee16747614).
     h1<int>(0);
+//  ^^ reference [..] h1(9b289cee16747614).
     h1<char>(0);
+//  ^^ reference [..] h1(9b289cee16747614).
   }
