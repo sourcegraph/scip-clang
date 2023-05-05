@@ -407,7 +407,8 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
         }
         const clang::FunctionDecl *definingDecl = &functionDecl;
         if (functionDecl.isTemplateInstantiation()) {
-          if (auto *memberFnDecl = functionDecl.getInstantiatedFromMemberFunction()) {
+          if (auto *memberFnDecl =
+                  functionDecl.getInstantiatedFromMemberFunction()) {
             definingDecl = memberFnDecl;
           }
         }
@@ -419,12 +420,11 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
         auto *end = fmt::format_to(buf, "{:x}", HashValue::forText(typeString));
         std::string_view disambiguator{buf, end};
         return SymbolBuilder::formatContextual(
-            optContextSymbol.value(),
-            DescriptorBuilder{
-                .name = name,
-                .disambiguator = disambiguator,
-                .suffix = scip::Descriptor::Method,
-            });
+            optContextSymbol.value(), DescriptorBuilder{
+                                          .name = name,
+                                          .disambiguator = disambiguator,
+                                          .suffix = scip::Descriptor::Method,
+                                      });
       });
 }
 
