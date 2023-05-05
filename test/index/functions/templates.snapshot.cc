@@ -72,16 +72,16 @@
   
     T0<int>().g0<int>(0);
 //  ^^ reference [..] T0#
-//            ^^ reference [..] T0#g0(d4f767463ce0a6b3).
+//            ^^ reference [..] T0#g0(b07662a27bd562f9).
     T1<int>().g1<unsigned>(0);
 //  ^^ reference [..] T1#
-//            ^^ reference [..] T1#g1(cb2f890c2fdad230).
+//            ^^ reference [..] T1#g1(b07662a27bd562f9).
     auto t1_ = T1<int>();
 //       ^^^ definition local 10
 //             ^^ reference [..] T1#
     t1_.g0<char>(0);
 //  ^^^ reference local 10
-//      ^^ reference [..] T0#g0(44b6ea1973a07080).
+//      ^^ reference [..] T0#g0(b07662a27bd562f9).
   
     h0<int>(0);
     h0<void *>(0);

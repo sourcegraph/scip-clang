@@ -406,12 +406,31 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
           return {};
         }
         const clang::FunctionDecl *definingDecl = &functionDecl;
+        // clang-format off
         if (functionDecl.isTemplateInstantiation()) {
-          if (auto *memberFnDecl =
-                  functionDecl.getInstantiatedFromMemberFunction()) {
+          // Handle non-templated member functions
+          if (auto *memberFnDecl = functionDecl.getInstantiatedFromMemberFunction()) {
             definingDecl = memberFnDecl;
+          } else if (auto *templateInfo = functionDecl.getTemplateSpecializationInfo()) {
+            // Consider code like:
+            //   template <typename T> class C { template <typename U> void f() {} };
+            //   void g() { C<int>().f<int>(); }
+            //                       ^ Emitting a reference
+            //
+            // The dance below gets to the original declaration in 3 steps:
+            // C<int>.f<int> (FunctionDecl) → C<int>.f<$U> (FunctionTemplateDecl)
+            //                                     ↓
+            // C<$T>.f<$U>   (FunctionDecl) ← C<$T>.f<$U>  (FunctionTemplateDecl)
+            auto *instantiatedTemplateDecl = templateInfo->getTemplate();
+            // For some reason, we end up on this code path for overloaded
+            // literal operators. In that case, uninstantiatedTemplateDecl
+            // can be null.
+            if (auto *uninstantiatedTemplateDecl = instantiatedTemplateDecl->getInstantiatedFromMemberTemplate()) {
+              definingDecl = uninstantiatedTemplateDecl->getTemplatedDecl();
+            }
           }
         }
+        // clang-format on
         auto name = this->formatTemporary(functionDecl);
         // 64-bit hash in hex should take 16 characters at most.
         auto typeString =
