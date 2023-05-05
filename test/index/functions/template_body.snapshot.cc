@@ -64,3 +64,24 @@
 //       ^ reference local 4
     }
   };
+  
+  template <typename T>
+//                   ^ definition local 5
+  struct ZZ : Z<T> {
+//       ^^ definition [..] ZZ#
+//            ^ reference [..] Z#
+//              ^ reference local 5
+    void ff0() {
+//       ^^^ definition [..] ZZ#ff0(49f6e7a06ebc5aa8).
+      this->f0();
+    }
+  
+    template <typename U>
+//                     ^ definition local 6
+    void gg0() {
+//       ^^^ definition [..] ZZ#gg0(49f6e7a06ebc5aa8).
+      this->f0();
+      this->template g0<U>();
+//                      ^ reference local 6
+    }
+  };

@@ -37,3 +37,16 @@ struct Z {
     g0<U>();
   }
 };
+
+template <typename T>
+struct ZZ : Z<T> {
+  void ff0() {
+    this->f0();
+  }
+
+  template <typename U>
+  void gg0() {
+    this->f0();
+    this->template g0<U>();
+  }
+};
