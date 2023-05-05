@@ -183,6 +183,21 @@ std::string formatTemplateNameKind(const clang::TemplateName::NameKind kind) {
 #undef HANDLE_KIND
 }
 
+std::string
+formatTemplateSpecializationKind(clang::TemplateSpecializationKind kind) {
+#define HANDLE_KIND(kind_)                             \
+  case clang::TemplateSpecializationKind::TSK_##kind_: \
+    return #kind_;
+  switch (kind) {
+    HANDLE_KIND(Undeclared)
+    HANDLE_KIND(ImplicitInstantiation)
+    HANDLE_KIND(ExplicitSpecialization)
+    HANDLE_KIND(ExplicitInstantiationDeclaration)
+    HANDLE_KIND(ExplicitInstantiationDefinition)
+  }
+#undef HANDLE_KIND
+}
+
 std::string formatTypeInternals(const clang::QualType &qualType,
                                 const clang::ASTContext &astContext) {
   if (qualType.isNull()) {
