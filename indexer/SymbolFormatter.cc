@@ -246,10 +246,11 @@ std::optional<std::string_view> SymbolFormatter::getSymbolCached(
 
 std::optional<std::string_view>
 SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext) {
-  if (auto namespaceDecl = llvm::dyn_cast<clang::NamespaceDecl>(&declContext)) {
+  if (auto *namespaceDecl =
+          llvm::dyn_cast<clang::NamespaceDecl>(&declContext)) {
     return this->getNamespaceSymbol(*namespaceDecl);
   }
-  if (auto tagDecl = llvm::dyn_cast<clang::TagDecl>(&declContext)) {
+  if (auto *tagDecl = llvm::dyn_cast<clang::TagDecl>(&declContext)) {
     return this->getTagSymbol(*tagDecl);
   }
   if (llvm::isa<clang::TranslationUnitDecl>(declContext)
@@ -264,16 +265,22 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext) {
       return std::string(this->scratchBuffer);
     });
   }
+  if (auto *functionDecl = llvm::dyn_cast<clang::FunctionDecl>(&declContext)) {
+    // TODO: Strictly speaking, we should return some information marking
+    // the symbol as local, but it shouldn't be possible to create spurious
+    // references, so this is OK for now.
+    return this->getFunctionSymbol(*functionDecl);
+  }
   // TODO: Handle all cases of DeclContext here:
   // Done
   // - TranslationUnitDecl
   // - ExternCContext
   // - NamespaceDecl
   // - TagDecl
+  // - FunctionDecl
   // Pending:
   // - OMPDeclareReductionDecl
   // - OMPDeclareMapperDecl
-  // - FunctionDecl
   // - ObjCMethodDecl
   // - ObjCContainerDecl
   // - LinkageSpecDecl
