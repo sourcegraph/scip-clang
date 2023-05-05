@@ -405,16 +405,24 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
         if (!optContextSymbol.has_value()) {
           return {};
         }
-        // See discussion in docs/Design.md for this choice of disambiguator.
+        const clang::FunctionDecl *definingDecl = &functionDecl;
+        if (functionDecl.isTemplateInstantiation()) {
+          if (auto *memberFnDecl = functionDecl.getInstantiatedFromMemberFunction()) {
+            definingDecl = memberFnDecl;
+          }
+        }
+        auto name = this->formatTemporary(functionDecl);
+        // 64-bit hash in hex should take 16 characters at most.
         auto typeString =
-            functionDecl.getType().getCanonicalType().getAsString();
-        auto name = functionDecl.getNameAsString();
+            definingDecl->getType().getCanonicalType().getAsString();
+        char buf[16] = {0};
+        auto *end = fmt::format_to(buf, "{:x}", HashValue::forText(typeString));
+        std::string_view disambiguator{buf, end};
         return SymbolBuilder::formatContextual(
             optContextSymbol.value(),
             DescriptorBuilder{
                 .name = name,
-                .disambiguator = this->formatTemporary(
-                    "{:x}", HashValue::forText(typeString)),
+                .disambiguator = disambiguator,
                 .suffix = scip::Descriptor::Method,
             });
       });

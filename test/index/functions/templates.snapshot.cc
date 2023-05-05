@@ -59,16 +59,16 @@
 //     ^^^^^^^^^^^^^ definition [..] test_template(49f6e7a06ebc5aa8).
     T0<int>().f0(0);
 //  ^^ reference [..] T0#
-//            ^^ reference [..] T0#f0(d4f767463ce0a6b3).
+//            ^^ reference [..] T0#f0(9b289cee16747614).
     T1<int>().f1(0);
 //  ^^ reference [..] T1#
-//            ^^ reference [..] T1#f1(d4f767463ce0a6b3).
+//            ^^ reference [..] T1#f1(9b289cee16747614).
     auto t1 = T1<int>();
 //       ^^ definition local 9
 //            ^^ reference [..] T1#
     t1.f0(0);
 //  ^^ reference local 9
-//     ^^ reference [..] T0#f0(d4f767463ce0a6b3).
+//     ^^ reference [..] T0#f0(9b289cee16747614).
   
     T0<int>().g0<int>(0);
 //  ^^ reference [..] T0#
