@@ -788,6 +788,20 @@ void TuIndexer::saveCXXConstructExpr(
   }
 }
 
+void TuIndexer::saveCXXDependentScopeMemberExpr(const clang::CXXDependentScopeMemberExpr &cxxDepScopeMemberExpr) {
+  auto baseType = cxxDepScopeMemberExpr.getBaseType();
+  if (auto *tagType = baseType->getAs<clang::TagType>()) {
+    auto memberNameInfo = cxxDepScopeMemberExpr.getMemberNameInfo();
+    auto lookupResult = tagType->getDecl()->lookup(memberNameInfo.getName());
+    for (auto *namedDecl: lookupResult) {
+      auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl);
+      if (optSymbol) {
+        this->saveReference(*optSymbol, memberNameInfo.getLoc());
+      }
+    }
+  }
+}
+
 void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   // In the presence of 'using', prefer going to the 'using' instead
   // of directly dereferencing.

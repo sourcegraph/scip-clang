@@ -17,10 +17,13 @@
   
     (void)C().plain_field;
 //        ^ reference [..] f(49f6e7a06ebc5aa8).C#
+//            ^^^^^^^^^^^ reference [..] f(49f6e7a06ebc5aa8).C#plain_field.
     (void)C().dependent_field;
 //        ^ reference [..] f(49f6e7a06ebc5aa8).C#
+//            ^^^^^^^^^^^^^^^ reference [..] f(49f6e7a06ebc5aa8).C#dependent_field.
     C().g();
 //  ^ reference [..] f(49f6e7a06ebc5aa8).C#
+//      ^ reference [..] f(49f6e7a06ebc5aa8).C#g(49f6e7a06ebc5aa8).
   
     int x = 0;
 //      ^ definition local 1
