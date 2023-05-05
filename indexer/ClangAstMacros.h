@@ -7,6 +7,7 @@
   F(Enum)                              \
   F(Field)                             \
   F(Function)                          \
+  F(FunctionTemplate)                  \
   F(Namespace)                         \
   F(NonTypeTemplateParm)               \
   F(Record)                            \

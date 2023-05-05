@@ -447,6 +447,11 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
       });
 }
 
+std::optional<std::string_view> SymbolFormatter::getFunctionTemplateSymbol(
+    const clang::FunctionTemplateDecl &functionTemplateDecl) {
+  return this->getFunctionSymbol(*functionTemplateDecl.getTemplatedDecl());
+}
+
 std::optional<std::string_view>
 SymbolFormatter::getFieldSymbol(const clang::FieldDecl &fieldDecl) {
   if (fieldDecl.getDeclName().isEmpty()) {
