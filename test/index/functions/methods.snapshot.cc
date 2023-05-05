@@ -165,39 +165,3 @@
 //   ^ reference local 1
 //      ^ reference local 0
   }
-  
-  template <typename T>
-//                   ^ definition local 2
-  struct T0 {
-//       ^^ definition [..] T0#
-    void f0() {}
-//       ^^ definition [..] T0#f0(49f6e7a06ebc5aa8).
-  };
-  
-  template <typename T>
-//                   ^ definition local 3
-  struct T1: T0<T> {
-//       ^^ definition [..] T1#
-//           ^^ reference [..] T0#
-//              ^ reference local 3
-    void f1() {
-//       ^^ definition [..] T1#f1(49f6e7a06ebc5aa8).
-      this->f0();
-    }
-  };
-  
-  void test_template() {
-//     ^^^^^^^^^^^^^ definition [..] test_template(49f6e7a06ebc5aa8).
-    T0<int>().f0();
-//  ^^ reference [..] T0#
-//            ^^ reference [..] T0#f0(49f6e7a06ebc5aa8).
-    T1<int>().f1();
-//  ^^ reference [..] T1#
-//            ^^ reference [..] T1#f1(49f6e7a06ebc5aa8).
-    auto t1 = T1<int>();
-//       ^^ definition local 4
-//            ^^ reference [..] T1#
-    t1.f0();
-//  ^^ reference local 4
-//     ^^ reference [..] T0#f0(49f6e7a06ebc5aa8).
-  }

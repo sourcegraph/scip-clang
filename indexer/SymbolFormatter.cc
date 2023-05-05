@@ -405,18 +405,45 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
         if (!optContextSymbol.has_value()) {
           return {};
         }
-        // See discussion in docs/Design.md for this choice of disambiguator.
+        const clang::FunctionDecl *definingDecl = &functionDecl;
+        // clang-format off
+        if (functionDecl.isTemplateInstantiation()) {
+          // Handle non-templated member functions
+          if (auto *memberFnDecl = functionDecl.getInstantiatedFromMemberFunction()) {
+            definingDecl = memberFnDecl;
+          } else if (auto *templateInfo = functionDecl.getTemplateSpecializationInfo()) {
+            // Consider code like:
+            //   template <typename T> class C { template <typename U> void f() {} };
+            //   void g() { C<int>().f<int>(); }
+            //                       ^ Emitting a reference
+            //
+            // The dance below gets to the original declaration in 3 steps:
+            // C<int>.f<int> (FunctionDecl) → C<int>.f<$U> (FunctionTemplateDecl)
+            //                                     ↓
+            // C<$T>.f<$U>   (FunctionDecl) ← C<$T>.f<$U>  (FunctionTemplateDecl)
+            auto *instantiatedTemplateDecl = templateInfo->getTemplate();
+            // For some reason, we end up on this code path for overloaded
+            // literal operators. In that case, uninstantiatedTemplateDecl
+            // can be null.
+            if (auto *uninstantiatedTemplateDecl = instantiatedTemplateDecl->getInstantiatedFromMemberTemplate()) {
+              definingDecl = uninstantiatedTemplateDecl->getTemplatedDecl();
+            }
+          }
+        }
+        // clang-format on
+        auto name = this->formatTemporary(functionDecl);
+        // 64-bit hash in hex should take 16 characters at most.
         auto typeString =
-            functionDecl.getType().getCanonicalType().getAsString();
-        auto name = functionDecl.getNameAsString();
+            definingDecl->getType().getCanonicalType().getAsString();
+        char buf[16] = {0};
+        auto *end = fmt::format_to(buf, "{:x}", HashValue::forText(typeString));
+        std::string_view disambiguator{buf, end};
         return SymbolBuilder::formatContextual(
-            optContextSymbol.value(),
-            DescriptorBuilder{
-                .name = name,
-                .disambiguator = this->formatTemporary(
-                    "{:x}", HashValue::forText(typeString)),
-                .suffix = scip::Descriptor::Method,
-            });
+            optContextSymbol.value(), DescriptorBuilder{
+                                          .name = name,
+                                          .disambiguator = disambiguator,
+                                          .suffix = scip::Descriptor::Method,
+                                      });
       });
 }
 
