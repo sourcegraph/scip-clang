@@ -157,8 +157,17 @@
 //     documentation
 //     | No documentation available.
     class fC {
+//        ^^ definition [..] f(49f6e7a06ebc5aa8).fC#
+//        documentation
+//        | No documentation available.
       void fCf() {
+//         ^^^ definition [..] f(49f6e7a06ebc5aa8).fC#fCf(49f6e7a06ebc5aa8).
+//         documentation
+//         | No documentation available.
         class fCfC { };
+//            ^^^^ definition [..] f(49f6e7a06ebc5aa8).fC#fCf(49f6e7a06ebc5aa8).fCfC#
+//            documentation
+//            | No documentation available.
       }
     };
   }
@@ -332,5 +341,6 @@
     };
     return ignore_first("", L{});
 //         ^^^^^^^^^^^^ reference local 3
+//                     ^ reference [..] trailing_return_type(693bfa61ed1914d5).$anonymous_type_4#`operator()`(dc97d1a1ce4cdab3).
 //                          ^ reference [..] L#
   }
