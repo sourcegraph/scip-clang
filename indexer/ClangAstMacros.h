@@ -27,7 +27,8 @@
   F(CXXConstruct)                      \
   F(CXXDependentScopeMember)           \
   F(DeclRef)                           \
-  F(Member)
+  F(Member)                            \
+  F(UnresolvedMember)
 
 #define FOR_EACH_TYPE_TO_BE_INDEXED(F) \
   F(Enum)                              \

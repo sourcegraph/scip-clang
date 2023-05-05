@@ -61,6 +61,7 @@
     void g1() {
 //       ^^ definition [..] Z#g1(49f6e7a06ebc5aa8).
       g0<U>();
+//    ^^ reference [..] Z#g0(49f6e7a06ebc5aa8).
 //       ^ reference local 4
     }
   };

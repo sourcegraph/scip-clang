@@ -35,6 +35,7 @@ FOR_EACH_TYPE_TO_BE_INDEXED(FORWARD_DECLARE)
 
 class ASTContext;
 class Decl;
+class DeclarationNameInfo;
 class LangOptions;
 class MacroDefinition;
 class MacroInfo;
@@ -269,6 +270,8 @@ public:
   FOR_EACH_EXPR_TO_BE_INDEXED(SAVE_EXPR)
 #undef SAVE_EXPR
   void saveNestedNameSpecifierLoc(const clang::NestedNameSpecifierLoc &);
+  void trySaveMemberReferenceViaLookup(const clang::QualType &,
+                                       const clang::DeclarationNameInfo &);
 
 #define SAVE_TYPE_LOC(TypeName) \
   void save##TypeName##TypeLoc(const clang::TypeName##TypeLoc &);
