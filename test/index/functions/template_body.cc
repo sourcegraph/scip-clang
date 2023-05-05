@@ -1,12 +1,14 @@
 template <typename T>
 void f() {
   struct C {
-    T field;
+    int plain_field;
+    T dependent_field;
 
     void g() {};
   };
 
-  auto t = C().field;
+  (void)C().plain_field;
+  (void)C().dependent_field;
   C().g();
 
   int x = 0;
