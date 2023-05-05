@@ -76,7 +76,20 @@ bazel test //test --spawn_strategy=local --config=dev
 Update snapshot tests:
 
 ```bash
-bazel test //update --spawn_strategy=local --config=dev
+bazel test //test:update --spawn_strategy=local --config=dev
+```
+
+NOTE: When adding a new test case, you need to manually create
+an empty `.snapshot.cc` file for recording snapshot output
+(it's not automatically generated).
+
+Examples of running subsets of tests (follows directory structure):
+
+```bash
+bazel test //test:test_index --spawn_strategy=local --config=dev
+bazel test //test:test_index_aliases --spawn_strategy=local --config=dev
+bazel test //test:update_index --spawn_strategy=local --config=dev
+bazel test //test:update_index_aliases --spawn_strategy=local --config=dev
 ```
 
 ### Indexing large projects
