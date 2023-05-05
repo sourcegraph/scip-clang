@@ -788,6 +788,13 @@ void TuIndexer::saveCXXConstructExpr(
   }
 }
 
+void TuIndexer::saveCXXDependentScopeMemberExpr(
+    const clang::CXXDependentScopeMemberExpr &cxxDepScopeMemberExpr) {
+  this->trySaveMemberReferenceViaLookup(
+      cxxDepScopeMemberExpr.getBaseType(),
+      cxxDepScopeMemberExpr.getMemberNameInfo());
+}
+
 void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   // In the presence of 'using', prefer going to the 'using' instead
   // of directly dereferencing.
@@ -824,6 +831,40 @@ void TuIndexer::saveMemberExpr(const clang::MemberExpr &memberExpr) {
     return;
   }
   this->saveReference(optSymbol.value(), memberExpr.getMemberLoc());
+}
+
+void TuIndexer::saveUnresolvedMemberExpr(
+    const clang::UnresolvedMemberExpr &unresolvedMemberExpr) {
+  this->trySaveMemberReferenceViaLookup(
+      unresolvedMemberExpr.getBaseType(),
+      unresolvedMemberExpr.getMemberNameInfo());
+}
+
+void TuIndexer::trySaveMemberReferenceViaLookup(
+    const clang::QualType &baseType,
+    const clang::DeclarationNameInfo &memberNameInfo) {
+  if (baseType.isNull()) {
+    return;
+  }
+  clang::QualType actualBaseType = baseType.getCanonicalType();
+  // C++23's 'deducing this' feature allows the base type to be a reference
+  if (baseType->isPointerType() || baseType->isReferenceType()) {
+    actualBaseType = baseType->getPointeeType();
+  }
+  auto *recordDecl = actualBaseType->getAsCXXRecordDecl();
+  if (!recordDecl) {
+    return;
+  }
+  // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/296):
+  // We should try to use more standard code which takes
+  // inheritance into account.
+  auto lookupResult = recordDecl->lookup(memberNameInfo.getName());
+  for (auto *namedDecl : lookupResult) {
+    auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl);
+    if (optSymbol) {
+      this->saveReference(*optSymbol, memberNameInfo.getLoc());
+    }
+  }
 }
 
 void TuIndexer::emitDocumentOccurrencesAndSymbols(
