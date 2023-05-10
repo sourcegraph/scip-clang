@@ -117,3 +117,49 @@
 //             ^ reference [..] h/
 //                ^^^^^^^^^^^^^^ reference [..] h/EvenLongerEnum#
   }
+  
+  namespace z {
+//          ^ definition [..] z/
+    struct U {
+//         ^ definition [..] z/U#
+      template <typename T>
+//                       ^ definition local 2
+      T identity(T t) { return t; }
+//    ^ reference local 2
+//      ^^^^^^^^ definition [..] z/U#identity(ada6a8422704cf8a).
+//               ^ reference local 2
+//                 ^ definition local 3
+//                             ^ reference local 3
+    };
+  
+    struct V: U {
+//         ^ definition [..] z/V#
+//         relation implementation [..] z/U#
+//            ^ reference [..] z/U#
+      int identity(int t, int) { return t; }
+//        ^^^^^^^^ definition [..] z/V#identity(9b79fb6aee4c0440).
+//                     ^ definition local 4
+//                                      ^ reference local 4
+      using U::identity;
+//          ^ reference [..] z/U#
+    };
+  
+    template <typename T>
+//                     ^ definition local 5
+    struct W {
+//         ^ definition [..] z/W#
+      V v;
+//    ^ reference [..] z/V#
+//      ^ definition [..] z/W#v.
+  
+      T identity(T t) { return v.identity<T>(t); }
+//    ^ reference local 5
+//      ^^^^^^^^ definition [..] z/W#identity(ada6a8422704cf8a).
+//               ^ reference local 5
+//                 ^ definition local 6
+//                             ^ reference [..] z/W#v.
+//                               ^^^^^^^^ reference [..] z/V#identity(9b79fb6aee4c0440).
+//                                        ^ reference local 5
+//                                           ^ reference local 6
+    };
+  }

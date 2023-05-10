@@ -857,9 +857,11 @@ void TuIndexer::trySaveMemberReferenceViaLookup(
   if (!recordDecl) {
     return;
   }
+  // Filter out UsingDecl as the corresponding UsingShadowDecl is sufficient.
   auto lookupResult = recordDecl->lookupDependentName(
-      memberNameInfo.getName(),
-      [](const clang::NamedDecl *) -> bool { return true; });
+      memberNameInfo.getName(), [&](const clang::NamedDecl *decl) -> bool {
+        return !llvm::isa<clang::UsingDecl>(decl);
+      });
   for (auto *namedDecl : lookupResult) {
     auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl);
     if (optSymbol) {
