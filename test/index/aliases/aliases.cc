@@ -80,7 +80,13 @@ namespace z {
 namespace i {
   namespace j {
     void f() {}
+
+    template <typename T>
+    void ft(T) {}
   }
   using j::f;
   void g() { f(); }
+
+  using j::ft;
+  void gt() { ft<int>(0); }
 }

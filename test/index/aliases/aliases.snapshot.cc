@@ -170,6 +170,12 @@
 //            ^ definition [..] i/j/
       void f() {}
 //         ^ definition [..] i/j/f(49f6e7a06ebc5aa8).
+  
+      template <typename T>
+//                       ^ definition local 7
+      void ft(T) {}
+//         ^^ definition [..] i/j/ft(9b289cee16747614).
+//            ^ reference local 7
     }
     using j::f;
 //        ^ reference [..] i/j/
@@ -178,4 +184,9 @@
     void g() { f(); }
 //       ^ definition [..] i/g(49f6e7a06ebc5aa8).
 //             ^ reference [..] i/f(49f6e7a06ebc5aa8).
+  
+    using j::ft;
+//        ^ reference [..] i/j/
+    void gt() { ft<int>(0); }
+//       ^^ definition [..] i/gt(49f6e7a06ebc5aa8).
   }
