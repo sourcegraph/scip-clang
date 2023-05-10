@@ -3,6 +3,7 @@
 
 #define FOR_EACH_DECL_TO_BE_INDEXED(F) \
   F(Binding)                           \
+  F(ClassTemplate)                     \
   F(EnumConstant)                      \
   F(Enum)                              \
   F(Field)                             \
@@ -13,10 +14,12 @@
   F(Record)                            \
   F(TemplateTemplateParm)              \
   F(TemplateTypeParm)                  \
+  F(TypeAliasTemplate)                 \
   F(TypedefName)                       \
   F(UsingShadow)                       \
   F(Using)                             \
-  F(Var)
+  F(Var)                               \
+  F(VarTemplate)
 
 #define FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(F) \
   F(NonTypeTemplateParm)                        \

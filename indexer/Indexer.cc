@@ -368,6 +368,10 @@ void TuIndexer::saveBindingDecl(const clang::BindingDecl &bindingDecl) {
                        std::nullopt);
 }
 
+void TuIndexer::saveClassTemplateDecl(const clang::ClassTemplateDecl &) {
+  // We'll emit a def for the inner RecordDecl, so don't do anything here
+}
+
 void TuIndexer::saveEnumConstantDecl(
     const clang::EnumConstantDecl &enumConstantDecl) {
   auto optSymbol =
@@ -695,15 +699,28 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
     }
     break;
   }
+  case Kind::UsingTemplate: {
+    auto *usingShadowDecl = templateName.getAsUsingShadowDecl();
+    if (auto optSymbol =
+            this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
+      this->saveReference(*optSymbol,
+                          templateSpecializationTypeLoc.getTemplateNameLoc());
+    }
+    break;
+  }
   case Kind::OverloadedTemplate:
   case Kind::AssumedTemplate:
   case Kind::QualifiedTemplate:
   case Kind::DependentTemplate:
   case Kind::SubstTemplateTemplateParm:
   case Kind::SubstTemplateTemplateParmPack:
-  case Kind::UsingTemplate:
     break;
   }
+}
+
+void TuIndexer::saveTypeAliasTemplateDecl(
+    const clang::TypeAliasTemplateDecl &) {
+  // We'll emit a def for the inner TypeAliasDecl, so don't do anything here
 }
 
 void TuIndexer::saveTypedefNameDecl(
@@ -772,6 +789,10 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
     }
     this->saveDefinition(optSymbol.value(), varDecl.getLocation(), symbolInfo);
   }
+}
+
+void TuIndexer::saveVarTemplateDecl(const clang::VarTemplateDecl &) {
+  // Skip emitting a definition here, as we'll emit one for the inner VarDecl.
 }
 
 void TuIndexer::saveCXXConstructExpr(

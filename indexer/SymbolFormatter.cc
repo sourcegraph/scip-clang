@@ -359,6 +359,16 @@ SymbolFormatter::getBindingSymbol(const clang::BindingDecl &bindingDecl) {
   return this->getNextLocalSymbol(bindingDecl);
 }
 
+std::optional<std::string_view> SymbolFormatter::getClassTemplateSymbol(
+    const clang::ClassTemplateDecl &classTemplateDecl) {
+  return this->getRecordSymbol(*classTemplateDecl.getTemplatedDecl());
+}
+
+std::optional<std::string_view> SymbolFormatter::getTypeAliasTemplateSymbol(
+    const clang::TypeAliasTemplateDecl &typeAliasTemplateDecl) {
+  return this->getTypedefNameSymbol(*typeAliasTemplateDecl.getTemplatedDecl());
+}
+
 std::optional<std::string_view>
 SymbolFormatter::getNextLocalSymbol(const clang::NamedDecl &decl) {
   if (decl.getDeclName().isEmpty()) {
@@ -661,6 +671,11 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
     }
     }
   });
+}
+
+std::optional<std::string_view> SymbolFormatter::getVarTemplateSymbol(
+    const clang::VarTemplateDecl &varTemplateDecl) {
+  return this->getVarSymbol(*varTemplateDecl.getTemplatedDecl());
 }
 
 std::string_view

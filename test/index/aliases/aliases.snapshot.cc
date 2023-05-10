@@ -221,12 +221,15 @@
     using k::S;
 //        ^ reference [..] i/k/
 //           ^ definition [..] i/S#
+//           ^ reference [..] i/k/S#
     using SS = S<int>;
 //        ^^ definition [..] i/SS#
+//             ^ reference [..] i/S#
   
     using j::zero;
 //        ^ reference [..] i/j/
 //           ^^^^ definition [..] i/zero.
+//           ^^^^ reference [..] i/j/zero.
     static int zero_int = zero<int>;
 //             ^^^^^^^^ definition [..] i/zero_int.
 //                        ^^^^ reference [..] i/j/zero.
@@ -234,6 +237,8 @@
     using k::SAlias;
 //        ^ reference [..] i/k/
 //           ^^^^^^ definition [..] i/SAlias#
+//           ^^^^^^ reference [..] i/k/SAlias#
     using SAliasInt = SAlias<int>;
 //        ^^^^^^^^^ definition [..] i/SAliasInt#
+//                    ^^^^^^ reference [..] i/SAlias#
   }
