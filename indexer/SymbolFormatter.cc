@@ -582,8 +582,9 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
           suffix = scip::Descriptor::Type;
         } else if (llvm::dyn_cast<clang::NamespaceDecl>(canonicalDecl)) {
           suffix = scip::Descriptor::Namespace;
-        } else if (llvm::dyn_cast<clang::EnumConstantDecl>(canonicalDecl)
-                   || llvm::dyn_cast<clang::FieldDecl>(canonicalDecl)) {
+        } else if (llvm::isa<clang::EnumConstantDecl>(canonicalDecl)
+                   || llvm::isa<clang::VarDecl>(canonicalDecl)
+                   || llvm::isa<clang::VarTemplateDecl>(canonicalDecl)) {
           suffix = scip::Descriptor::Term;
         } else if (auto *functionDecl = llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
           disambiguator = this->getFunctionDisambiguator(*functionDecl, buf);
