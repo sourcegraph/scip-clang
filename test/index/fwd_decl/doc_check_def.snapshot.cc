@@ -7,5 +7,11 @@
   class F {
 //      ^ definition [..] F#
 //      documentation
-//      | Doc comment on forward decl
+//      | Doc comment on definition
+  };
+  
+  class UndocumentedClass {
+//      ^^^^^^^^^^^^^^^^^ definition [..] UndocumentedClass#
+//      documentation
+//      | From forward decl
   };

@@ -239,7 +239,8 @@ void MacroIndexer::emitDocumentOccurrencesAndSymbols(
             switch (macroOcc.role) {
             case Role::Definition: {
               scip::SymbolInformation symbolInfo;
-              *symbolInfo.add_documentation() = "No documentation available.";
+              *symbolInfo.add_documentation() =
+                  scip::missingDocumentationPlaceholder;
               ENFORCE(!occ.symbol().empty());
               macroOcc.emitSymbolInformation(occ.symbol(), symbolInfo);
               *document.add_symbols() = std::move(symbolInfo);
@@ -967,7 +968,7 @@ void TuIndexer::saveDefinition(
     return;
   }
   if (optSymbolInfo.has_value() && optSymbolInfo->documentation_size() == 0) {
-    *optSymbolInfo->add_documentation() = "No documentation available.";
+    *optSymbolInfo->add_documentation() = scip::missingDocumentationPlaceholder;
   }
   if (optStableFileId->isInProject) {
     auto &doc = this->saveOccurrence(symbol, expansionLoc,
