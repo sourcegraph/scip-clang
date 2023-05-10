@@ -578,7 +578,7 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
         // clang-format off
         if (llvm::dyn_cast<clang::TemplateTypeParmDecl>(canonicalDecl)) {
           suffix = scip::Descriptor::TypeParameter;
-        } else if (llvm::dyn_cast<clang::TypeDecl>(canonicalDecl)) {
+        } else if (llvm::isa<clang::TypeDecl>(canonicalDecl) || llvm::isa<clang::ClassTemplateDecl>(canonicalDecl)) {
           suffix = scip::Descriptor::Type;
         } else if (llvm::dyn_cast<clang::NamespaceDecl>(canonicalDecl)) {
           suffix = scip::Descriptor::Namespace;

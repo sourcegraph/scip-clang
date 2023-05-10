@@ -206,6 +206,7 @@
   
     using k::S;
 //        ^ reference [..] i/k/
+//           ^ definition [..] i/S#
     using SS = S<int>;
 //        ^^ definition [..] i/SS#
   }
