@@ -25,6 +25,7 @@
 //          ^ reference local 2
 //            ^ definition local 3
       this->f0(t);
+//          ^^ reference [..] T0#f0(9b289cee16747614).
 //             ^ reference local 3
     }
   
@@ -35,6 +36,7 @@
 //          ^ reference local 4
 //            ^ definition local 5
       this->template g0<U>(u);
+//                   ^^ reference [..] T0#g0(b07662a27bd562f9).
 //                      ^ reference local 4
 //                         ^ reference local 5
     }
