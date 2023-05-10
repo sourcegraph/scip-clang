@@ -227,6 +227,7 @@
     using j::zero;
 //        ^ reference [..] i/j/
 //           ^^^^ definition [..] i/zero.
+//           ^^^^ reference [..] i/j/zero.
     static int zero_int = zero<int>;
 //             ^^^^^^^^ definition [..] i/zero_int.
 //                        ^^^^ reference [..] i/j/zero.

@@ -663,6 +663,11 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
   });
 }
 
+std::optional<std::string_view>
+SymbolFormatter::getVarTemplateSymbol(const clang::VarTemplateDecl &varTemplateDecl) {
+  return this->getVarSymbol(*varTemplateDecl.getTemplatedDecl());
+}
+
 std::string_view
 SymbolFormatter::formatTemporary(const clang::NamedDecl &namedDecl) {
   this->scratchBuffer.clear();

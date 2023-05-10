@@ -774,6 +774,10 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
   }
 }
 
+void TuIndexer::saveVarTemplateDecl(const clang::VarTemplateDecl &) {
+  // Skip emitting a definition here, as we'll emit one for the inner VarDecl.
+}
+
 void TuIndexer::saveCXXConstructExpr(
     const clang::CXXConstructExpr &cxxConstructExpr) {
   if (auto *cxxConstructorDecl = cxxConstructExpr.getConstructor()) {
