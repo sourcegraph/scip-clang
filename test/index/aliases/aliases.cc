@@ -57,3 +57,22 @@ void g() {
   using enum LongLongEnum;
   using enum h::EvenLongerEnum;
 }
+
+namespace z {
+  struct U {
+    template <typename T>
+    T identity(T t) { return t; }
+  };
+
+  struct V: U {
+    int identity(int t, int) { return t; }
+    using U::identity;
+  };
+
+  template <typename T>
+  struct W {
+    V v;
+
+    T identity(T t) { return v.identity<T>(t); }
+  };
+}
