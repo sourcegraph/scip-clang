@@ -163,3 +163,19 @@
 //                                           ^ reference local 6
     };
   }
+  
+  namespace i {
+//          ^ definition [..] i/
+    namespace j {
+//            ^ definition [..] i/j/
+      void f() {}
+//         ^ definition [..] i/j/f(49f6e7a06ebc5aa8).
+    }
+    using j::f;
+//        ^ reference [..] i/j/
+//           ^ definition [..] i/f().
+//           ^ reference [..] i/j/f(49f6e7a06ebc5aa8).
+    void g() { f(); }
+//       ^ definition [..] i/g(49f6e7a06ebc5aa8).
+//             ^ reference [..] i/f().
+  }
