@@ -89,4 +89,12 @@ namespace i {
 
   using j::ft;
   void gt() { ft<int>(0); }
+
+  namespace k {
+    template <typename T>
+    struct S {};
+  }
+
+  using k::S;
+  using SS = S<int>;
 }

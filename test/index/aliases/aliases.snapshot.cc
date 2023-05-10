@@ -195,4 +195,17 @@
     void gt() { ft<int>(0); }
 //       ^^ definition [..] i/gt(49f6e7a06ebc5aa8).
 //              ^^ reference [..] i/ft(9b289cee16747614).
+  
+    namespace k {
+//            ^ definition [..] i/k/
+      template <typename T>
+//                       ^ definition local 8
+      struct S {};
+//           ^ definition [..] i/k/S#
+    }
+  
+    using k::S;
+//        ^ reference [..] i/k/
+    using SS = S<int>;
+//        ^^ definition [..] i/SS#
   }
