@@ -233,6 +233,7 @@
   
     using k::SAlias;
 //        ^ reference [..] i/k/
+//           ^^^^^^ definition [..] i/SAlias#
     using SAliasInt = SAlias<int>;
 //        ^^^^^^^^^ definition [..] i/SAliasInt#
   }
