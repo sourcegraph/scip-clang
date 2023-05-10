@@ -701,8 +701,10 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
   }
   case Kind::UsingTemplate: {
     auto *usingShadowDecl = templateName.getAsUsingShadowDecl();
-    if (auto optSymbol = this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
-      this->saveReference(*optSymbol, templateSpecializationTypeLoc.getTemplateNameLoc());
+    if (auto optSymbol =
+            this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
+      this->saveReference(*optSymbol,
+                          templateSpecializationTypeLoc.getTemplateNameLoc());
     }
     break;
   }
