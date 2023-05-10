@@ -76,3 +76,11 @@ namespace z {
     T identity(T t) { return v.identity<T>(t); }
   };
 }
+
+namespace i {
+  namespace j {
+    void f() {}
+  }
+  using j::f;
+  void g() { f(); }
+}
