@@ -96,6 +96,9 @@ namespace i {
   namespace k {
     template <typename T>
     struct S {};
+
+    template <typename T>
+    using SAlias = S<T>;
   }
 
   using k::S;
@@ -103,4 +106,7 @@ namespace i {
 
   using j::zero;
   static int zero_int = zero<int>;
+
+  using k::SAlias;
+  using SAliasInt = SAlias<int>;
 }

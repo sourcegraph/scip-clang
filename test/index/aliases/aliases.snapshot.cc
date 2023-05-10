@@ -209,6 +209,13 @@
 //                       ^ definition local 9
       struct S {};
 //           ^ definition [..] i/k/S#
+  
+      template <typename T>
+//                       ^ definition local 10
+      using SAlias = S<T>;
+//          ^^^^^^ definition [..] i/k/SAlias#
+//                   ^ reference [..] i/k/S#
+//                     ^ reference local 10
     }
   
     using k::S;
@@ -223,4 +230,9 @@
     static int zero_int = zero<int>;
 //             ^^^^^^^^ definition [..] i/zero_int.
 //                        ^^^^ reference [..] i/j/zero.
+  
+    using k::SAlias;
+//        ^ reference [..] i/k/
+    using SAliasInt = SAlias<int>;
+//        ^^^^^^^^^ definition [..] i/SAliasInt#
   }
