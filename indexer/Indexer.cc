@@ -11,6 +11,7 @@
 #include "spdlog/fmt/fmt.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/CXXInheritance.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
@@ -856,10 +857,9 @@ void TuIndexer::trySaveMemberReferenceViaLookup(
   if (!recordDecl) {
     return;
   }
-  // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/296):
-  // We should try to use more standard code which takes
-  // inheritance into account.
-  auto lookupResult = recordDecl->lookup(memberNameInfo.getName());
+  auto lookupResult = recordDecl->lookupDependentName(
+      memberNameInfo.getName(),
+      [](const clang::NamedDecl *) -> bool { return true; });
   for (auto *namedDecl : lookupResult) {
     auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl);
     if (optSymbol) {
