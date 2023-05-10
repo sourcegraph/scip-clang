@@ -224,6 +224,7 @@
 //           ^ reference [..] i/k/S#
     using SS = S<int>;
 //        ^^ definition [..] i/SS#
+//             ^ reference [..] i/S#
   
     using j::zero;
 //        ^ reference [..] i/j/
@@ -239,4 +240,5 @@
 //           ^^^^^^ reference [..] i/k/SAlias#
     using SAliasInt = SAlias<int>;
 //        ^^^^^^^^^ definition [..] i/SAliasInt#
+//                    ^^^^^^ reference [..] i/SAlias#
   }

@@ -699,13 +699,19 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
     }
     break;
   }
+  case Kind::UsingTemplate: {
+    auto *usingShadowDecl = templateName.getAsUsingShadowDecl();
+    if (auto optSymbol = this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
+      this->saveReference(*optSymbol, templateSpecializationTypeLoc.getTemplateNameLoc());
+    }
+    break;
+  }
   case Kind::OverloadedTemplate:
   case Kind::AssumedTemplate:
   case Kind::QualifiedTemplate:
   case Kind::DependentTemplate:
   case Kind::SubstTemplateTemplateParm:
   case Kind::SubstTemplateTemplateParmPack:
-  case Kind::UsingTemplate:
     break;
   }
 }
