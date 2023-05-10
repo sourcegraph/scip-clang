@@ -575,22 +575,34 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
         std::string_view disambiguator = "";
         // NOTE: First two branches can't be re-ordered as all
         // TemplateTypeParmDecls also TypeDecls
-        if (llvm::dyn_cast<clang::TemplateTypeParmDecl>(canonicalDecl)) {
-          suffix = scip::Descriptor::TypeParameter;
-        } else if (llvm::dyn_cast<clang::TypeDecl>(canonicalDecl)) {
-          suffix = scip::Descriptor::Type;
-        } else if (llvm::dyn_cast<clang::NamespaceDecl>(canonicalDecl)) {
-          suffix = scip::Descriptor::Namespace;
-        } else if (llvm::dyn_cast<clang::EnumConstantDecl>(canonicalDecl)
-                   || llvm::dyn_cast<clang::FieldDecl>(canonicalDecl)) {
-          suffix = scip::Descriptor::Term;
-        } else if (auto *functionDecl =
-                       llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
-          disambiguator = this->getFunctionDisambiguator(*functionDecl, buf);
-          suffix = scip::Descriptor::Method;
-        } else {
-          return {};
-        }
+        // clang-format off
+        do {
+          if (llvm::dyn_cast<clang::TemplateTypeParmDecl>(canonicalDecl)) {
+            suffix = scip::Descriptor::TypeParameter;
+          } else if (llvm::isa<clang::TypeDecl>(canonicalDecl)
+                    || llvm::isa<clang::ClassTemplateDecl>(canonicalDecl)) {
+            suffix = scip::Descriptor::Type;
+          } else if (llvm::dyn_cast<clang::NamespaceDecl>(canonicalDecl)) {
+            suffix = scip::Descriptor::Namespace;
+          } else if (llvm::isa<clang::EnumConstantDecl>(canonicalDecl)
+                    || llvm::isa<clang::VarDecl>(canonicalDecl)
+                    || llvm::isa<clang::VarTemplateDecl>(canonicalDecl)) {
+            suffix = scip::Descriptor::Term;
+          } else if (auto *functionDecl = llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
+            disambiguator = this->getFunctionDisambiguator(*functionDecl, buf);
+            suffix = scip::Descriptor::Method;
+          } else if (auto *funcTemplateDecl = llvm::dyn_cast<clang::FunctionTemplateDecl>(canonicalDecl)) {
+            disambiguator = this->getFunctionDisambiguator(*funcTemplateDecl->getTemplatedDecl(), buf);
+            suffix = scip::Descriptor::Method;
+          } else if (auto *usingTemplateDecl = llvm::dyn_cast<clang::TypeAliasTemplateDecl>(canonicalDecl)) {
+            canonicalDecl = usingTemplateDecl->getTemplatedDecl();
+            continue;
+          } else {
+            return {};
+          }
+          break;
+        } while (true);
+        // clang-format on
         auto descriptor = DescriptorBuilder{
             .name = this->formatTemporary(usingShadowDecl),
             .disambiguator = disambiguator,

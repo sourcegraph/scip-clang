@@ -80,7 +80,33 @@ namespace z {
 namespace i {
   namespace j {
     void f() {}
+
+    template <typename T>
+    void ft(T) {}
+
+    template <typename T>
+    T zero = 0;
   }
   using j::f;
   void g() { f(); }
+
+  using j::ft;
+  void gt() { ft<int>(0); }
+
+  namespace k {
+    template <typename T>
+    struct S {};
+
+    template <typename T>
+    using SAlias = S<T>;
+  }
+
+  using k::S;
+  using SS = S<int>;
+
+  using j::zero;
+  static int zero_int = zero<int>;
+
+  using k::SAlias;
+  using SAliasInt = SAlias<int>;
 }
