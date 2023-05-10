@@ -575,6 +575,7 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
         std::string_view disambiguator = "";
         // NOTE: First two branches can't be re-ordered as all
         // TemplateTypeParmDecls also TypeDecls
+        // clang-format off
         if (llvm::dyn_cast<clang::TemplateTypeParmDecl>(canonicalDecl)) {
           suffix = scip::Descriptor::TypeParameter;
         } else if (llvm::dyn_cast<clang::TypeDecl>(canonicalDecl)) {
@@ -584,13 +585,16 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
         } else if (llvm::dyn_cast<clang::EnumConstantDecl>(canonicalDecl)
                    || llvm::dyn_cast<clang::FieldDecl>(canonicalDecl)) {
           suffix = scip::Descriptor::Term;
-        } else if (auto *functionDecl =
-                       llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
+        } else if (auto *functionDecl = llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
           disambiguator = this->getFunctionDisambiguator(*functionDecl, buf);
+          suffix = scip::Descriptor::Method;
+        } else if (auto *funcTemplateDecl = llvm::dyn_cast<clang::FunctionTemplateDecl>(canonicalDecl)) {
+          disambiguator = this->getFunctionDisambiguator(*funcTemplateDecl->getTemplatedDecl(), buf);
           suffix = scip::Descriptor::Method;
         } else {
           return {};
         }
+        // clang-format on
         auto descriptor = DescriptorBuilder{
             .name = this->formatTemporary(usingShadowDecl),
             .disambiguator = disambiguator,

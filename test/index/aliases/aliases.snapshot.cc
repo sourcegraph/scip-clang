@@ -142,6 +142,8 @@
 //                                      ^ reference local 4
       using U::identity;
 //          ^ reference [..] z/U#
+//             ^^^^^^^^ reference [..] z/U#identity(ada6a8422704cf8a).
+//             ^^^^^^^^ definition [..] z/V#identity(ada6a8422704cf8a).
     };
   
     template <typename T>
@@ -159,6 +161,7 @@
 //                 ^ definition local 6
 //                             ^ reference [..] z/W#v.
 //                               ^^^^^^^^ reference [..] z/V#identity(9b79fb6aee4c0440).
+//                               ^^^^^^^^ reference [..] z/V#identity(ada6a8422704cf8a).
 //                                        ^ reference local 5
 //                                           ^ reference local 6
     };
@@ -187,6 +190,9 @@
   
     using j::ft;
 //        ^ reference [..] i/j/
+//           ^^ definition [..] i/ft(9b289cee16747614).
+//           ^^ reference [..] i/j/ft(9b289cee16747614).
     void gt() { ft<int>(0); }
 //       ^^ definition [..] i/gt(49f6e7a06ebc5aa8).
+//              ^^ reference [..] i/ft(9b289cee16747614).
   }
