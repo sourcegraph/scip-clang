@@ -3,6 +3,7 @@
 
 #define FOR_EACH_DECL_TO_BE_INDEXED(F) \
   F(Binding)                           \
+  F(ClassTemplate)                     \
   F(EnumConstant)                      \
   F(Enum)                              \
   F(Field)                             \

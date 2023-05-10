@@ -368,6 +368,10 @@ void TuIndexer::saveBindingDecl(const clang::BindingDecl &bindingDecl) {
                        std::nullopt);
 }
 
+void TuIndexer::saveClassTemplateDecl(const clang::ClassTemplateDecl &) {
+  // We'll emit a def for the inner RecordDecl, so don't do anything here
+}
+
 void TuIndexer::saveEnumConstantDecl(
     const clang::EnumConstantDecl &enumConstantDecl) {
   auto optSymbol =

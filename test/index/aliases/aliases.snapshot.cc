@@ -221,6 +221,7 @@
     using k::S;
 //        ^ reference [..] i/k/
 //           ^ definition [..] i/S#
+//           ^ reference [..] i/k/S#
     using SS = S<int>;
 //        ^^ definition [..] i/SS#
   
