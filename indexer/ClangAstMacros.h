@@ -14,6 +14,7 @@
   F(Record)                            \
   F(TemplateTemplateParm)              \
   F(TemplateTypeParm)                  \
+  F(TypeAliasTemplate)                 \
   F(TypedefName)                       \
   F(UsingShadow)                       \
   F(Using)                             \

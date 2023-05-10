@@ -364,6 +364,11 @@ std::optional<std::string_view> SymbolFormatter::getClassTemplateSymbol(
   return this->getRecordSymbol(*classTemplateDecl.getTemplatedDecl());
 }
 
+std::optional<std::string_view> SymbolFormatter::getTypeAliasTemplateSymbol(
+    const clang::TypeAliasTemplateDecl &typeAliasTemplateDecl) {
+  return this->getTypedefNameSymbol(*typeAliasTemplateDecl.getTemplatedDecl());
+}
+
 std::optional<std::string_view>
 SymbolFormatter::getNextLocalSymbol(const clang::NamedDecl &decl) {
   if (decl.getDeclName().isEmpty()) {

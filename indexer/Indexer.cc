@@ -710,6 +710,11 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
   }
 }
 
+void TuIndexer::saveTypeAliasTemplateDecl(
+    const clang::TypeAliasTemplateDecl &) {
+  // We'll emit a def for the inner TypeAliasDecl, so don't do anything here
+}
+
 void TuIndexer::saveTypedefNameDecl(
     const clang::TypedefNameDecl &typedefNameDecl) {
   auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(typedefNameDecl);
