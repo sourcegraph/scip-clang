@@ -77,6 +77,9 @@ struct OccurrenceExt {
   }
 };
 
+constexpr char missingDocumentationPlaceholder[28] =
+    "No documentation available.";
+
 class SymbolInformationBuilder final {
   std::vector<std::string> documentation;
   absl::flat_hash_set<RelationshipExt> relationships;

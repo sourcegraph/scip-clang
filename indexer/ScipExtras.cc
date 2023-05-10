@@ -275,16 +275,25 @@ void IndexBuilder::addForwardDeclaration(
     this->externalSymbols.erase(extIt);
   }
   if (!forwardDeclSym.documentation().empty()) {
-    // FIXME(def: better-doc-merging): We shouldn't drop documentation
-    // attached to a definition, if present.
+    // FIXME(def: better-doc-merging): The missing documentation placeholder
+    // value is due to a bug in the backend which seemingly came up randomly
+    // and also got fixed somehow. We should remove the workaround if this
+    // is no longer an issue.
     if (auto *symbolInfo = it->second.dyn_cast<scip::SymbolInformation *>()) {
-      symbolInfo->mutable_documentation()->Clear();
-      for (auto &doc : *forwardDeclSym.mutable_documentation()) {
-        *symbolInfo->add_documentation() = std::move(doc);
+      bool isMissingDocumentation =
+          symbolInfo->documentation_size() == 0
+          || (symbolInfo->documentation_size() == 1
+              && symbolInfo->documentation()[0]
+                     == scip::missingDocumentationPlaceholder);
+      if (isMissingDocumentation) {
+        symbolInfo->mutable_documentation()->Clear();
+        for (auto &doc : *forwardDeclSym.mutable_documentation()) {
+          *symbolInfo->add_documentation() = std::move(doc);
+        }
       }
     } else {
       auto &symbolInfoBuilder = *it->second.get<SymbolInformationBuilder *>();
-      // FIXME(def: better-documentation-merging): We shouldn't drop
+      // FIXME(def: better-doc-merging): We shouldn't drop
       // documentation attached to a forward declaration.
       if (!symbolInfoBuilder.hasDocumentation()) {
         symbolInfoBuilder.setDocumentation(
