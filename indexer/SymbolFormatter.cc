@@ -403,6 +403,41 @@ SymbolFormatter::getEnumSymbol(const clang::EnumDecl &enumDecl) {
   return this->getTagSymbol(enumDecl);
 }
 
+std::string_view SymbolFormatter::getFunctionDisambiguator(
+    const clang::FunctionDecl &functionDecl, char buf[16]) {
+  const clang::FunctionDecl *definingDecl = &functionDecl;
+  // clang-format off
+    if (functionDecl.isTemplateInstantiation()) {
+      // Handle non-templated member functions
+      if (auto *memberFnDecl = functionDecl.getInstantiatedFromMemberFunction()) {
+        definingDecl = memberFnDecl;
+      } else if (auto *templateInfo = functionDecl.getTemplateSpecializationInfo()) {
+        // Consider code like:
+        //   template <typename T> class C { template <typename U> void f() {} };
+        //   void g() { C<int>().f<int>(); }
+        //                       ^ Emitting a reference
+        //
+        // The dance below gets to the original declaration in 3 steps:
+        // C<int>.f<int> (FunctionDecl) → C<int>.f<$U> (FunctionTemplateDecl)
+        //                                     ↓
+        // C<$T>.f<$U>   (FunctionDecl) ← C<$T>.f<$U>  (FunctionTemplateDecl)
+        auto *instantiatedTemplateDecl = templateInfo->getTemplate();
+        // For some reason, we end up on this code path for overloaded
+        // literal operators. In that case, uninstantiatedTemplateDecl
+        // can be null.
+        if (auto *uninstantiatedTemplateDecl = instantiatedTemplateDecl->getInstantiatedFromMemberTemplate()) {
+          definingDecl = uninstantiatedTemplateDecl->getTemplatedDecl();
+        }
+      }
+    }
+  // clang-format on
+  // 64-bit hash in hex should take 16 characters at most.
+  auto typeString = definingDecl->getType().getCanonicalType().getAsString();
+  // char buf[16] = {0};
+  auto *end = fmt::format_to(buf, "{:x}", HashValue::forText(typeString));
+  return std::string_view{buf, end};
+}
+
 std::optional<std::string_view>
 SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
   return this->getSymbolCached(
@@ -412,39 +447,9 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
         if (!optContextSymbol.has_value()) {
           return {};
         }
-        const clang::FunctionDecl *definingDecl = &functionDecl;
-        // clang-format off
-        if (functionDecl.isTemplateInstantiation()) {
-          // Handle non-templated member functions
-          if (auto *memberFnDecl = functionDecl.getInstantiatedFromMemberFunction()) {
-            definingDecl = memberFnDecl;
-          } else if (auto *templateInfo = functionDecl.getTemplateSpecializationInfo()) {
-            // Consider code like:
-            //   template <typename T> class C { template <typename U> void f() {} };
-            //   void g() { C<int>().f<int>(); }
-            //                       ^ Emitting a reference
-            //
-            // The dance below gets to the original declaration in 3 steps:
-            // C<int>.f<int> (FunctionDecl) → C<int>.f<$U> (FunctionTemplateDecl)
-            //                                     ↓
-            // C<$T>.f<$U>   (FunctionDecl) ← C<$T>.f<$U>  (FunctionTemplateDecl)
-            auto *instantiatedTemplateDecl = templateInfo->getTemplate();
-            // For some reason, we end up on this code path for overloaded
-            // literal operators. In that case, uninstantiatedTemplateDecl
-            // can be null.
-            if (auto *uninstantiatedTemplateDecl = instantiatedTemplateDecl->getInstantiatedFromMemberTemplate()) {
-              definingDecl = uninstantiatedTemplateDecl->getTemplatedDecl();
-            }
-          }
-        }
-        // clang-format on
         auto name = this->formatTemporary(functionDecl);
-        // 64-bit hash in hex should take 16 characters at most.
-        auto typeString =
-            definingDecl->getType().getCanonicalType().getAsString();
         char buf[16] = {0};
-        auto *end = fmt::format_to(buf, "{:x}", HashValue::forText(typeString));
-        std::string_view disambiguator{buf, end};
+        auto disambiguator = this->getFunctionDisambiguator(functionDecl, buf);
         return SymbolBuilder::formatContextual(
             optContextSymbol.value(), DescriptorBuilder{
                                           .name = name,
@@ -566,6 +571,8 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
           return {};
         }
         scip::Descriptor::Suffix suffix;
+        char buf[16] = {0};
+        std::string_view disambiguator = "";
         // NOTE: First two branches can't be re-ordered as all
         // TemplateTypeParmDecls also TypeDecls
         if (llvm::dyn_cast<clang::TemplateTypeParmDecl>(canonicalDecl)) {
@@ -577,13 +584,16 @@ std::optional<std::string_view> SymbolFormatter::getUsingShadowSymbol(
         } else if (llvm::dyn_cast<clang::EnumConstantDecl>(canonicalDecl)
                    || llvm::dyn_cast<clang::FieldDecl>(canonicalDecl)) {
           suffix = scip::Descriptor::Term;
-        } else if (llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
+        } else if (auto *functionDecl =
+                       llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
+          disambiguator = this->getFunctionDisambiguator(*functionDecl, buf);
           suffix = scip::Descriptor::Method;
         } else {
           return {};
         }
         auto descriptor = DescriptorBuilder{
             .name = this->formatTemporary(usingShadowDecl),
+            .disambiguator = disambiguator,
             .suffix = suffix,
         };
         return SymbolBuilder::formatContextual(*optContextSymbol, descriptor);

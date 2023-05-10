@@ -137,6 +137,9 @@ private:
     return std::string_view(this->scratchBuffer);
   }
 
+  std::string_view getFunctionDisambiguator(const clang::FunctionDecl &,
+                                            char[16]);
+
   /// Format the string to a buffer stored by `this` and return a view to it.
   std::string_view formatTemporary(const clang::NamedDecl &);
 };
