@@ -179,6 +179,13 @@
       void ft(T) {}
 //         ^^ definition [..] i/j/ft(9b289cee16747614).
 //            ^ reference local 7
+  
+      template <typename T>
+//                       ^ definition local 8
+      T zero = 0;
+//    ^ reference local 8
+//      ^^^^ definition [..] i/j/zero.
+//      ^^^^ definition [..] i/j/zero.
     }
     using j::f;
 //        ^ reference [..] i/j/
@@ -199,7 +206,7 @@
     namespace k {
 //            ^ definition [..] i/k/
       template <typename T>
-//                       ^ definition local 8
+//                       ^ definition local 9
       struct S {};
 //           ^ definition [..] i/k/S#
     }
@@ -209,4 +216,10 @@
 //           ^ definition [..] i/S#
     using SS = S<int>;
 //        ^^ definition [..] i/SS#
+  
+    using j::zero;
+//        ^ reference [..] i/j/
+    static int zero_int = zero<int>;
+//             ^^^^^^^^ definition [..] i/zero_int.
+//                        ^^^^ reference [..] i/j/zero.
   }

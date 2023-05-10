@@ -83,6 +83,9 @@ namespace i {
 
     template <typename T>
     void ft(T) {}
+
+    template <typename T>
+    T zero = 0;
   }
   using j::f;
   void g() { f(); }
@@ -97,4 +100,7 @@ namespace i {
 
   using k::S;
   using SS = S<int>;
+
+  using j::zero;
+  static int zero_int = zero<int>;
 }
