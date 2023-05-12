@@ -1,5 +1,26 @@
 # scip-clang ChangeLog
 
+## v0.1.1 (beta)
+
+- Significantly improved code navigation
+  for code using the following language features:
+  - `using` declarations
+    (https://github.com/sourcegraph/scip-clang/pull/304,
+     https://github.com/sourcegraph/scip-clang/pull/305,
+     https://github.com/sourcegraph/scip-clang/pull/306)
+  - Dependent names (due to use of templates inside templated code)
+    (https://github.com/sourcegraph/scip-clang/pull/295,
+    https://github.com/sourcegraph/scip-clang/pull/300)
+  - Function-local types
+    (https://github.com/sourcegraph/scip-clang/pull/292)
+  - Method overloads
+    (https://github.com/sourcegraph/scip-clang/pull/287)
+  - Templated free functions
+    (https://github.com/sourcegraph/scip-clang/pull/291)
+- Fixed a bug where hover docs from a forward declaration
+  would be preferred over the docs on the definition.
+  (https://github.com/sourcegraph/scip-clang/pull/298)
+
 ## v0.1.0 (beta)
 
 - The Linux release build uses ThinLTO,
