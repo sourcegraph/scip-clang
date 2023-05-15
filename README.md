@@ -8,9 +8,12 @@ Here are some code navigation examples in [llvm/llvm-project](https://sourcegrap
 - [Find references for macros](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/llvm/include/llvm/Support/Debug.h?L101:9-101:19#tab=references)
 - [Find references for types](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/clang/include/clang/AST/ASTContext.h?L1472:34-1472:45#tab=references)
 
-<!-- Add Chromium index reference -->
-<!-- Add Pytorch index -->
-<!-- Add GIF of file navigation? -->
+You can also test out [code navigation in Chromium](https://sourcegraph.com/github.com/chromium/chromium@b21c706/-/blob/base/atomic_ref_count.h?L19:7-19:21#tab=references).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/sourcegraph/scip-clang/assets/93103176/54cc557e-16c8-4890-b9d1-b40d6e215084">
+  <img alt="Chromium code navigation screenshot" src="https://github.com/sourcegraph/scip-clang/assets/93103176/55ec1429-eef0-4b7d-a99a-0c3c6af23e92">
+</picture>
 
 ## Table of Contents
 
