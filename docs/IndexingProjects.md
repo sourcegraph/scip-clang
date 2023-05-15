@@ -74,3 +74,19 @@ chmod +x build-debug.sh
 CC=clang CXX=clang++ ./build-debug.sh
 scip-clang --compdb-path=build/compile_commands.json
 ```
+
+## Postgres
+
+Tested environments: Ubuntu 22.04
+
+Dependencies: `meson`, `flex`, `bison`, a host toolchain.
+
+Postgres finishes indexing within a few seconds.
+
+```bash
+git clone https://github.com/postgres/postgres --depth=1
+cd postgres
+meson setup ../postgres-build .
+ninja -C ../postgres-build
+scip-clang --compdb-path=../postgres-build/compile_commands.json
+```
