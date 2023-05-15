@@ -1,12 +1,18 @@
-# Design sketch for scip-clang
+# scip-clang design notes
 
-There are three main things to discuss here:
-- What the overall indexer architecture will be
-- How we can avoid redundant work for headers across TUs
-  (["claiming"](https://github.com/kythe/kythe/blob/master/kythe/cxx/indexer/cxx/claiming.md)
-  in the Kythe docs)
-- How the indexer will map C++ to SCIP
-
+- [Architecture](#architecture)
+  - [Handling slow, hung or crashed workers](#handling-slow-hung-or-crashed-workers)
+  - [Disk I/O](#disk-io)
+  - [Bazel and distributed builds](#bazel-and-distributed-builds)
+- [Reducing work across headers](#reducing-work-across-headers)
+  - [Checking well-behavedness of headers](#checking-well-behavedness-of-headers)
+- [Indexing templates](#indexing-templates)
+- [Mapping C++ to SCIP](#mapping-c-to-scip)
+  - [Symbol names for macros](#symbol-names-for-macros)
+  - [Symbol names for declarations](#symbol-names-for-declarations)
+    - [Symbol names for enum cases](#symbol-names-for-enum-cases)
+  - [Method disambiguator](#method-disambiguator)
+  - [Forward declarations](#forward-declarations)
 ## Architecture
 
 When working on a compilation database (a `compile_commands.json` file),
@@ -215,6 +221,90 @@ this edge case if we can avoid comparing
 entities for equality (or content-hash the AST,
 which would also be error-prone).
 </details>
+
+## Indexing templates
+
+Recommended reading: [cppreference page on dependent names](https://en.cppreference.com/w/cpp/language/dependent_name)
+
+In the context of templates, C++ has two kinds of names:
+- Dependent names, where the result of name lookup may
+  depend on the substitutions for template parameters.
+- Non-dependent names, where the result of name lookup
+  is not allowed to depend on substitutions,
+  even if considering substitutions would lead to a better match.
+
+Consequently, it is not always possible to get the correctly
+name-resolved result for a name without template substitution.
+
+For example, prefixing method calls with `this->`
+inside a templated class makes a name dependent.
+So in the presence of templates,
+omitting `this->` for method calls is not always permitted,
+and adding `this->` can make "obviously wrong" code compile.
+Here's a code example:
+
+```cpp
+template <typename T>
+struct Q0 {
+  void f0() {}
+};
+
+template <typename T>
+struct Q1: Q0<T> {
+  void f1() {
+    // f0 is dependent here, since `this` has type Q1<T>*
+    this->f0(); // OK
+    // f0 is independent here due to absence of explicit `this`
+    f0(); // error: use of undeclared identifier 'f0'
+    this->non_existent(); // OK: no template instantiation => no error
+  }
+};
+```
+
+For indexing templates, there are roughly 3 possible options
+from an indexer's point of view:
+
+1. Pedantic:
+   - Traverse uninstantiated template bodies once,
+     and collect information about non-dependent names.
+   - For every template instantiation, traverse the template body
+     once, and collect information about dependent names.
+     This can be de-duplicated on-the-fly.
+2. Generalizing:
+   - Traverse uninstantiated template bodies once,
+     and collect information about non-dependent names.
+   - Randomly select a single instantiation. Traverse the template body
+     for this instantiation, and collect information about dependent names.
+3. Optimistic:
+  - Traverse uninstantied template bodies once,
+    and collect information about both non-dependent and dependent names.
+    For dependent names, rely on some way of performing approximate name lookup.
+
+We go with the Optimistic approach in scip-clang for the following reasons:
+
+- Performance: It is the only approach
+  compatible with the optimization of indexing a header only once (per transcript).
+  Otherwise, if a template in a header is included in a TU,
+  but not instantiated,
+  then indexing the header will not fully index the body of the template.
+  Going for the Pedantic approach would likely lead to a large amount
+  of redundant work across TUs due to repeated traversals of the same or
+  similar template instantiations. The extra information would also
+  increase the time for index merging.
+- Good enough: Based on experience, most dependent names in practice
+  behave like non-dependent names anyways.
+  This is reflected in clangd's index also using imprecise name lookup
+  for dependent names:
+
+  ```cpp
+    /// Performs an imprecise lookup of a dependent name in this class.
+    ///
+    /// This function does not follow strict semantic rules and should be used
+    /// only when lookup rules can be relaxed, e.g. indexing.
+    std::vector<const NamedDecl *>
+    lookupDependentName(DeclarationName Name,
+                        llvm::function_ref<bool(const NamedDecl *ND)> Filter);
+  ```
 
 ## Mapping C++ to SCIP
 
