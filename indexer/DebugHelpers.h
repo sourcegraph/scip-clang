@@ -36,12 +36,11 @@ std::string formatRange(const clang::SourceManager &,
 
 std::string formatDecl(const clang::Decl *);
 
-std::string formatNestedNamespaceSpecifierKind(
-    clang::NestedNameSpecifier::SpecifierKind);
+std::string formatKind(clang::NestedNameSpecifier::SpecifierKind);
 
-std::string formatTemplateNameKind(clang::TemplateName::NameKind);
+std::string formatKind(clang::TemplateName::NameKind);
 
-std::string formatTemplateSpecializationKind(clang::TemplateSpecializationKind);
+std::string formatKind(clang::TemplateSpecializationKind);
 
 std::string formatTypeInternals(const clang::QualType &,
                                 const clang::ASTContext &);
