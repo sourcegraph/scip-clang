@@ -569,8 +569,7 @@ void TuIndexer::saveNestedNameSpecifierLoc(
     }
   };
 
-  while (nameSpecLoc.hasQualifier()) {
-    auto nameSpec = nameSpecLoc.getNestedNameSpecifier();
+  while (auto *nameSpec = nameSpecLoc.getNestedNameSpecifier()) {
     using Kind = clang::NestedNameSpecifier;
     switch (nameSpec->getKind()) {
     case Kind::Namespace: {
