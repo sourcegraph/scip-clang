@@ -111,3 +111,24 @@
 //  ^^^^^^ reference [..] RefPtr#
 //              ^ definition local 21
   }
+  
+  template <typename T>
+//                   ^ definition local 22
+  struct M0 {
+//       ^^ definition [..] M0#
+    using A = int;
+//        ^ definition [..] M0#A#
+  };
+  
+  template <typename T>
+//                   ^ definition local 23
+  struct M1: M0<T> {
+//       ^^ definition [..] M1#
+//           ^^ reference [..] M0#
+//              ^ reference local 23
+    using B = M0<T>;
+//        ^ definition [..] M1#B#
+//            ^^ reference [..] M0#
+//               ^ reference local 23
+    using B::A;
+  };

@@ -344,3 +344,32 @@
 //                     ^ reference [..] trailing_return_type(693bfa61ed1914d5).$anonymous_type_4#`operator()`(dc97d1a1ce4cdab3).
 //                          ^ reference [..] L#
   }
+  
+  struct M0 {
+//       ^^ definition [..] M0#
+//       documentation
+//       | No documentation available.
+    using A = int;
+//        ^ definition [..] M0#A#
+//        documentation
+//        | No documentation available.
+  };
+  
+  struct M1: M0 {
+//       ^^ definition [..] M1#
+//       documentation
+//       | No documentation available.
+//       relation implementation [..] M0#
+//           ^^ reference [..] M0#
+    using B = M0;
+//        ^ definition [..] M1#B#
+//        documentation
+//        | No documentation available.
+//            ^^ reference [..] M0#
+    using B::A;
+//        ^ reference [..] M0#
+//           ^ reference [..] M0#A#
+//           ^ definition [..] M1#A#
+//           documentation
+//           | No documentation available.
+  };

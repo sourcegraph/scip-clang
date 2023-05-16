@@ -124,3 +124,12 @@ auto trailing_return_type() -> L {
   };
   return ignore_first("", L{});
 }
+
+struct M0 {
+  using A = int;
+};
+
+struct M1: M0 {
+  using B = M0;
+  using B::A;
+};
