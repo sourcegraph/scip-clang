@@ -29,6 +29,7 @@
 //                        ^ definition local 4
   using enable_if_t = typename enable_if<B,T>::type;
 //      ^^^^^^^^^^^ definition [..] enable_if_t#
+//                             ^^^^^^^^^ reference [..] enable_if#
   
   template <typename T, typename Enable = void> struct MyTemplate { };
 //                   ^ definition local 5

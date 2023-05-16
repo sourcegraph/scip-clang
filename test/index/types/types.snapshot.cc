@@ -367,7 +367,7 @@
 //        | No documentation available.
 //            ^^ reference [..] M0#
     using B::A;
-//        ^ reference [..] M0#
+//        ^ reference [..] M1#B#
 //           ^ reference [..] M0#A#
 //           ^ definition [..] M1#A#
 //           documentation

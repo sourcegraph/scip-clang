@@ -22,10 +22,12 @@
   template <typename T>
 //                   ^ definition local 3
   typename remove_ref<T>::type&& move(T&& arg) {
+//         ^^^^^^^^^^ reference [..] remove_ref#
 //                               ^^^^ definition [..] move(721d19cf58c53974).
 //                                    ^ reference local 3
 //                                        ^^^ definition local 4
     return static_cast<typename remove_ref<T>::type&&>(arg);
+//                              ^^^^^^^^^^ reference [..] remove_ref#
 //                                                     ^^^ reference local 4
   }
   

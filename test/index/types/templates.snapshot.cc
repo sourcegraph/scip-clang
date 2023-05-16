@@ -68,6 +68,7 @@
 //                   ^ definition local 13
   using RefPtr = typename PointerType<T &>::type;
 //      ^^^^^^ definition [..] RefPtr#
+//                        ^^^^^^^^^^^ reference [..] PointerType#
   
   using IntRefPtr = RefPtr<int>;
 //      ^^^^^^^^^ definition [..] IntRefPtr#
@@ -77,10 +78,12 @@
 //                   ^ definition local 14
   using PtrPtr = typename PointerType<T *>::type;
 //      ^^^^^^ definition [..] PtrPtr#
+//                        ^^^^^^^^^^^ reference [..] PointerType#
   
   template <typename T, typename S = typename PointerType<T>::type>
 //                   ^ definition local 15
 //                               ^ definition local 16
+//                                            ^^^^^^^^^^^ reference [..] PointerType#
   void specialized(T) {}
 //     ^^^^^^^^^^^ definition [..] specialized(9b289cee16747614).
 //                 ^ reference local 15
@@ -131,4 +134,5 @@
 //            ^^ reference [..] M0#
 //               ^ reference local 23
     using B::A;
+//        ^ reference [..] M1#B#
   };
