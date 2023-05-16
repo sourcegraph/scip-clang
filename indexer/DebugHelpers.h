@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceManager.h"
@@ -34,6 +35,9 @@ std::string formatRange(const clang::SourceManager &,
                         clang::SourceLocation start, clang::SourceLocation end);
 
 std::string formatDecl(const clang::Decl *);
+
+std::string formatNestedNamespaceSpecifierKind(
+    clang::NestedNameSpecifier::SpecifierKind);
 
 std::string formatTemplateNameKind(clang::TemplateName::NameKind);
 

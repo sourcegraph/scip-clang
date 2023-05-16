@@ -166,6 +166,23 @@ std::string formatDecl(const clang::Decl *decl) {
   return buf;
 }
 
+std::string formatNestedNamespaceSpecifierKind(
+    clang::NestedNameSpecifier::SpecifierKind kind) {
+#define HANDLE_KIND(kind_)                               \
+  case clang::NestedNameSpecifier::SpecifierKind::kind_: \
+    return #kind_;
+  switch (kind) {
+    HANDLE_KIND(Identifier)
+    HANDLE_KIND(Namespace)
+    HANDLE_KIND(NamespaceAlias)
+    HANDLE_KIND(TypeSpec)
+    HANDLE_KIND(TypeSpecWithTemplate)
+    HANDLE_KIND(Global)
+    HANDLE_KIND(Super)
+  }
+#undef HANDLE_KIND
+}
+
 std::string formatTemplateNameKind(const clang::TemplateName::NameKind kind) {
 #define HANDLE_KIND(kind_)                   \
   case clang::TemplateName::NameKind::kind_: \
