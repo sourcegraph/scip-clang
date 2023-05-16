@@ -165,3 +165,41 @@
 //   ^ reference local 1
 //      ^ reference local 0
   }
+  
+  // Using-declarations making methods public:
+  
+  namespace u {
+//          ^ definition [..] u/
+    struct Z0 {
+//         ^^ definition [..] u/Z0#
+    protected:
+      void f(int) {}
+//         ^ definition [..] u/Z0#f(d4f767463ce0a6b3).
+      void f(int, int) {}
+//         ^ definition [..] u/Z0#f(3e454b8ccf442868).
+    };
+  
+    struct Z1: Z0 {
+//         ^^ definition [..] u/Z1#
+//         relation implementation [..] u/Z0#
+//             ^^ reference [..] u/Z0#
+      using Z0::f;
+//          ^^ reference [..] u/Z0#
+//              ^ reference [..] u/Z0#f(3e454b8ccf442868).
+//              ^ reference [..] u/Z0#f(d4f767463ce0a6b3).
+//              ^ definition [..] u/Z1#f(3e454b8ccf442868).
+//              ^ definition [..] u/Z1#f(d4f767463ce0a6b3).
+    };
+  
+    void use_made_public(Z1 z1) {
+//       ^^^^^^^^^^^^^^^ definition [..] u/use_made_public(eb27b0ef67ae3f66).
+//                       ^^ reference [..] u/Z1#
+//                          ^^ definition local 2
+      z1.f(0);
+//    ^^ reference local 2
+//       ^ reference [..] u/Z0#f(d4f767463ce0a6b3).
+      z1.f(0, 0);
+//    ^^ reference local 2
+//       ^ reference [..] u/Z0#f(3e454b8ccf442868).
+    }
+  }

@@ -75,3 +75,22 @@ void test_member_pointer() {
   M0 m{};
   (m.*p)();
 }
+
+// Using-declarations making methods public:
+
+namespace u {
+  struct Z0 {
+  protected:
+    void f(int) {}
+    void f(int, int) {}
+  };
+
+  struct Z1: Z0 {
+    using Z0::f;
+  };
+
+  void use_made_public(Z1 z1) {
+    z1.f(0);
+    z1.f(0, 0);
+  }
+}
