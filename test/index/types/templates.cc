@@ -49,3 +49,14 @@ void use_empty() {
   Empty<PointerType<void *>> z;
   RefPtr<int> w;
 }
+
+template <typename T>
+struct M0 {
+  using A = int;
+};
+
+template <typename T>
+struct M1: M0<T> {
+  using B = M0<T>;
+  using B::A;
+};

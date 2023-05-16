@@ -45,6 +45,7 @@ class SourceManager;
 class TagDecl;
 class TagTypeLoc;
 class Token;
+class Type;
 } // namespace clang
 
 namespace scip {
@@ -264,6 +265,9 @@ public:
   void saveFieldReference(const clang::FieldDecl &, clang::SourceLocation);
   void saveTagDecl(const clang::TagDecl &);
   void saveTagTypeLoc(const clang::TagTypeLoc &);
+
+  // Save a reference to a possibly-sugared type, without canonicalization.
+  void trySaveTypeReference(const clang::Type *, clang::SourceLocation);
 
 #define SAVE_EXPR(ExprName) \
   void save##ExprName##Expr(const clang::ExprName##Expr &);

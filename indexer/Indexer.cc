@@ -530,6 +530,31 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   this->saveDefinition(symbol, startLoc, std::move(symbolInfo));
 }
 
+void TuIndexer::trySaveTypeReference(const clang::Type *type,
+                                     clang::SourceLocation loc) {
+  if (!type) {
+    return;
+  }
+  const clang::NamedDecl *namedDecl = nullptr;
+  if (auto *typedefType = llvm::dyn_cast<clang::TypedefType>(type)) {
+    namedDecl = typedefType->getDecl();
+  } else if (auto *tagDecl = type->getAsTagDecl()) {
+    namedDecl = tagDecl;
+  } else if (auto *templateSpecializationType =
+                 llvm::dyn_cast<clang::TemplateSpecializationType>(type)) {
+    if (auto *templateDecl =
+            templateSpecializationType->getTemplateName().getAsTemplateDecl()) {
+      namedDecl = templateDecl->getTemplatedDecl();
+    }
+  }
+  if (!namedDecl) {
+    return;
+  }
+  if (auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl)) {
+    this->saveReference(*optSymbol, loc);
+  }
+}
+
 void TuIndexer::saveNestedNameSpecifierLoc(
     const clang::NestedNameSpecifierLoc &argNameSpecLoc) {
   clang::NestedNameSpecifierLoc nameSpecLoc = argNameSpecLoc;
@@ -554,9 +579,7 @@ void TuIndexer::saveNestedNameSpecifierLoc(
     }
     case Kind::TypeSpec: {
       auto *type = nameSpec->getAsType();
-      if (auto *tagDecl = type->getAsTagDecl()) {
-        tryEmit(nameSpecLoc, *tagDecl);
-      }
+      this->trySaveTypeReference(type, nameSpecLoc.getLocalBeginLoc());
       break;
     }
     // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/109)
