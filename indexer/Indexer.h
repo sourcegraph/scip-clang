@@ -16,6 +16,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include "indexer/ApproximateNameResolver.h"
 #include "indexer/ClangAstMacros.h"
 #include "indexer/Comparison.h"
 #include "indexer/Derive.h"
@@ -39,6 +40,7 @@ class DeclarationNameInfo;
 class LangOptions;
 class MacroDefinition;
 class MacroInfo;
+class NamedDecl;
 class NestedNameSpecifierLoc;
 class QualType;
 class SourceManager;
@@ -234,6 +236,8 @@ class TuIndexer final {
   const clang::LangOptions &langOptions;
   [[maybe_unused]] const clang::ASTContext &astContext;
   SymbolFormatter &symbolFormatter;
+  ApproximateNameResolver approximateNameResolver;
+
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, PartialDocument>
       documentMap;
   GetStableFileId getStableFileId;

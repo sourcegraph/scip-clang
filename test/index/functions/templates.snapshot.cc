@@ -117,6 +117,7 @@
 //        ^^^^^ reference [..] Q1#Base1#
     void g() { f(); }
 //       ^ definition [..] Q1#g(49f6e7a06ebc5aa8).
+//             ^ reference [..] Q0#f(49f6e7a06ebc5aa8).
   };
   
   template <typename T>
@@ -133,4 +134,5 @@
 //        ^^^^^ reference [..] Q2#Base2#
     void h() { f(); }
 //       ^ definition [..] Q2#h(49f6e7a06ebc5aa8).
+//             ^ reference [..] Q0#f(49f6e7a06ebc5aa8).
   };
