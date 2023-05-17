@@ -27,6 +27,7 @@
 #include "scip/scip.pb.h"
 
 #include "indexer/AbslExtras.h"
+#include "indexer/ApproximateNameResolver.h"
 #include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
 #include "indexer/Indexer.h"
@@ -306,7 +307,8 @@ TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      SymbolFormatter &symbolFormatter,
                      GetStableFileId getStableFileId)
     : sourceManager(sourceManager), langOptions(langOptions),
-      astContext(astContext), symbolFormatter(symbolFormatter), documentMap(),
+      astContext(astContext), symbolFormatter(symbolFormatter),
+      approximateNameResolver(astContext), documentMap(),
       getStableFileId(getStableFileId), externalSymbols(),
       forwardDeclarations() {}
 
@@ -891,21 +893,14 @@ void TuIndexer::trySaveMemberReferenceViaLookup(
   if (baseType.isNull()) {
     return;
   }
-  clang::QualType actualBaseType = baseType.getCanonicalType();
+  auto derefBaseType = baseType.getCanonicalType();
   // C++23's 'deducing this' feature allows the base type to be a reference
   if (baseType->isPointerType() || baseType->isReferenceType()) {
-    actualBaseType = baseType->getPointeeType();
+    derefBaseType = baseType->getPointeeType();
   }
-  auto *recordDecl = actualBaseType->getAsCXXRecordDecl();
-  if (!recordDecl) {
-    return;
-  }
-  // Filter out UsingDecl as the corresponding UsingShadowDecl is sufficient.
-  auto lookupResult = recordDecl->lookupDependentName(
-      memberNameInfo.getName(), [&](const clang::NamedDecl *decl) -> bool {
-        return !llvm::isa<clang::UsingDecl>(decl);
-      });
-  for (auto *namedDecl : lookupResult) {
+  auto namedDecls = this->approximateNameResolver.tryResolveMember(
+      derefBaseType.getTypePtrOrNull(), memberNameInfo);
+  for (auto *namedDecl : namedDecls) {
     auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl);
     if (optSymbol) {
       this->saveReference(*optSymbol, memberNameInfo.getLoc());

@@ -40,3 +40,22 @@ void test_template() {
   h1<int>(0);
   h1<char>(0);
 }
+
+template <typename T>
+struct Q0 {
+  void f() {}
+};
+
+template <typename T>
+struct Q1: Q0<T> {
+  using Base1 = Q0<T>;
+  using Base1::f;
+  void g() { f(); }
+};
+
+template <typename T>
+struct Q2: Q1<T> {
+  using Base2 = Q1<T>;
+  using Base2::f;
+  void h() { f(); }
+};

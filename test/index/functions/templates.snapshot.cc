@@ -94,3 +94,45 @@
     h1<char>(0);
 //  ^^ reference [..] h1(9b289cee16747614).
   }
+  
+  template <typename T>
+//                   ^ definition local 11
+  struct Q0 {
+//       ^^ definition [..] Q0#
+    void f() {}
+//       ^ definition [..] Q0#f(49f6e7a06ebc5aa8).
+  };
+  
+  template <typename T>
+//                   ^ definition local 12
+  struct Q1: Q0<T> {
+//       ^^ definition [..] Q1#
+//           ^^ reference [..] Q0#
+//              ^ reference local 12
+    using Base1 = Q0<T>;
+//        ^^^^^ definition [..] Q1#Base1#
+//                ^^ reference [..] Q0#
+//                   ^ reference local 12
+    using Base1::f;
+//        ^^^^^ reference [..] Q1#Base1#
+    void g() { f(); }
+//       ^ definition [..] Q1#g(49f6e7a06ebc5aa8).
+//             ^ reference [..] Q0#f(49f6e7a06ebc5aa8).
+  };
+  
+  template <typename T>
+//                   ^ definition local 13
+  struct Q2: Q1<T> {
+//       ^^ definition [..] Q2#
+//           ^^ reference [..] Q1#
+//              ^ reference local 13
+    using Base2 = Q1<T>;
+//        ^^^^^ definition [..] Q2#Base2#
+//                ^^ reference [..] Q1#
+//                   ^ reference local 13
+    using Base2::f;
+//        ^^^^^ reference [..] Q2#Base2#
+    void h() { f(); }
+//       ^ definition [..] Q2#h(49f6e7a06ebc5aa8).
+//             ^ reference [..] Q0#f(49f6e7a06ebc5aa8).
+  };
