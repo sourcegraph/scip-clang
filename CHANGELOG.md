@@ -1,5 +1,15 @@
 # scip-clang ChangeLog
 
+## v0.1.2 (beta)
+
+- Improved code navigation for dependent names (types and methods)
+  in templates.
+  (https://github.com/sourcegraph/scip-clang/pull/317,
+   https://github.com/sourcegraph/scip-clang/pull/321)
+- Hover docs include doc comments starting with `//` and `/*`
+  syntax as well, not just `///` and `/**`.
+  (https://github.com/sourcegraph/scip-clang/pull/325)
+
 ## v0.1.1 (beta)
 
 - Significantly improved code navigation
