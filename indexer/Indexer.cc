@@ -7,6 +7,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
+#include "absl/strings/strip.h"
 #include "perfetto/perfetto.h"
 #include "spdlog/fmt/fmt.h"
 
@@ -240,7 +241,7 @@ void MacroIndexer::emitDocumentOccurrencesAndSymbols(
             macroOcc.emitOccurrence(symbolFormatter, occ);
             switch (macroOcc.role) {
             case Role::Definition: {
-              scip::SymbolInformation symbolInfo;
+              scip::SymbolInformation symbolInfo{};
               *symbolInfo.add_documentation() =
                   scip::missingDocumentationPlaceholder;
               ENFORCE(!occ.symbol().empty());
@@ -299,6 +300,28 @@ void MacroIndexer::forEachIncludeInFile(
   for (auto &[range, path] : *it->second) {
     callback(range, path);
   }
+}
+
+void DocComment::replaceIfEmpty(DocComment &&other) {
+  if (!other.contents.empty()) {
+    if (this->contents.empty()
+        || this->contents == scip::missingDocumentationPlaceholder) {
+      this->contents = std::move(other.contents);
+    }
+  }
+}
+
+void DocComment::addTo(scip::SymbolInformation &symbolInfo) {
+  auto stripped = absl::StripAsciiWhitespace(this->contents);
+  if (stripped.empty()) {
+    return;
+  }
+  if (stripped.size() == this->contents.size()) {
+    *symbolInfo.add_documentation() = std::move(this->contents);
+    return;
+  }
+  *symbolInfo.add_documentation() = stripped;
+  this->contents.clear();
 }
 
 TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
@@ -383,10 +406,8 @@ void TuIndexer::saveEnumConstantDecl(
   }
   auto symbol = optSymbol.value();
 
-  scip::SymbolInformation symbolInfo;
-  for (auto &docComment : this->tryGetDocComment(enumConstantDecl).lines) {
-    *symbolInfo.add_documentation() = std::move(docComment);
-  }
+  scip::SymbolInformation symbolInfo{};
+  this->getDocComment(enumConstantDecl).addTo(symbolInfo);
 
   ENFORCE(enumConstantDecl.getBeginLoc() == enumConstantDecl.getLocation());
   this->saveDefinition(symbol, enumConstantDecl.getLocation(),
@@ -426,9 +447,7 @@ void TuIndexer::saveFieldDecl(const clang::FieldDecl &fieldDecl) {
     return;
   }
   scip::SymbolInformation symbolInfo{};
-  for (auto &docComment : this->tryGetDocComment(fieldDecl).lines) {
-    *symbolInfo.add_documentation() = std::move(docComment);
-  }
+  this->getDocComment(fieldDecl).addTo(symbolInfo);
   this->saveDefinition(optSymbol.value(), fieldDecl.getLocation(), symbolInfo);
 }
 
@@ -448,9 +467,7 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
 
   if (functionDecl.isPure() || functionDecl.isThisDeclarationADefinition()) {
     scip::SymbolInformation symbolInfo{};
-    for (auto &docComment : this->tryGetDocComment(functionDecl).lines) {
-      *symbolInfo.add_documentation() = std::move(docComment);
-    }
+    this->getDocComment(functionDecl).addTo(symbolInfo);
     if (auto *cxxMethodDecl =
             llvm::dyn_cast<clang::CXXMethodDecl>(&functionDecl)) {
       for (auto &overridenMethodDecl : cxxMethodDecl->overridden_methods()) {
@@ -478,7 +495,7 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
                          std::move(symbolInfo));
   } else {
     this->saveForwardDeclaration(symbol, functionDecl.getLocation(),
-                                 this->tryGetDocComment(functionDecl));
+                                 this->getDocComment(functionDecl));
   }
 }
 
@@ -639,14 +656,12 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
 
   if (!tagDecl.isThisDeclarationADefinition()) {
     this->saveForwardDeclaration(symbol, tagDecl.getLocation(),
-                                 this->tryGetDocComment(tagDecl));
+                                 this->getDocComment(tagDecl));
     return;
   }
 
-  scip::SymbolInformation symbolInfo;
-  for (auto &docComment : this->tryGetDocComment(tagDecl).lines) {
-    *symbolInfo.add_documentation() = std::move(docComment);
-  }
+  scip::SymbolInformation symbolInfo{};
+  this->getDocComment(tagDecl).addTo(symbolInfo);
 
   if (auto *cxxRecordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(&tagDecl)) {
     for (const clang::CXXBaseSpecifier &cxxBaseSpecifier :
@@ -754,9 +769,7 @@ void TuIndexer::saveTypedefNameDecl(
     return;
   }
   scip::SymbolInformation symbolInfo{};
-  for (auto &docComment : this->tryGetDocComment(typedefNameDecl).lines) {
-    *symbolInfo.add_documentation() = std::move(docComment);
-  }
+  this->getDocComment(typedefNameDecl).addTo(symbolInfo);
   this->saveDefinition(*optSymbol, typedefNameDecl.getLocation(),
                        std::move(symbolInfo));
 }
@@ -767,9 +780,7 @@ void TuIndexer::saveUsingShadowDecl(
           this->symbolFormatter.getUsingShadowSymbol(usingShadowDecl)) {
     if (auto *baseUsingDecl = usingShadowDecl.getIntroducer()) {
       scip::SymbolInformation symbolInfo{};
-      for (auto &docComment : this->tryGetDocComment(usingShadowDecl).lines) {
-        *symbolInfo.add_documentation() = std::move(docComment);
-      }
+      this->getDocComment(usingShadowDecl).addTo(symbolInfo);
       this->saveDefinition(*optSymbol, usingShadowDecl.getLocation(),
                            std::move(symbolInfo));
     }
@@ -808,9 +819,7 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
       return;
     }
     scip::SymbolInformation symbolInfo{};
-    for (auto &docComment : this->tryGetDocComment(varDecl).lines) {
-      *symbolInfo.add_documentation() = std::move(docComment);
-    }
+    this->getDocComment(varDecl).addTo(symbolInfo);
     this->saveDefinition(optSymbol.value(), varDecl.getLocation(), symbolInfo);
   }
 }
@@ -952,9 +961,7 @@ void TuIndexer::emitForwardDeclarations(bool deterministic,
       absl::FunctionRef<void(std::string_view &&, DocComment &&)>(
           [&](auto &&symbol, auto &&docComment) {
             scip::SymbolInformation symbolInfo{};
-            for (auto &line : docComment.lines) {
-              *symbolInfo.add_documentation() = std::move(line);
-            }
+            docComment.addTo(symbolInfo);
             symbolInfo.set_symbol(symbol.data(), symbol.size());
             // Add a forward declaration SymbolRole here
             // once https://github.com/sourcegraph/scip/issues/131 is fixed.
@@ -975,11 +982,13 @@ TuIndexer::getTokenExpansionRange(
 
 void TuIndexer::saveForwardDeclaration(std::string_view symbol,
                                        clang::SourceLocation loc,
-                                       DocComment &&docComments) {
+                                       DocComment &&docComment) {
   this->saveReference(symbol, loc);
-  auto [it, inserted] = this->forwardDeclarations.emplace(symbol, docComments);
-  if (!inserted && it->second.lines.empty() && !docComments.lines.empty()) {
-    it->second.lines = std::move(docComments.lines);
+  auto it = this->forwardDeclarations.find(symbol);
+  if (it == this->forwardDeclarations.end()) {
+    this->forwardDeclarations.emplace(symbol, std::move(docComment));
+  } else {
+    it->second.replaceIfEmpty(std::move(docComment));
   }
   return;
 }
@@ -1089,22 +1098,18 @@ checkIfCommentBelongsToPreviousEnumCase(const clang::Decl &decl,
 
 namespace scip_clang {
 
-DocComment TuIndexer::tryGetDocComment(const clang::Decl &decl) const {
+DocComment TuIndexer::getDocComment(const clang::Decl &decl) const {
   auto &astContext = decl.getASTContext();
   // FIXME(def: hovers, issue:
   // https://github.com/sourcegraph/scip-clang/issues/96)
   if (auto *rawComment = astContext.getRawCommentForAnyRedecl(&decl)) {
     if (::checkIfCommentBelongsToPreviousEnumCase(decl, *rawComment)) {
-      return {};
+      return DocComment{};
     }
-    DocComment out{};
-    for (auto &line : rawComment->getFormattedLines(
-             this->sourceManager, astContext.getDiagnostics())) {
-      out.lines.emplace_back(std::move(line.Text));
-    }
-    return out;
+    return DocComment{rawComment->getFormattedText(
+        sourceManager, astContext.getDiagnostics())};
   }
-  return {};
+  return DocComment{};
 }
 
 } // namespace scip_clang
