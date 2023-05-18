@@ -6,6 +6,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include "indexer/ApproximateNameResolver.h"
+#include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
 
 #include "spdlog/spdlog.h"
@@ -44,9 +45,10 @@ ApproximateNameResolver::tryResolveMember(
     auto *type = typesToLookup.back();
     typesToLookup.pop_back();
     auto *cxxRecordDecl = Self::tryFindDeclForType(type);
-    if (!cxxRecordDecl) {
+    if (!cxxRecordDecl || !cxxRecordDecl->hasDefinition()) {
       continue;
     }
+    cxxRecordDecl = cxxRecordDecl->getDefinition();
     auto lookupResults =
         cxxRecordDecl->lookupDependentName(declNameInfo.getName(), filter);
     for (auto *namedDecl : lookupResults) {

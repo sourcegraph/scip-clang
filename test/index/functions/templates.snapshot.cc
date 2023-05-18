@@ -136,3 +136,38 @@
 //       ^ definition [..] Q2#h(49f6e7a06ebc5aa8).
 //             ^ reference [..] Q0#f(49f6e7a06ebc5aa8).
   };
+  
+  template <typename T>
+//                   ^ definition local 14
+  struct FwdDecl1;
+//       ^^^^^^^^ reference [..] FwdDecl1#
+  
+  template <typename T>
+//                   ^ definition local 15
+  struct FwdDecl2;
+//       ^^^^^^^^ reference [..] FwdDecl2#
+  
+  template <typename X>
+//                   ^ definition local 16
+  void f(FwdDecl1<X> &a1, FwdDecl2<X> &a2) {
+//     ^ definition [..] f(4764f947061d9ce0).
+//       ^^^^^^^^ reference [..] FwdDecl1#
+//                ^ reference local 16
+//                    ^^ definition local 17
+//                        ^^^^^^^^ reference [..] FwdDecl2#
+//                                 ^ reference local 16
+//                                     ^^ definition local 18
+    a1.whatever(); // No code nav, sorry
+//  ^^ reference local 17
+    a2.whatever();
+//  ^^ reference local 18
+//     ^^^^^^^^ reference [..] FwdDecl2#whatever(49f6e7a06ebc5aa8).
+  }
+  
+  template <typename T>
+//                   ^ definition local 19
+  struct FwdDecl2 {
+//       ^^^^^^^^ definition [..] FwdDecl2#
+    void whatever() {}
+//       ^^^^^^^^ definition [..] FwdDecl2#whatever(49f6e7a06ebc5aa8).
+  };
