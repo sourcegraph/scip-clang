@@ -33,12 +33,13 @@
   enum D {
 //     ^ definition [..] D#
 //     documentation
-//     | No documentation available.
+//     | Old MacDonald had a farm
+//     | Ee i ee i o
     // And on his farm he had some cows
     D1,
 //  ^^ definition [..] D1.
 //  documentation
-//  | No documentation available.
+//  | And on his farm he had some cows
   };
   
   /// Ee i ee i oh
@@ -91,7 +92,7 @@
       F1,
 //    ^^ definition [..] has_anon_enum/F1.
 //    documentation
-//    | No documentation available.
+//    | Here a moo, there a moo
       /** Everywhere a moo-moo */
       F2 = E2
 //    ^^ definition [..] has_anon_enum/F2.
@@ -193,7 +194,7 @@
   enum class PartiallyDocumented {
 //           ^^^^^^^^^^^^^^^^^^^ definition [..] PartiallyDocumented#
 //           documentation
-//           | No documentation available.
+//           | Regression test for https://github.com/sourcegraph/scip-clang/issues/105
     /// :smugcat:
     Documented,
 //  ^^^^^^^^^^ definition [..] PartiallyDocumented#Documented.

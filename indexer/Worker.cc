@@ -44,6 +44,7 @@ public:
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &compilerInstance,
                     llvm::StringRef filepath) override {
+    compilerInstance.getLangOpts().CommentOpts.ParseAllComments = true;
     auto &preprocessor = compilerInstance.getPreprocessor();
     auto callbacks = std::make_unique<IndexerPreprocessorWrapper>(
         compilerInstance.getSourceManager(), this->preprocessorOptions,
