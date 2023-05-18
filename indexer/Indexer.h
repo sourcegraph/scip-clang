@@ -227,8 +227,19 @@ struct PartialDocument {
   absl::flat_hash_map<std::string_view, scip::SymbolInformation> symbolInfos;
 };
 
-struct DocComment {
-  std::vector<std::string> lines;
+class DocComment {
+  std::string contents;
+
+public:
+  DocComment() = default;
+  explicit DocComment(std::string &&contents) : contents(std::move(contents)) {}
+  DocComment(DocComment &&) = default;
+  DocComment &operator=(DocComment &&) = default;
+  DocComment(const DocComment &) = delete;
+  DocComment &operator=(const DocComment &) = delete;
+
+  void replaceIfEmpty(DocComment &&);
+  void addTo(scip::SymbolInformation &);
 };
 
 class TuIndexer final {
@@ -335,7 +346,7 @@ private:
                                       clang::FileID fileId,
                                       int32_t allRoles = 0);
 
-  DocComment tryGetDocComment(const clang::Decl &) const;
+  DocComment getDocComment(const clang::Decl &) const;
 };
 
 } // namespace scip_clang
