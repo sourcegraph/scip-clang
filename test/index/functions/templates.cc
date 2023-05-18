@@ -59,3 +59,20 @@ struct Q2: Q1<T> {
   using Base2::f;
   void h() { f(); }
 };
+
+template <typename T>
+struct FwdDecl1;
+
+template <typename T>
+struct FwdDecl2;
+
+template <typename X>
+void f(FwdDecl1<X> &a1, FwdDecl2<X> &a2) {
+  a1.whatever(); // No code nav, sorry
+  a2.whatever();
+}
+
+template <typename T>
+struct FwdDecl2 {
+  void whatever() {}
+};
