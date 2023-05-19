@@ -1,0 +1,7 @@
+$schema: "http://json.schemastore.org/buildkite"
+steps:
+  - label: "Start VM"
+    agents:
+      queue: bazel
+    command: |
+      ./.buildkite/chromium.sh
