@@ -1,6 +1,13 @@
 # scip-clang ChangeLog
 
+## v0.1.3 (beta)
+
+- Fixes a crash when indexing dependent names in templates.
+  (https://github.com/sourcegraph/scip-clang/pull/330)
+
 ## v0.1.2 (beta)
+
+DO NOT USE
 
 - Improved code navigation for dependent names (types and methods)
   in templates.
