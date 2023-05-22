@@ -55,6 +55,44 @@ std::optional<std::string_view> AbsolutePathRef::fileName() const {
   return ::fileName(this->asStringView());
 }
 
+bool AbsolutePathRef::isNormalized() const {
+  auto start = llvm::sys::path::begin(this->value);
+  auto end = llvm::sys::path::end(this->value);
+  for (auto it = start; it != end; ++it) {
+    if (it->equals(".") || it->equals("..")) {
+      return false;
+    }
+  }
+  if (this->value.find("//") != std::string::npos) {
+    return false;
+  }
+
+#ifdef _WIN32
+  auto ix = this->value.find_last_of("\\");
+  // Absolute paths on Windows can begin with double backslash
+  if (ix != std::string::npos && ix != 0) {
+    return false;
+  }
+#endif
+
+  return true;
+}
+
+void AbsolutePathRef::normalize(llvm::SmallVectorImpl<char> &newStorage) {
+  newStorage.clear();
+  newStorage.append(this->asStringView().begin(), this->asStringView().end());
+  llvm::sys::path::remove_dots(newStorage);
+  *this =
+      AbsolutePathRef(std::string_view(newStorage.data(), newStorage.size()));
+}
+
+std::optional<AbsolutePathRef> AbsolutePathRef::prefix() const {
+  // NOTE(def: no-trailing-slash-for-dirs): The parent_path function omits
+  // any trailing separators for directories, so we should make sure that other
+  // places relying on path matching do the same.
+  return AbsolutePathRef::tryFrom(llvm::sys::path::parent_path(this->value));
+}
+
 AbsolutePathRef AbsolutePath::asRef() const {
   auto sv = std::string_view(this->value.data(), this->value.size());
   auto optRef = AbsolutePathRef::tryFrom(sv);

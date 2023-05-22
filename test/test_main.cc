@@ -107,6 +107,50 @@ TEST_CASE("UNIT_TESTS") {
                                 shouldntMatch));
     }
   }
+
+  {
+    struct PathNormalizationTestCase {
+      std::string path;
+      bool isNormalized;
+    };
+    std::vector<PathNormalizationTestCase> testCases{
+        {"/a/b/c", true},
+        {"/a/./c", false},
+        {"/a/../b", false},
+        {"/a///b", false},
+    };
+    for (auto &testCase : testCases) {
+      auto path = AbsolutePath(std::string(testCase.path));
+      CHECK_MESSAGE(path.asRef().isNormalized() == testCase.isNormalized,
+                    fmt::format("expected {} to be {}normalized", testCase.path,
+                                testCase.isNormalized ? "" : "non-"));
+    }
+  }
+
+  {
+    struct PathPrefixesTestCase {
+      std::string path;
+      std::vector<std::string> prefixes;
+    };
+    std::vector<PathPrefixesTestCase> testCases{
+        {"/a/b", {"/", "/a", "/a/b"}},
+    };
+    for (auto &testCase : testCases) {
+      auto &expectedPrefixes = testCase.prefixes;
+      auto path = AbsolutePath(std::string(testCase.path));
+      auto start = path.asRef().prefixesBegin();
+      auto end = path.asRef().prefixesEnd();
+      std::vector<std::string> gotPrefixes;
+      for (auto it = start; it != end; ++it) {
+        gotPrefixes.push_back(std::string((*it).asStringView()));
+      }
+      absl::c_reverse(gotPrefixes);
+      CHECK_MESSAGE(absl::c_equal(expectedPrefixes, gotPrefixes),
+                    fmt::format("expected prefixes: {}\n  actual prefixes: {}",
+                                fmt::join(expectedPrefixes, ", "),
+                                fmt::join(gotPrefixes, ", ")));
+    }
+  }
 };
 
 TEST_CASE("COMPDB_PARSING") {
