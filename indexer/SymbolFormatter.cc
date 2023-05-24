@@ -19,6 +19,7 @@
 #include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
 #include "indexer/Hash.h"
+#include "indexer/IdPathMappings.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/SymbolFormatter.h"
 
@@ -98,7 +99,7 @@ void DescriptorBuilder::formatTo(llvm::raw_ostream &out) const {
 void SymbolBuilder::formatTo(std::string &buf) const {
   llvm::raw_string_ostream out(buf);
   out << "cxx . "; // scheme manager
-  for (auto text : {this->packageName, this->packageVersion}) {
+  for (auto text : {this->packageId.name, this->packageId.version}) {
     if (text.empty()) {
       out << ". ";
       continue;
@@ -155,8 +156,11 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
       this->sourceManager.getPresumedLoc(defLoc, /*UseLineDirectives*/ false);
   ENFORCE(defPLoc.isValid());
   std::string_view filepath;
-  if (auto optStableFileId = this->getStableFileId(defPLoc.getFileID())) {
-    filepath = optStableFileId->path.asStringView();
+  PackageId packageId{};
+  if (auto *fileMetadata =
+          this->fileMetadataMap.getFileMetadata(defPLoc.getFileID())) {
+    filepath = fileMetadata->stableFileId.path.asStringView();
+    packageId = fileMetadata->packageId();
   } else {
     filepath = std::string_view(defPLoc.getFilename());
   }
@@ -165,29 +169,27 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   // here lines up with other situations like compiler errors.
   auto name = this->formatTemporaryName("{}:{}:{}", filepath, defPLoc.getLine(),
                                         defPLoc.getColumn());
-  auto symbol = this->format(
-      SymbolBuilder{.packageName = "todo-pkg",
-                    .packageVersion = "todo-version",
-                    .descriptors = {DescriptorBuilder{
-                        .name = name, .suffix = scip::Descriptor::Macro}}});
+  auto symbol = this->format(SymbolBuilder{
+      packageId,
+      {DescriptorBuilder{.name = name, .suffix = scip::Descriptor::Macro}}});
 
   auto [newIt, inserted] = this->locationBasedCache.insert({{defLoc}, symbol});
   ENFORCE(inserted, "key was missing earlier, so insert should've succeeded");
   return std::string_view(newIt->second);
 }
 
-std::string_view SymbolFormatter::getFileSymbol(StableFileId stableFileId) {
+SymbolString SymbolFormatter::getFileSymbol(const FileMetadata &fileMetadata) {
+  auto &stableFileId = fileMetadata.stableFileId;
   auto it = this->fileSymbolCache.find(stableFileId);
   if (it != this->fileSymbolCache.end()) {
     return it->second;
   }
   auto name =
       this->formatTemporaryName("<file>/{}", stableFileId.path.asStringView());
-
+  auto packageId = fileMetadata.packageId();
   auto symbol = this->format(
-      SymbolBuilder{.packageName = "todo-pkg",
-                    .packageVersion = "todo-version",
-                    .descriptors = {DescriptorBuilder{
+      SymbolBuilder{packageId,
+                    {DescriptorBuilder{
                         .name = name, .suffix = scip::Descriptor::Namespace}}});
 
   auto [newIt, inserted] = this->fileSymbolCache.emplace(stableFileId, symbol);
@@ -273,9 +275,8 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext) {
       || llvm::isa<clang::ExternCContextDecl>(declContext)) {
     auto decl = llvm::dyn_cast<clang::Decl>(&declContext);
     return this->getSymbolCached(*decl, [&]() -> std::optional<SymbolString> {
-      return this->format(SymbolBuilder{.packageName = "todo-pkg",
-                                        .packageVersion = "todo-version",
-                                        .descriptors = {}});
+      // TODO: Retrieve the correct PackageId and use that here
+      return this->format(SymbolBuilder{{"", ""}, {}});
     });
   }
   if (auto *functionDecl = llvm::dyn_cast<clang::FunctionDecl>(&declContext)) {
@@ -354,7 +355,8 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
       //
       // If we don't include the hash, the anonymous structs will end up with
       // the same symbol name.
-      if (auto optStableFileId = this->getStableFileId(defFileId)) {
+      if (auto optStableFileId =
+              this->fileMetadataMap.getStableFileId(defFileId)) {
         descriptor.name = this->formatTemporaryName(
             "$anonymous_type_{:x}_{}",
             HashValue::forText(optStableFileId->path.asStringView()), counter);
@@ -533,7 +535,8 @@ SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl &namespaceDecl) {
         if (namespaceDecl.isAnonymousNamespace()) {
           auto mainFileId = this->sourceManager.getMainFileID();
           ENFORCE(mainFileId.isValid());
-          auto optStableFileId = this->getStableFileId(mainFileId);
+          auto optStableFileId =
+              this->fileMetadataMap.getStableFileId(mainFileId);
           ENFORCE(optStableFileId.has_value(),
                   "main file always has a valid StableFileId");
           auto path = optStableFileId->path;

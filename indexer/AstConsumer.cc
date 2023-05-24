@@ -21,17 +21,17 @@ namespace {
 class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
   using Base = RecursiveASTVisitor;
 
-  const StableFileIdMap &stableFileIdMap;
+  const FileMetadataMap &fileMetadataMap;
   FileIdsToBeIndexedSet toBeIndexed;
   bool deterministic;
 
   TuIndexer &tuIndexer;
 
 public:
-  IndexerAstVisitor(const StableFileIdMap &pathMap,
+  IndexerAstVisitor(const FileMetadataMap &fileMetadataMap,
                     FileIdsToBeIndexedSet &&toBeIndexed, bool deterministic,
                     TuIndexer &tuIndexer)
-      : stableFileIdMap(pathMap), toBeIndexed(std::move(toBeIndexed)),
+      : fileMetadataMap(fileMetadataMap), toBeIndexed(std::move(toBeIndexed)),
         deterministic(deterministic), tuIndexer(tuIndexer) {}
 
   // See clang/include/clang/Basic/DeclNodes.td for list of declarations.
@@ -106,7 +106,7 @@ public:
         indexedProjectFiles;
     for (auto wrappedFileId : this->toBeIndexed) {
       if (auto optStableFileId =
-              this->stableFileIdMap.getStableFileId(wrappedFileId.data)) {
+              this->fileMetadataMap.getStableFileId(wrappedFileId.data)) {
         if (optStableFileId->isInProject) {
           indexedProjectFiles.emplace_back(optStableFileId->path,
                                            wrappedFileId.data);
@@ -191,26 +191,22 @@ void IndexerAstConsumer::HandleTranslationUnit(clang::ASTContext &astContext) {
     return;
   }
 
-  StableFileIdMap stableFileIdMap{this->options.projectRootPath,
+  FileMetadataMap fileMetadataMap{this->options.projectRootPath,
                                   this->options.buildRootPath};
   FileIdsToBeIndexedSet toBeIndexed{};
   this->computeFileIdsToBeIndexed(astContext, emitIndexDetails,
-                                  clangIdLookupMap, stableFileIdMap,
+                                  clangIdLookupMap, fileMetadataMap,
                                   toBeIndexed);
 
-  auto getStableFileId =
-      [&](clang::FileID fileId) -> std::optional<StableFileId> {
-    return stableFileIdMap.getStableFileId(fileId);
-  };
-  SymbolFormatter symbolFormatter{sourceManager, getStableFileId};
+  SymbolFormatter symbolFormatter{sourceManager, fileMetadataMap};
   TuIndexer tuIndexer{sourceManager, this->sema->getLangOpts(),
                       this->sema->getASTContext(), symbolFormatter,
-                      getStableFileId};
+                      fileMetadataMap};
 
   this->saveIncludeReferences(toBeIndexed, macroIndexer, clangIdLookupMap,
-                              stableFileIdMap, tuIndexer);
+                              fileMetadataMap, tuIndexer);
 
-  IndexerAstVisitor visitor{stableFileIdMap, std::move(toBeIndexed),
+  IndexerAstVisitor visitor{fileMetadataMap, std::move(toBeIndexed),
                             this->options.deterministic, tuIndexer};
   visitor.TraverseAST(astContext);
 
@@ -231,16 +227,16 @@ void IndexerAstConsumer::ForgetSema() {
 void IndexerAstConsumer::computeFileIdsToBeIndexed(
     const clang::ASTContext &astContext,
     const EmitIndexJobDetails &emitIndexDetails,
-    const ClangIdLookupMap &clangIdLookupMap, StableFileIdMap &stableFileIdMap,
+    const ClangIdLookupMap &clangIdLookupMap, FileMetadataMap &fileMetadataMap,
     FileIdsToBeIndexedSet &toBeIndexed) {
   auto &sourceManager = astContext.getSourceManager();
   auto mainFileId = sourceManager.getMainFileID();
 
-  stableFileIdMap.populate(clangIdLookupMap);
+  fileMetadataMap.populate(clangIdLookupMap);
   if (auto *mainFileEntry = sourceManager.getFileEntryForID(mainFileId)) {
     if (auto optMainFileAbsPath =
             AbsolutePathRef::tryFrom(mainFileEntry->tryGetRealPathName())) {
-      stableFileIdMap.insert(mainFileId, optMainFileAbsPath.value());
+      fileMetadataMap.insert(mainFileId, optMainFileAbsPath.value());
       toBeIndexed.insert({mainFileId});
     } else {
       spdlog::debug(
@@ -265,12 +261,11 @@ void IndexerAstConsumer::computeFileIdsToBeIndexed(
 void IndexerAstConsumer::saveIncludeReferences(
     const FileIdsToBeIndexedSet &toBeIndexed, const MacroIndexer &macroIndexer,
     const ClangIdLookupMap &clangIdLookupMap,
-    const StableFileIdMap &stableFileIdMap, TuIndexer &tuIndexer) {
+    const FileMetadataMap &fileMetadataMap, TuIndexer &tuIndexer) {
   for (auto &wrappedFileId : toBeIndexed) {
-    if (auto optStableFileId =
-            stableFileIdMap.getStableFileId(wrappedFileId.data)) {
-      tuIndexer.saveSyntheticFileDefinition(wrappedFileId.data,
-                                            *optStableFileId);
+    if (auto *fileMetadata =
+            fileMetadataMap.getFileMetadata(wrappedFileId.data)) {
+      tuIndexer.saveSyntheticFileDefinition(wrappedFileId.data, *fileMetadata);
     }
     macroIndexer.forEachIncludeInFile(
         wrappedFileId.data,
@@ -281,11 +276,11 @@ void IndexerAstConsumer::saveIncludeReferences(
             return;
           }
           auto refFileId = *optRefFileId;
-          auto optStableFileId = stableFileIdMap.getStableFileId(*optRefFileId);
-          ENFORCE(optStableFileId.has_value(),
-                  "missing StableFileId value for path {} (FileID = {})",
+          auto *fileMetadata = fileMetadataMap.getFileMetadata(*optRefFileId);
+          ENFORCE(fileMetadata,
+                  "missing FileMetadata value for path {} (FileID = {})",
                   importedFilePath.asStringView(), refFileId.getHashValue());
-          tuIndexer.saveInclude(range, *optStableFileId);
+          tuIndexer.saveInclude(range, *fileMetadata);
         });
   }
 }

@@ -31,6 +31,7 @@
 #include "indexer/ApproximateNameResolver.h"
 #include "indexer/DebugHelpers.h"
 #include "indexer/Enforce.h"
+#include "indexer/IdPathMappings.h"
 #include "indexer/Indexer.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
@@ -328,15 +329,16 @@ TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      const clang::LangOptions &langOptions,
                      const clang::ASTContext &astContext,
                      SymbolFormatter &symbolFormatter,
-                     GetStableFileId getStableFileId)
+                     FileMetadataMap &fileMetadataMap)
     : sourceManager(sourceManager), langOptions(langOptions),
       astContext(astContext), symbolFormatter(symbolFormatter),
       approximateNameResolver(astContext), documentMap(),
-      getStableFileId(getStableFileId), externalSymbols(),
+      fileMetadataMap(fileMetadataMap), externalSymbols(),
       forwardDeclarations() {}
 
 void TuIndexer::saveSyntheticFileDefinition(clang::FileID fileId,
-                                            StableFileId stableFileId) {
+                                            const FileMetadata &fileMetadata) {
+  auto &stableFileId = fileMetadata.stableFileId;
   if (stableFileId.isSynthetic || !stableFileId.isInProject) {
     return;
   }
@@ -346,7 +348,7 @@ void TuIndexer::saveSyntheticFileDefinition(clang::FileID fileId,
   // We could use a zero-length occurrence, which would be more "correct"
   // but less useful, since you couldn't trigger Find references.
   auto fileStartLoc = this->sourceManager.getLocForStartOfFile(fileId);
-  auto symbol = this->symbolFormatter.getFileSymbol(stableFileId);
+  auto symbol = this->symbolFormatter.getFileSymbol(fileMetadata);
   auto tokenLength = clang::Lexer::MeasureTokenLength(
       fileStartLoc, this->sourceManager, this->langOptions);
   if (tokenLength > 0) {
@@ -371,11 +373,11 @@ void TuIndexer::saveSyntheticFileDefinition(clang::FileID fileId,
 }
 
 void TuIndexer::saveInclude(clang::SourceRange sourceRange,
-                            StableFileId stableFileId) {
-  if (stableFileId.isSynthetic) {
+                            const FileMetadata &fileMetadata) {
+  if (fileMetadata.stableFileId.isSynthetic) {
     return;
   }
-  auto symbol = this->symbolFormatter.getFileSymbol(stableFileId);
+  auto symbol = this->symbolFormatter.getFileSymbol(fileMetadata);
   // #include can't come from macro expansions, so instead of having
   // to write a generic saveReference method which needs to handle
   // ranges in macro expansions, directly call saveOccurrenceImpl.
@@ -997,7 +999,7 @@ void TuIndexer::saveReference(std::string_view symbol,
                               clang::SourceLocation loc, int32_t extraRoles) {
   auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
   auto fileId = this->sourceManager.getFileID(expansionLoc);
-  auto optStableFileId = this->getStableFileId(fileId);
+  auto optStableFileId = this->fileMetadataMap.getStableFileId(fileId);
   if (!optStableFileId.has_value() || !optStableFileId->isInProject) {
     return;
   }
@@ -1012,7 +1014,7 @@ void TuIndexer::saveDefinition(
     int32_t extraRoles) {
   auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
   auto fileId = this->sourceManager.getFileID(expansionLoc);
-  auto optStableFileId = this->getStableFileId(fileId);
+  auto optStableFileId = this->fileMetadataMap.getStableFileId(fileId);
   if (!optStableFileId.has_value()) {
     return;
   }

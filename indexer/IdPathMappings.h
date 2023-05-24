@@ -9,10 +9,10 @@
 
 #include "clang/Basic/SourceLocation.h"
 
+#include "indexer/FileMetadata.h"
 #include "indexer/Hash.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
-#include "indexer/StableFileId.h"
 
 namespace scip_clang {
 
@@ -66,20 +66,12 @@ public:
 /// In the future, for cross-repo, a directory layout<->project mapping
 /// may be supplied or inferred, which would provide canonical relative
 /// paths for more files.
-class StableFileIdMap final {
-  using Self = StableFileIdMap;
+class FileMetadataMap final {
+  using Self = FileMetadataMap;
 
   std::vector<RootRelativePath> storage;
 
-  struct ExternalFileEntry {
-    AbsolutePathRef absPath;
-    // Points to storage
-    RootRelativePathRef fakeRelativePath;
-  };
-
-  using MapValueType = std::variant<RootRelativePathRef, ExternalFileEntry>;
-
-  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, MapValueType>
+  absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, FileMetadata>
       map;
 
   const RootPath &projectRootPath;
@@ -87,14 +79,14 @@ class StableFileIdMap final {
   const RootPath &buildRootPath;
 
 public:
-  StableFileIdMap() = delete;
-  StableFileIdMap(const RootPath &projectRootPath,
+  FileMetadataMap() = delete;
+  FileMetadataMap(const RootPath &projectRootPath,
                   const RootPath &buildRootPath)
       : map(), projectRootPath(projectRootPath), buildRootPath(buildRootPath) {}
-  StableFileIdMap(StableFileIdMap &&other) = default;
-  StableFileIdMap &operator=(StableFileIdMap &&) = delete;
-  StableFileIdMap(const StableFileIdMap &) = delete;
-  StableFileIdMap &operator=(const StableFileIdMap &) = delete;
+  FileMetadataMap(FileMetadataMap &&other) = default;
+  FileMetadataMap &operator=(FileMetadataMap &&) = delete;
+  FileMetadataMap(const FileMetadataMap &) = delete;
+  FileMetadataMap &operator=(const FileMetadataMap &) = delete;
 
   void populate(const ClangIdLookupMap &clangIdLookupMap);
 
@@ -105,14 +97,14 @@ public:
     return this->map.contains({fileId});
   }
 
-  /// See the doc comment on \c StableFileIdMap
+  /// See the doc comment on \c FileMetadataMap
   std::optional<StableFileId> getStableFileId(clang::FileID fileId) const;
+
+  /// The return value may be nullptr if the metadata is missing
+  const FileMetadata *getFileMetadata(clang::FileID fileId) const;
 
   void
   forEachFileId(absl::FunctionRef<void(clang::FileID, StableFileId)> callback);
-
-private:
-  static StableFileId mapValueToStableFileId(const MapValueType &variant);
 };
 
 } // namespace scip_clang
