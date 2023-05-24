@@ -11,6 +11,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/StringSaver.h"
 
 #include "scip/scip.pb.h"
 
@@ -71,77 +72,105 @@ struct SymbolBuilder {
   ///
   /// Since the standard formatting for SCIP symbols is prefix-based,
   /// this avoids the extra work of recomputing parent symbol strings.
-  static std::string formatContextual(std::string_view contextSymbol,
-                                      const DescriptorBuilder &descriptor);
+  static void formatContextual(std::string &buf, std::string_view contextSymbol,
+                               const DescriptorBuilder &descriptor);
 };
+
+using SymbolString = std::string_view;
 
 class SymbolFormatter final {
   const clang::SourceManager &sourceManager;
   GetStableFileId getStableFileId;
 
-  // Q: Should we allocate into an arena instead of having standalone
-  // std::string values here?
+  llvm::BumpPtrAllocator bumpPtrAllocator;
+  llvm::StringSaver stringSaver;
 
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::SourceLocation>,
-                      std::string>
+                      SymbolString>
       locationBasedCache;
-  absl::flat_hash_map<const clang::Decl *, std::string> declBasedCache;
-  absl::flat_hash_map<StableFileId, std::string> fileSymbolCache;
+  absl::flat_hash_map<const clang::Decl *, SymbolString> declBasedCache;
+  absl::flat_hash_map<StableFileId, SymbolString> fileSymbolCache;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
       anonymousTypeCounters;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
       localVariableCounters;
-  std::string scratchBuffer;
+
+  std::string scratchBufferForName;
+  std::string scratchBufferForSymbol;
 
 public:
   SymbolFormatter(const clang::SourceManager &sourceManager,
                   GetStableFileId getStableFileId)
       : sourceManager(sourceManager), getStableFileId(getStableFileId),
-        locationBasedCache(), declBasedCache(), fileSymbolCache(),
-        localVariableCounters(), scratchBuffer() {}
+        bumpPtrAllocator(), stringSaver(bumpPtrAllocator), locationBasedCache(),
+        declBasedCache(), fileSymbolCache(), localVariableCounters(),
+        scratchBufferForName(), scratchBufferForSymbol() {}
   SymbolFormatter(const SymbolFormatter &) = delete;
   SymbolFormatter &operator=(const SymbolFormatter &) = delete;
 
-  std::string_view getMacroSymbol(clang::SourceLocation defLoc);
+  SymbolString getMacroSymbol(clang::SourceLocation defLoc);
 
-  std::string_view getFileSymbol(StableFileId);
+  SymbolString getFileSymbol(StableFileId);
 
-#define DECLARE_GET_SYMBOL(DeclName)                     \
-  std::optional<std::string_view> get##DeclName##Symbol( \
+#define DECLARE_GET_SYMBOL(DeclName)                 \
+  std::optional<SymbolString> get##DeclName##Symbol( \
       const clang::DeclName##Decl &);
   FOR_EACH_DECL_TO_BE_INDEXED(DECLARE_GET_SYMBOL)
 #undef DECLARE_GET_SYMBOL
 
-  std::optional<std::string_view>
-  getLocalVarOrParmSymbol(const clang::VarDecl &);
+  std::optional<SymbolString> getLocalVarOrParmSymbol(const clang::VarDecl &);
 
-  std::optional<std::string_view> getNamedDeclSymbol(const clang::NamedDecl &);
+  std::optional<SymbolString> getNamedDeclSymbol(const clang::NamedDecl &);
 
-  std::optional<std::string_view> getTagSymbol(const clang::TagDecl &);
+  std::optional<SymbolString> getTagSymbol(const clang::TagDecl &);
 
 private:
-  std::optional<std::string_view> getContextSymbol(const clang::DeclContext &);
+  std::optional<SymbolString> getContextSymbol(const clang::DeclContext &);
 
-  std::optional<std::string_view>
+  std::optional<SymbolString> getNextLocalSymbol(const clang::NamedDecl &);
+
+  std::optional<SymbolString>
   getSymbolCached(const clang::Decl &,
-                  absl::FunctionRef<std::optional<std::string>()>);
+                  absl::FunctionRef<std::optional<SymbolString>()>);
 
-  std::optional<std::string_view> getNextLocalSymbol(const clang::NamedDecl &);
+  // --- Final step functions for symbol formatting ---
+
+  /// Format a symbol for an entity isn't inside a namespace/type/etc. and isn't
+  /// a local
+  SymbolString format(const SymbolBuilder &);
+
+  /// Format a symbol for an entity inside some namespace/type/etc.
+  SymbolString formatContextual(std::string_view contextSymbol,
+                                const DescriptorBuilder &descriptor);
+
+  /// Format an entity which cannot be referenced outside the current file.
+  SymbolString formatLocal(unsigned counter);
+
+  // --- Intermediate functions for symbol formatting ---
 
   /// Format the string to a buffer stored by `this` and return a view to it.
   template <typename... T>
-  std::string_view formatTemporary(fmt::format_string<T...> fmt, T &&...args) {
-    this->scratchBuffer.clear();
-    fmt::format_to(std::back_inserter(this->scratchBuffer), fmt,
-                   std::forward<T>(args)...);
-    return std::string_view(this->scratchBuffer);
+  std::string_view formatTemporaryName(fmt::format_string<T...> fmt,
+                                       T &&...args) {
+    return this->formatTemporaryToBuf(this->scratchBufferForName, fmt,
+                                      std::forward<T>(args)...);
   }
+
+  /// Format the name of the decl to a buffer stored by `this` and return a view
+  /// to it.
+  std::string_view formatTemporaryName(const clang::NamedDecl &);
 
   std::string_view getFunctionDisambiguator(const clang::FunctionDecl &,
                                             char[16]);
 
-  /// Format the string to a buffer stored by `this` and return a view to it.
-  std::string_view formatTemporary(const clang::NamedDecl &);
+  template <typename... T>
+  std::string_view formatTemporaryToBuf(std::string &buf,
+                                        fmt::format_string<T...> fmt,
+                                        T &&...args) const {
+    buf.clear();
+    fmt::format_to(std::back_inserter(buf), fmt, std::forward<T>(args)...);
+    return std::string_view(buf);
+  }
 };
 
 } // namespace scip_clang
