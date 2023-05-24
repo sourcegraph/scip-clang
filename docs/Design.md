@@ -13,6 +13,10 @@
     - [Symbol names for enum cases](#symbol-names-for-enum-cases)
   - [Method disambiguator](#method-disambiguator)
   - [Forward declarations](#forward-declarations)
+- [Cross-repo navigation](#cross-repo-navigation)
+  - [Namespace declarations in a cross-repo setting](#namespace-declarations-in-a-cross-repo-setting)
+  - [Forward declarations in a cross-repo setting](#forward-declarations-in-a-cross-repo-setting)
+
 ## Architecture
 
 When working on a compilation database (a `compile_commands.json` file),
@@ -661,3 +665,78 @@ For simplicity, an initial implementation
 can put fake `SymbolInformation` values
 in the `external_symbols` list
 with an empty package name and version.
+
+## Cross-repo navigation
+
+For cross-repo navigation, the "only" thing the indexer needs to do
+is to consistently assign package IDs (name + version pairs)
+to all non-local symbols. Ostensibly,
+the package ID should be the one the declaration "belongs" to.
+
+This runs into problems with two kinds of declarations: namespaces
+and forward declarations.
+
+### Namespace declarations in a cross-repo setting
+
+C++ namespaces can cut across packages.
+For example, generally types customize hashing
+by adding template specializations inside the `std` namespace.
+
+There are four main options for handling namespaces.
+
+1. Attempt to figure out the "original" package for a namespace
+   and use that.
+2. Use whatever namespace the immediate namespace declaration
+   was found in.
+3. Drop package information altogether (use a blank name and version).
+4. Require a "build seed" that is used to set the name and version.
+   This build seed would need to be set consistently across different
+   cross-repo indexing processes.
+
+Option 1 is not practically feasible, since it's not clear how it would
+be implemented in the general case. There is no central information
+anywhere about which namespaces are "owned" by which packages.
+
+Option 2 is implementable. The main downside is that namespace references
+cutting across packages will not be cross-linked, because the symbol
+names will differ.
+
+Option 3 and option 4 allow cross-linking of namespace references across
+packages. Option 3 creates the risk of false positives if there are
+situations where a namespace with the same name
+is used in entirely unrelated packages (maybe they aren't even built together).
+Option 4 avoids that, but it introduces a requirement
+to re-index the standard library for different seeds,
+and introduces a need to plumb state across indexing jobs
+(since the seed can't be inferred from the build configuration necessarily).
+
+So we go with option 3 as the least worst option.
+
+### Forward declarations in a cross-repo setting
+
+The information about what symbol a forward declaration refers to
+is not reliably available in a worker,
+it is only available at the time of index merging.
+
+Since the symbol name needs to take the package name into account,
+we need to perform a lookup in a worker based on the symbol name
+without the package ID prefix.
+
+There are two options for doing this:
+
+1. Additionally serialize symbol names without the package ID
+   in index shards, and use those as map keys.
+2. Partition the symbol name reliably during index merging,
+   and use the suffix as the lookup key.
+
+Option 1 would increase the overhead of (de)serializing indexes,
+and requires us to fiddle with the Protobuf format
+(to add an extra field which tracks the prefix-free symbol name).
+
+So we go with option 2 instead. Specifically, the descriptor
+part of the symbol name would start with a `$` (or we could
+add it to the end of the version, either is OK).
+We would forbid the use of `$` in package names and versions,
+allowing us to quickly split a symbol name.
+
+The extra `$` could be stripped when serializing the final index.
