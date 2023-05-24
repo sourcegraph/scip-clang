@@ -78,12 +78,10 @@ bool AbsolutePathRef::isNormalized() const {
   return true;
 }
 
-void AbsolutePathRef::normalize(llvm::SmallVectorImpl<char> &newStorage) {
+void AbsolutePathRef::normalize(llvm::SmallVectorImpl<char> &newStorage) const {
   newStorage.clear();
   newStorage.append(this->asStringView().begin(), this->asStringView().end());
   llvm::sys::path::remove_dots(newStorage);
-  *this =
-      AbsolutePathRef(std::string_view(newStorage.data(), newStorage.size()));
 }
 
 std::optional<AbsolutePathRef> AbsolutePathRef::prefix() const {
