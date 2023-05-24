@@ -256,28 +256,96 @@ std::optional<SymbolString> SymbolFormatter::getSymbolCached(
   }
   ENFORCE(!optSymbol.value().empty(),
           "forgot to use nullopt to signal failure in computing symbol name");
-  auto [newIt, inserted] = this->declBasedCache.insert(
-      {canonicalDecl, std::move(optSymbol.value())});
+  auto [newIt, inserted] =
+      this->declBasedCache.insert({canonicalDecl, *optSymbol});
   ENFORCE(inserted);
   return std::string_view(newIt->second);
 }
 
-std::optional<SymbolString>
-SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext) {
+std::optional<std::string_view> SymbolFormatter::getSymbolCached(
+    const clang::Decl *decl, clang::SourceLocation loc,
+    absl::FunctionRef<std::optional<SymbolString>()> getSymbol) {
+  auto fileId = this->sourceManager.getFileID(loc);
+  if (decl) {
+    decl = decl->getCanonicalDecl();
+  }
+  using KeyType =
+      std::pair<const clang::Decl *, llvm_ext::AbslHashAdapter<clang::FileID>>;
+  auto it = this->namespacePrefixCache.find(KeyType{decl, {fileId}});
+  if (it != this->namespacePrefixCache.end()) {
+    return std::string_view(it->second);
+  }
+  auto optSymbol = getSymbol();
+  if (!optSymbol.has_value()) {
+    return {};
+  }
+  ENFORCE(!optSymbol.value().empty(),
+          "forgot to use nullopt to signal failure in compute symbol name");
+  auto [newIt, inserted] =
+      this->namespacePrefixCache.emplace(KeyType{decl, {fileId}}, *optSymbol);
+  ENFORCE(inserted);
+  return std::string_view(newIt->second);
+}
+
+std::optional<std::string_view> SymbolFormatter::getNamespaceSymbolPrefix(
+    const clang::NamespaceDecl &namespaceDecl, clang::SourceLocation loc) {
+  return this->getSymbolCached(
+      &namespaceDecl, loc, [&]() -> std::optional<SymbolString> {
+        auto optContextSymbol =
+            this->getContextSymbol(*namespaceDecl.getDeclContext(), loc);
+        if (!optContextSymbol.has_value()) {
+          return {};
+        }
+        auto contextSymbol = optContextSymbol.value();
+        DescriptorBuilder descriptor{.suffix = scip::Descriptor::Namespace};
+        if (namespaceDecl.isAnonymousNamespace()) {
+          auto mainFileId = this->sourceManager.getMainFileID();
+          ENFORCE(mainFileId.isValid());
+          auto optStableFileId =
+              this->fileMetadataMap.getStableFileId(mainFileId);
+          ENFORCE(optStableFileId.has_value(),
+                  "main file always has a valid StableFileId");
+          auto path = optStableFileId->path;
+          descriptor.name = this->formatTemporaryName("$anonymous_namespace_{}",
+                                                      path.asStringView());
+        } else {
+          descriptor.name = this->formatTemporaryName(namespaceDecl);
+        }
+        return this->formatContextual(contextSymbol, descriptor);
+      });
+}
+
+std::optional<std::string_view>
+SymbolFormatter::getLocationBasedSymbolPrefix(clang::SourceLocation loc) {
+  if (loc.isInvalid()) {
+    return {};
+  }
+  return this->getSymbolCached(
+      nullptr, loc, [&]() -> std::optional<SymbolString> {
+        auto fileId = this->sourceManager.getFileID(loc);
+        auto *fileMetadata = this->fileMetadataMap.getFileMetadata(fileId);
+        if (!fileMetadata) {
+          return {};
+        }
+        auto packageId = fileMetadata->packageId();
+        return this->format(SymbolBuilder{packageId, /*descriptors*/ {}});
+      });
+}
+
+std::optional<std::string_view>
+SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext,
+                                  clang::SourceLocation loc) {
+  loc = this->sourceManager.getExpansionLoc(loc);
   if (auto *namespaceDecl =
           llvm::dyn_cast<clang::NamespaceDecl>(&declContext)) {
-    return this->getNamespaceSymbol(*namespaceDecl);
+    return this->getNamespaceSymbolPrefix(*namespaceDecl, loc);
   }
   if (auto *tagDecl = llvm::dyn_cast<clang::TagDecl>(&declContext)) {
     return this->getTagSymbol(*tagDecl);
   }
-  if (llvm::isa<clang::TranslationUnitDecl>(declContext)
-      || llvm::isa<clang::ExternCContextDecl>(declContext)) {
-    auto decl = llvm::dyn_cast<clang::Decl>(&declContext);
-    return this->getSymbolCached(*decl, [&]() -> std::optional<SymbolString> {
-      // TODO: Retrieve the correct PackageId and use that here
-      return this->format(SymbolBuilder{{"", ""}, {}});
-    });
+  if (llvm::isa<clang::TranslationUnitDecl>(&declContext)
+      || llvm::isa<clang::ExternCContextDecl>(&declContext)) {
+    return this->getLocationBasedSymbolPrefix(loc);
   }
   if (auto *functionDecl = llvm::dyn_cast<clang::FunctionDecl>(&declContext)) {
     // TODO: Strictly speaking, we should return some information marking
@@ -312,7 +380,8 @@ SymbolFormatter::getRecordSymbol(const clang::RecordDecl &recordDecl) {
 std::optional<SymbolString>
 SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
   return this->getSymbolCached(tagDecl, [&]() -> std::optional<SymbolString> {
-    auto optContextSymbol = this->getContextSymbol(*tagDecl.getDeclContext());
+    auto optContextSymbol = this->getContextSymbol(*tagDecl.getDeclContext(),
+                                                   tagDecl.getLocation());
     if (!optContextSymbol.has_value()) {
       return {};
     }
@@ -323,6 +392,7 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
           DescriptorBuilder{.name = this->formatTemporaryName(tagDecl),
                             .suffix = scip::Descriptor::Type});
     }
+
     auto *definitionTagDecl = tagDecl.getDefinition();
     if (!definitionTagDecl) {
       // NOTE(def: missing-definition-for-tagdecl)
@@ -412,7 +482,8 @@ std::optional<SymbolString> SymbolFormatter::getEnumConstantSymbol(
         std::optional<SymbolString> optContextSymbol =
             parentEnumDecl->isScoped()
                 ? this->getEnumSymbol(*parentEnumDecl)
-                : this->getContextSymbol(*parentEnumDecl->getDeclContext());
+                : this->getContextSymbol(*parentEnumDecl->getDeclContext(),
+                                         enumConstantDecl.getLocation());
         if (!optContextSymbol.has_value()) {
           return {};
         }
@@ -468,8 +539,8 @@ std::optional<SymbolString>
 SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
   return this->getSymbolCached(
       functionDecl, [&]() -> std::optional<SymbolString> {
-        auto optContextSymbol =
-            this->getContextSymbol(*functionDecl.getDeclContext());
+        auto optContextSymbol = this->getContextSymbol(
+            *functionDecl.getDeclContext(), functionDecl.getLocation());
         if (!optContextSymbol.has_value()) {
           return {};
         }
@@ -496,7 +567,8 @@ SymbolFormatter::getFieldSymbol(const clang::FieldDecl &fieldDecl) {
     return {};
   }
   return this->getSymbolCached(fieldDecl, [&]() -> std::optional<SymbolString> {
-    auto optContextSymbol = this->getContextSymbol(*fieldDecl.getDeclContext());
+    auto optContextSymbol = this->getContextSymbol(*fieldDecl.getDeclContext(),
+                                                   fieldDecl.getLocation());
     if (!optContextSymbol.has_value()) {
       return {};
     }
@@ -523,30 +595,8 @@ SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl &namedDecl) {
 /// getCanonicalPath returns nullopt.
 std::optional<SymbolString>
 SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl &namespaceDecl) {
-  return this->getSymbolCached(
-      namespaceDecl, [&]() -> std::optional<SymbolString> {
-        auto optContextSymbol =
-            this->getContextSymbol(*namespaceDecl.getDeclContext());
-        if (!optContextSymbol.has_value()) {
-          return {};
-        }
-        auto contextSymbol = optContextSymbol.value();
-        DescriptorBuilder descriptor{.suffix = scip::Descriptor::Namespace};
-        if (namespaceDecl.isAnonymousNamespace()) {
-          auto mainFileId = this->sourceManager.getMainFileID();
-          ENFORCE(mainFileId.isValid());
-          auto optStableFileId =
-              this->fileMetadataMap.getStableFileId(mainFileId);
-          ENFORCE(optStableFileId.has_value(),
-                  "main file always has a valid StableFileId");
-          auto path = optStableFileId->path;
-          descriptor.name = this->formatTemporaryName("$anonymous_namespace_{}",
-                                                      path.asStringView());
-        } else {
-          descriptor.name = this->formatTemporaryName(namespaceDecl);
-        }
-        return this->formatContextual(contextSymbol, descriptor);
-      });
+  return this->getNamespaceSymbolPrefix(namespaceDecl,
+                                        namespaceDecl.getLocation());
 }
 
 std::optional<SymbolString>
@@ -567,8 +617,8 @@ std::optional<SymbolString> SymbolFormatter::getTypedefNameSymbol(
     const clang::TypedefNameDecl &typedefNameDecl) {
   return this->getSymbolCached(
       typedefNameDecl, [&]() -> std::optional<SymbolString> {
-        auto optContextSymbol =
-            this->getContextSymbol(*typedefNameDecl.getDeclContext());
+        auto optContextSymbol = this->getContextSymbol(
+            *typedefNameDecl.getDeclContext(), typedefNameDecl.getLocation());
         if (!optContextSymbol.has_value()) {
           return {};
         }
@@ -592,8 +642,8 @@ std::optional<SymbolString> SymbolFormatter::getUsingShadowSymbol(
   }
   return this->getSymbolCached(
       usingShadowDecl, [&]() -> std::optional<SymbolString> {
-        auto optContextSymbol =
-            this->getContextSymbol(*usingShadowDecl.getDeclContext());
+        auto optContextSymbol = this->getContextSymbol(
+            *usingShadowDecl.getDeclContext(), usingShadowDecl.getLocation());
         if (!optContextSymbol) {
           return {};
         }
@@ -669,8 +719,8 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
     case Kind::VarTemplatePartialSpecialization:
     case Kind::VarTemplateSpecialization:
     case Kind::Var: {
-      if (auto optContextSymbol =
-              this->getContextSymbol(*varDecl.getDeclContext())) {
+      if (auto optContextSymbol = this->getContextSymbol(
+              *varDecl.getDeclContext(), varDecl.getLocation())) {
         auto descriptor = DescriptorBuilder{
             .name = llvm_ext::toStringView(varDecl.getName()),
             .suffix = scip::Descriptor::Term,
