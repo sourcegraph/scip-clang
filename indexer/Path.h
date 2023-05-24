@@ -2,12 +2,14 @@
 #define SCIP_CLANG_PATH_H
 
 #include <compare>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/iterator.h"
 #include "llvm/Support/JSON.h"
 
 #include "indexer/Comparison.h"
@@ -15,6 +17,34 @@
 #include "indexer/Enforce.h"
 
 namespace scip_clang {
+
+template <typename T>
+class PathPrefixIterator
+    : llvm::iterator_facade_base<PathPrefixIterator<T>, std::input_iterator_tag,
+                                 const T> {
+  std::optional<T> data;
+
+  using Self = PathPrefixIterator<T>;
+  using Base =
+      llvm::iterator_facade_base<Self, std::input_iterator_tag, const T>;
+
+public:
+  explicit PathPrefixIterator<T>(std::optional<T> data) : data(data) {}
+  bool operator==(const Self &other) const {
+    return this->data == other.data;
+  }
+
+  typename Base::reference operator*() const {
+    return this->data.value();
+  }
+
+  friend T;
+
+  Self &operator++() {
+    this->data = this->data->prefix();
+    return *this;
+  }
+};
 
 class AbsolutePathRef {
   std::string_view value; // is non-empty
@@ -44,6 +74,20 @@ public:
   /// Try to get the file name by slicing off the prefix till the last
   /// path separator.
   std::optional<std::string_view> fileName() const;
+
+  bool isNormalized() const;
+
+  void normalize(llvm::SmallVectorImpl<char> &newStorage);
+
+  PathPrefixIterator<AbsolutePathRef> prefixesBegin() const {
+    return PathPrefixIterator<AbsolutePathRef>{*this};
+  }
+  PathPrefixIterator<AbsolutePathRef> prefixesEnd() const {
+    return PathPrefixIterator<AbsolutePathRef>{std::nullopt};
+  }
+
+  // Generally this should be avoided in favor
+  std::optional<AbsolutePathRef> prefix() const;
 };
 
 /// Typically used when referring to paths for files which may or may not
