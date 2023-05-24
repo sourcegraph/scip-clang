@@ -78,7 +78,7 @@ public:
 
   bool isNormalized() const;
 
-  void normalize(llvm::SmallVectorImpl<char> &newStorage);
+  void normalize(llvm::SmallVectorImpl<char> &newStorage) const;
 
   PathPrefixIterator<AbsolutePathRef> prefixesBegin() const {
     return PathPrefixIterator<AbsolutePathRef>{*this};
