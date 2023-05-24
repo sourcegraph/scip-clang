@@ -20,10 +20,10 @@
 #include "indexer/ClangAstMacros.h"
 #include "indexer/Comparison.h"
 #include "indexer/Derive.h"
+#include "indexer/FileMetadata.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
-#include "indexer/StableFileId.h"
 
 namespace clang {
 #define FORWARD_DECLARE(ExprName) class ExprName##Expr;
@@ -251,7 +251,7 @@ class TuIndexer final {
 
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, PartialDocument>
       documentMap;
-  GetStableFileId getStableFileId;
+  FileMetadataMap &fileMetadataMap;
 
   absl::flat_hash_map</*name*/ std::string_view, scip::SymbolInformation>
       externalSymbols;
@@ -260,16 +260,16 @@ class TuIndexer final {
 
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
-            const clang::ASTContext &, SymbolFormatter &, GetStableFileId);
+            const clang::ASTContext &, SymbolFormatter &, FileMetadataMap &);
 
   /// Emit a fake 'definition' for a file, which can be used as a target
   /// of Go to definition from #include, as well as the source for
   // Find references to see where a header has been included.
-  void saveSyntheticFileDefinition(clang::FileID, StableFileId);
+  void saveSyntheticFileDefinition(clang::FileID, const FileMetadata &);
 
   /// Emit a reference to the fake 'definition' for a file, allowing Go to
   /// Definition from '#include'.
-  void saveInclude(clang::SourceRange, StableFileId);
+  void saveInclude(clang::SourceRange, const FileMetadata &);
 
   // See NOTE(ref: emit-vs-save) for naming conventions.
 #define SAVE_DECL(DeclName) \

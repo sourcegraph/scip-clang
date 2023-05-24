@@ -7,6 +7,7 @@
 
 #include "clang/Basic/SourceLocation.h"
 
+#include "indexer/FileMetadata.h"
 #include "indexer/Hash.h"
 #include "indexer/IdPathMappings.h"
 #include "indexer/Path.h"
@@ -63,7 +64,7 @@ ClangIdLookupMap::lookupAnyFileId(AbsolutePathRef absPathRef) const {
   return {};
 }
 
-void StableFileIdMap::populate(const ClangIdLookupMap &clangIdLookupMap) {
+void FileMetadataMap::populate(const ClangIdLookupMap &clangIdLookupMap) {
   clangIdLookupMap.forEachPathAndHash( // force formatting break
       [&](AbsolutePathRef absPathRef,
           const absl::flat_hash_map<HashValue, clang::FileID> &map) {
@@ -77,16 +78,23 @@ void StableFileIdMap::populate(const ClangIdLookupMap &clangIdLookupMap) {
       });
 }
 
-bool StableFileIdMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
+bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
   ENFORCE(fileId.isValid(),
           "invalid FileIDs should be filtered out after preprocessing");
   ENFORCE(!absPathRef.asStringView().empty(),
           "inserting file with empty absolute path");
 
-  auto insertRelPath = [&](RootRelativePathRef projectRootRelPath) -> bool {
-    ENFORCE(!projectRootRelPath.asStringView().empty(),
+  std::optional<PackageMetadata> optPackageMetadata = std::nullopt;
+  auto insertRelPath = [&](RootRelativePathRef relPathRef,
+                           bool isInProject) -> bool {
+    ENFORCE(!relPathRef.asStringView().empty(),
             "file path is unexpectedly equal to project root");
-    return this->map.insert({{fileId}, projectRootRelPath}).second;
+    auto metadata = FileMetadata{
+        StableFileId{relPathRef, isInProject, /*isSynthetic*/ false},
+        absPathRef,
+        optPackageMetadata,
+    };
+    return this->map.insert({{fileId}, std::move(metadata)}).second;
   };
 
   // In practice, CMake ends up passing paths to project files as well
@@ -102,11 +110,24 @@ bool StableFileIdMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
     if (std::filesystem::exists(originalFileSourcePath.asStringRef(), error)
         && !error) {
       return insertRelPath(RootRelativePathRef(buildRootRelPath->asStringView(),
-                                               RootKind::Project));
+                                               RootKind::Project),
+                           /*isInProject*/ true);
     }
   } else if (auto optProjectRootRelPath =
                  this->projectRootPath.tryMakeRelative(absPathRef)) {
-    return insertRelPath(optProjectRootRelPath.value());
+    return insertRelPath(optProjectRootRelPath.value(), /*isInProject*/ true);
+  }
+  if (optPackageMetadata.has_value()) {
+    if (auto optStrView =
+            optPackageMetadata->rootPath.makeRelative(absPathRef)) {
+      return insertRelPath(RootRelativePathRef(*optStrView, RootKind::External),
+                           /*isInProject*/ false);
+    } else {
+      spdlog::warn("package info map determined '{}' as root for path '{}', "
+                   "but prefix check failed",
+                   optPackageMetadata->rootPath.asStringView(),
+                   absPathRef.asStringView());
+    }
   }
   auto optFileName = absPathRef.fileName();
   ENFORCE(optFileName.has_value(),
@@ -118,38 +139,36 @@ bool StableFileIdMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
       RootKind::Build); // fake value to satisfy the RootRelativePathRef API
   return this->map
       .insert({{fileId},
-               ExternalFileEntry{absPathRef, this->storage.back().asRef()}})
+               FileMetadata{StableFileId{this->storage.back().asRef(),
+                                         /*isInProject*/ false,
+                                         /*isSynthetic*/ true},
+                            absPathRef, optPackageMetadata}})
       .second;
 }
 
-void StableFileIdMap::forEachFileId(
+void FileMetadataMap::forEachFileId(
     absl::FunctionRef<void(clang::FileID, StableFileId)> callback) {
   for (auto &[wrappedFileId, entry] : this->map) {
-    callback(wrappedFileId.data, Self::mapValueToStableFileId(entry));
+    callback(wrappedFileId.data, entry.stableFileId);
   }
 }
 
 std::optional<StableFileId>
-StableFileIdMap::getStableFileId(clang::FileID fileId) const {
+FileMetadataMap::getStableFileId(clang::FileID fileId) const {
   auto it = this->map.find({fileId});
   if (it == this->map.end()) {
     return {};
   }
-  return Self::mapValueToStableFileId(it->second);
+  return it->second.stableFileId;
 }
 
-// static
-StableFileId
-StableFileIdMap::mapValueToStableFileId(const MapValueType &variant) {
-  if (std::holds_alternative<RootRelativePathRef>(variant)) {
-    return StableFileId{.path = std::get<RootRelativePathRef>(variant),
-                        .isInProject = true,
-                        .isSynthetic = false};
+const FileMetadata *
+FileMetadataMap::getFileMetadata(clang::FileID fileId) const {
+  auto it = this->map.find({fileId});
+  if (it == this->map.end()) {
+    return {};
   }
-  return StableFileId{.path =
-                          std::get<ExternalFileEntry>(variant).fakeRelativePath,
-                      .isInProject = false,
-                      .isSynthetic = true};
+  return &it->second;
 }
 
 } // namespace scip_clang

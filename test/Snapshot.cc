@@ -93,6 +93,7 @@ static std::vector<RootRelativePath> listFilesRecursive(const RootPath &root) {
 static std::string formatSymbol(const std::string &symbol) {
   // Strip out repeating information for cleaner snapshots.
   return absl::StrReplaceAll(symbol, {
+                                         {"cxx . . .", "[..]"},
                                          {"cxx . ", ""}, // indexer prefix
                                          {"todo-pkg todo-version", "[..]"},
                                      });

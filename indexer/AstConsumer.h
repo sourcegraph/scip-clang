@@ -20,7 +20,7 @@ class CompilerInstance;
 
 namespace scip_clang {
 class ClangIdLookupMap;
-class StableFileIdMap;
+class FileMetadataMap;
 class IndexerPreprocessorWrapper;
 class MacroIndexer;
 class TuIndexer;
@@ -88,13 +88,13 @@ private:
   void computeFileIdsToBeIndexed(const clang::ASTContext &astContext,
                                  const EmitIndexJobDetails &emitIndexDetails,
                                  const ClangIdLookupMap &clangIdLookupMap,
-                                 StableFileIdMap &stableFileIdMap,
+                                 FileMetadataMap &fileMetadataMap,
                                  FileIdsToBeIndexedSet &toBeIndexed);
 
   void saveIncludeReferences(const FileIdsToBeIndexedSet &toBeIndexed,
                              const MacroIndexer &macroIndexer,
                              const ClangIdLookupMap &clangIdLookupMap,
-                             const StableFileIdMap &stableFileIdMap,
+                             const FileMetadataMap &fileMetadataMap,
                              TuIndexer &tuIndexer);
 };
 

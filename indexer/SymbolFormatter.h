@@ -17,9 +17,9 @@
 
 #include "indexer/ClangAstMacros.h"
 #include "indexer/Derive.h"
+#include "indexer/FileMetadata.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
-#include "indexer/StableFileId.h"
 
 namespace clang {
 #define FORWARD_DECLARE(DeclName) class DeclName##Decl;
@@ -55,8 +55,7 @@ struct DescriptorBuilder {
 /// Meant for transient use in constructing symbol strings, since a
 /// \c scip::Index doesn't store any \c scip::Symbol values directly.
 struct SymbolBuilder {
-  std::string_view packageName;
-  std::string_view packageVersion;
+  PackageId packageId;
   llvm::SmallVector<DescriptorBuilder, 4> descriptors;
 
   /// Format a symbol string according to the standardized SCIP representation:
@@ -80,7 +79,7 @@ using SymbolString = std::string_view;
 
 class SymbolFormatter final {
   const clang::SourceManager &sourceManager;
-  GetStableFileId getStableFileId;
+  FileMetadataMap &fileMetadataMap;
 
   llvm::BumpPtrAllocator bumpPtrAllocator;
   llvm::StringSaver stringSaver;
@@ -100,8 +99,8 @@ class SymbolFormatter final {
 
 public:
   SymbolFormatter(const clang::SourceManager &sourceManager,
-                  GetStableFileId getStableFileId)
-      : sourceManager(sourceManager), getStableFileId(getStableFileId),
+                  FileMetadataMap &fileMetadataMap)
+      : sourceManager(sourceManager), fileMetadataMap(fileMetadataMap),
         bumpPtrAllocator(), stringSaver(bumpPtrAllocator), locationBasedCache(),
         declBasedCache(), fileSymbolCache(), localVariableCounters(),
         scratchBufferForName(), scratchBufferForSymbol() {}
@@ -110,7 +109,7 @@ public:
 
   SymbolString getMacroSymbol(clang::SourceLocation defLoc);
 
-  SymbolString getFileSymbol(StableFileId);
+  SymbolString getFileSymbol(const FileMetadata &);
 
 #define DECLARE_GET_SYMBOL(DeclName)                 \
   std::optional<SymbolString> get##DeclName##Symbol( \

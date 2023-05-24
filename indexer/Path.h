@@ -2,6 +2,7 @@
 #define SCIP_CLANG_PATH_H
 
 #include <compare>
+#include <cstdint>
 #include <iterator>
 #include <optional>
 #include <string>
@@ -126,9 +127,10 @@ public:
 };
 SERIALIZABLE(AbsolutePath)
 
-enum class RootKind : bool {
-  Project = true,
-  Build = false,
+enum class RootKind : uint8_t {
+  Project,
+  Build,
+  External,
 };
 
 class RootRelativePathRef {
