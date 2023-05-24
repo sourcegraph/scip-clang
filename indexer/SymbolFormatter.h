@@ -87,6 +87,10 @@ class SymbolFormatter final {
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::SourceLocation>,
                       SymbolString>
       locationBasedCache;
+  absl::flat_hash_map<
+      std::pair<const clang::Decl *, llvm_ext::AbslHashAdapter<clang::FileID>>,
+      SymbolString>
+      namespacePrefixCache;
   absl::flat_hash_map<const clang::Decl *, SymbolString> declBasedCache;
   absl::flat_hash_map<StableFileId, SymbolString> fileSymbolCache;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
@@ -124,13 +128,32 @@ public:
   std::optional<SymbolString> getTagSymbol(const clang::TagDecl &);
 
 private:
-  std::optional<SymbolString> getContextSymbol(const clang::DeclContext &);
+  /// Create a symbol for the context, optionally using \p loc to determine
+  /// package information.
+  std::optional<SymbolString> getContextSymbol(const clang::DeclContext &,
+                                               clang::SourceLocation loc);
+
+  /// Construct a symbol for a namespace using package information based
+  /// on \p loc rather than the NamespaceDecl's own location. This is because
+  /// namespaces can cut across packages.
+  std::optional<SymbolString>
+  getNamespaceSymbolPrefix(const clang::NamespaceDecl &,
+                           clang::SourceLocation loc);
 
   std::optional<SymbolString> getNextLocalSymbol(const clang::NamedDecl &);
 
   std::optional<SymbolString>
   getSymbolCached(const clang::Decl &,
                   absl::FunctionRef<std::optional<SymbolString>()>);
+
+  /// Cache the symbol based on the decl ptr (may be null) + the file containing
+  /// the location.
+  std::optional<SymbolString>
+  getSymbolCached(const clang::Decl *, clang::SourceLocation,
+                  absl::FunctionRef<std::optional<std::string_view>()>);
+
+  std::optional<SymbolString>
+  getLocationBasedSymbolPrefix(clang::SourceLocation loc);
 
   // --- Final step functions for symbol formatting ---
 
