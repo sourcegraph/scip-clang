@@ -20,6 +20,7 @@
 #include "indexer/Derive.h"
 #include "indexer/Enforce.h"
 #include "indexer/RAII.h"
+#include "indexer/SymbolName.h"
 
 namespace scip {
 
@@ -112,24 +113,6 @@ public:
     this->_bomb.defuse();
   }
   void finish(bool deterministic, scip::SymbolInformation &out);
-};
-
-class SymbolName {
-  std::string value;
-
-  // The implicitly synthesized copy constructor is important as this is
-  // used a map key, which are required to be copy-constructible.
-public:
-  SymbolName(std::string &&value) : value(std::move(value)) {
-    ENFORCE(!this->value.empty());
-  }
-  const std::string &asStringRef() const {
-    return this->value;
-  }
-  std::string &asStringRefMut() {
-    return this->value;
-  }
-  DERIVE_HASH_CMP_NEWTYPE(SymbolName, value, CMP_STR)
 };
 
 using SymbolToInfoMap = absl::flat_hash_map<

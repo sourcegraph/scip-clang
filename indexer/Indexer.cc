@@ -36,6 +36,7 @@
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
 #include "indexer/SymbolFormatter.h"
+#include "indexer/SymbolName.h"
 #include "indexer/Tracing.h"
 
 namespace scip_clang {
@@ -105,7 +106,8 @@ void FileLocalMacroOccurrence::emitOccurrence(SymbolFormatter &symbolFormatter,
     break;
   }
   this->range.addToOccurrence(occ);
-  auto name = symbolFormatter.getMacroSymbol(this->defInfo->getDefinitionLoc());
+  auto name =
+      symbolFormatter.getMacroSymbol(this->defInfo->getDefinitionLoc()).value;
   occ.set_symbol(name.data(), name.size());
 }
 
@@ -126,7 +128,8 @@ std::strong_ordering operator<=>(const NonFileBasedMacro &m1,
 void NonFileBasedMacro::emitSymbolInformation(
     SymbolFormatter &symbolFormatter,
     scip::SymbolInformation &symbolInfo) const {
-  auto name = symbolFormatter.getMacroSymbol(this->defInfo->getDefinitionLoc());
+  auto name =
+      symbolFormatter.getMacroSymbol(this->defInfo->getDefinitionLoc()).value;
   symbolInfo.set_symbol(name.data(), name.size());
 }
 
@@ -465,7 +468,7 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
   if (!optSymbol.has_value()) {
     return;
   }
-  std::string_view symbol = optSymbol.value();
+  auto symbol = optSymbol.value();
 
   if (functionDecl.isPure() || functionDecl.isThisDeclarationADefinition()) {
     scip::SymbolInformation symbolInfo{};
@@ -476,8 +479,8 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
         if (auto optOverridenSymbol =
                 this->symbolFormatter.getFunctionSymbol(*overridenMethodDecl)) {
           scip::Relationship rel{};
-          rel.set_symbol(optOverridenSymbol->data(),
-                         optOverridenSymbol->size());
+          auto symbol = optOverridenSymbol->value;
+          rel.set_symbol(symbol.data(), symbol.size());
           rel.set_is_implementation(true);
           rel.set_is_reference(true);
           *symbolInfo.add_relationships() = std::move(rel);
@@ -511,7 +514,7 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
   if (!optSymbol.has_value()) {
     return;
   }
-  std::string_view symbol = optSymbol.value();
+  auto symbol = optSymbol.value();
 
   // getLocation():
   // - for anonymous namespaces, returns the location of the opening brace {
@@ -674,7 +677,8 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
           continue;
         }
         scip::Relationship rel{};
-        rel.set_symbol(optRelatedSymbol->data(), optRelatedSymbol->size());
+        auto symbol = optRelatedSymbol->value;
+        rel.set_symbol(symbol.data(), symbol.size());
         rel.set_is_implementation(true);
         *symbolInfo.add_relationships() = std::move(rel);
       }
@@ -719,7 +723,7 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
   switch (templateName.getKind()) {
   case Kind::Template: {
     auto *templateDecl = templateName.getAsTemplateDecl();
-    std::optional<std::string_view> optSymbol;
+    std::optional<SymbolNameRef> optSymbol;
     if (auto *classTemplateDecl =
             llvm::dyn_cast<clang::ClassTemplateDecl>(templateDecl)) {
       optSymbol = this->symbolFormatter.getRecordSymbol(
@@ -934,9 +938,9 @@ void TuIndexer::emitDocumentOccurrencesAndSymbols(
   }
   extractTransform(
       std::move(doc.symbolInfos), deterministic,
-      absl::FunctionRef<void(std::string_view &&, scip::SymbolInformation &&)>(
-          [&](auto &&symbolName, auto &&symInfo) {
-            symInfo.set_symbol(symbolName.data(), symbolName.size());
+      absl::FunctionRef<void(SymbolNameRef &&, scip::SymbolInformation &&)>(
+          [&](auto &&symbol, auto &&symInfo) {
+            symInfo.set_symbol(symbol.value.data(), symbol.value.size());
             *scipDocument.add_symbols() = std::move(symInfo);
           }));
 }
@@ -947,9 +951,9 @@ void TuIndexer::emitExternalSymbols(bool deterministic,
               this->externalSymbols.size());
   scip_clang::extractTransform(
       std::move(this->externalSymbols), deterministic,
-      absl::FunctionRef<void(std::string_view &&, scip::SymbolInformation &&)>(
+      absl::FunctionRef<void(SymbolNameRef &&, scip::SymbolInformation &&)>(
           [&](auto &&symbol, auto &&symbolInfo) {
-            symbolInfo.set_symbol(symbol.data(), symbol.size());
+            symbolInfo.set_symbol(symbol.value.data(), symbol.value.size());
             *indexShard.add_external_symbols() = std::move(symbolInfo);
           }));
 }
@@ -960,11 +964,11 @@ void TuIndexer::emitForwardDeclarations(bool deterministic,
               this->forwardDeclarations.size());
   scip_clang::extractTransform(
       std::move(this->forwardDeclarations), deterministic,
-      absl::FunctionRef<void(std::string_view &&, DocComment &&)>(
+      absl::FunctionRef<void(SymbolNameRef &&, DocComment &&)>(
           [&](auto &&symbol, auto &&docComment) {
             scip::SymbolInformation symbolInfo{};
             docComment.addTo(symbolInfo);
-            symbolInfo.set_symbol(symbol.data(), symbol.size());
+            symbolInfo.set_symbol(symbol.value.data(), symbol.value.size());
             // Add a forward declaration SymbolRole here
             // once https://github.com/sourcegraph/scip/issues/131 is fixed.
             *forwardDeclIndex.add_external_symbols() = std::move(symbolInfo);
@@ -982,7 +986,7 @@ TuIndexer::getTokenExpansionRange(
                                             {startExpansionLoc, endLoc});
 }
 
-void TuIndexer::saveForwardDeclaration(std::string_view symbol,
+void TuIndexer::saveForwardDeclaration(SymbolNameRef symbol,
                                        clang::SourceLocation loc,
                                        DocComment &&docComment) {
   this->saveReference(symbol, loc);
@@ -995,8 +999,8 @@ void TuIndexer::saveForwardDeclaration(std::string_view symbol,
   return;
 }
 
-void TuIndexer::saveReference(std::string_view symbol,
-                              clang::SourceLocation loc, int32_t extraRoles) {
+void TuIndexer::saveReference(SymbolNameRef symbol, clang::SourceLocation loc,
+                              int32_t extraRoles) {
   auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
   auto fileId = this->sourceManager.getFileID(expansionLoc);
   auto optStableFileId = this->fileMetadataMap.getStableFileId(fileId);
@@ -1009,7 +1013,7 @@ void TuIndexer::saveReference(std::string_view symbol,
 }
 
 void TuIndexer::saveDefinition(
-    std::string_view symbol, clang::SourceLocation loc,
+    SymbolNameRef symbol, clang::SourceLocation loc,
     std::optional<scip::SymbolInformation> &&optSymbolInfo,
     int32_t extraRoles) {
   auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
@@ -1032,7 +1036,7 @@ void TuIndexer::saveDefinition(
   }
 }
 
-void TuIndexer::saveExternalSymbol(std::string_view symbol,
+void TuIndexer::saveExternalSymbol(SymbolNameRef symbol,
                                    scip::SymbolInformation &&symbolInfo) {
   auto [it, inserted] =
       this->externalSymbols.emplace(symbol, std::move(symbolInfo));
@@ -1043,20 +1047,20 @@ void TuIndexer::saveExternalSymbol(std::string_view symbol,
   }
 }
 
-PartialDocument &TuIndexer::saveOccurrence(std::string_view symbol,
+PartialDocument &TuIndexer::saveOccurrence(SymbolNameRef symbol,
                                            clang::SourceLocation expansionLoc,
                                            int32_t allRoles) {
   auto [range, fileId] = this->getTokenExpansionRange(expansionLoc);
   return this->saveOccurrenceImpl(symbol, range, fileId, allRoles);
 }
 
-PartialDocument &TuIndexer::saveOccurrenceImpl(std::string_view symbol,
+PartialDocument &TuIndexer::saveOccurrenceImpl(SymbolNameRef symbol,
                                                FileLocalSourceRange range,
                                                clang::FileID fileId,
                                                int32_t allRoles) {
   scip::Occurrence occ;
   range.addToOccurrence(occ);
-  occ.set_symbol(symbol.data(), symbol.size());
+  occ.set_symbol(symbol.value.data(), symbol.value.size());
   occ.set_symbol_roles(allRoles);
   auto &doc = this->documentMap[{fileId}];
   doc.occurrences.emplace_back(scip::OccurrenceExt{std::move(occ)});

@@ -24,6 +24,7 @@
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/SymbolName.h"
 
 namespace clang {
 #define FORWARD_DECLARE(ExprName) class ExprName##Expr;
@@ -224,7 +225,7 @@ struct PartialDocument {
   std::vector<scip::OccurrenceExt> occurrences;
   // Keyed by the symbol name. The symbol name is not set on the
   // SymbolInformation value to avoid redundant allocations.
-  absl::flat_hash_map<std::string_view, scip::SymbolInformation> symbolInfos;
+  absl::flat_hash_map<scip::SymbolNameRef, scip::SymbolInformation> symbolInfos;
 };
 
 class DocComment {
@@ -253,10 +254,9 @@ class TuIndexer final {
       documentMap;
   FileMetadataMap &fileMetadataMap;
 
-  absl::flat_hash_map</*name*/ std::string_view, scip::SymbolInformation>
-      externalSymbols;
+  absl::flat_hash_map<SymbolNameRef, scip::SymbolInformation> externalSymbols;
 
-  absl::flat_hash_map<std::string_view, DocComment> forwardDeclarations;
+  absl::flat_hash_map<SymbolNameRef, DocComment> forwardDeclarations;
 
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
@@ -310,10 +310,10 @@ private:
   /// Helper method for recording forward declarations.
   ///
   /// Prefer this over \c saveReference or \c saveOccurrence.
-  void saveForwardDeclaration(std::string_view symbol,
-                              clang::SourceLocation loc, DocComment &&);
+  void saveForwardDeclaration(SymbolNameRef symbol, clang::SourceLocation loc,
+                              DocComment &&);
 
-  void saveReference(std::string_view symbol, clang::SourceLocation loc,
+  void saveReference(SymbolNameRef symbol, clang::SourceLocation loc,
                      int32_t extraRoles = 0);
 
   /// Helper method for recording a \c scip::Occurrence and a
@@ -322,12 +322,12 @@ private:
   /// Setting the symbol name on \param symbolInfo is not necessary.
   ///
   /// For local variables, \param symbolInfo should be \c std::nullopt.
-  void saveDefinition(std::string_view symbol, clang::SourceLocation loc,
+  void saveDefinition(SymbolNameRef symbol, clang::SourceLocation loc,
                       std::optional<scip::SymbolInformation> &&symbolInfo,
                       int32_t extraRoles = 0);
 
   /// Only for use inside \c saveDefinition.
-  void saveExternalSymbol(std::string_view symbol, scip::SymbolInformation &&);
+  void saveExternalSymbol(SymbolNameRef symbol, scip::SymbolInformation &&);
 
   /// Lower-level method for only saving a Occurrence.
   ///
@@ -337,11 +337,11 @@ private:
   ///
   /// This method should not be called for occurrences in external files,
   /// since SCIP only tracks SymbolInformation values in external code.
-  PartialDocument &saveOccurrence(std::string_view symbol,
+  PartialDocument &saveOccurrence(SymbolNameRef symbol,
                                   clang::SourceLocation loc,
                                   int32_t allRoles = 0);
 
-  PartialDocument &saveOccurrenceImpl(std::string_view symbol,
+  PartialDocument &saveOccurrenceImpl(SymbolNameRef symbol,
                                       FileLocalSourceRange range,
                                       clang::FileID fileId,
                                       int32_t allRoles = 0);
