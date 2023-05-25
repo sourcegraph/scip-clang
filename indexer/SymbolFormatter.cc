@@ -22,6 +22,7 @@
 #include "indexer/IdPathMappings.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/SymbolFormatter.h"
+#include "indexer/SymbolName.h"
 
 namespace {
 struct Escaped {
@@ -114,37 +115,37 @@ void SymbolBuilder::formatTo(std::string &buf) const {
 
 // static
 void SymbolBuilder::formatContextual(std::string &buffer,
-                                     std::string_view contextSymbol,
+                                     SymbolNameRef contextSymbol,
                                      const DescriptorBuilder &descriptor) {
   auto maxExtraChars = 3; // For methods, we end up adding '(', ')' and '.'
-  buffer.reserve(contextSymbol.size() + descriptor.name.size()
+  buffer.reserve(contextSymbol.value.size() + descriptor.name.size()
                  + descriptor.disambiguator.size() + maxExtraChars);
-  buffer.append(contextSymbol);
+  buffer.append(contextSymbol.value);
   llvm::raw_string_ostream os(buffer);
   descriptor.formatTo(os);
 }
 
-SymbolString SymbolFormatter::format(const SymbolBuilder &symbolBuilder) {
+SymbolNameRef SymbolFormatter::format(const SymbolBuilder &symbolBuilder) {
   this->scratchBufferForSymbol.clear();
   symbolBuilder.formatTo(this->scratchBufferForSymbol);
-  return this->stringSaver.save(this->scratchBufferForSymbol);
+  return {this->stringSaver.save(this->scratchBufferForSymbol)};
 }
 
-SymbolString
-SymbolFormatter::formatContextual(std::string_view contextSymbol,
+SymbolNameRef
+SymbolFormatter::formatContextual(SymbolNameRef contextSymbol,
                                   const DescriptorBuilder &descriptor) {
   this->scratchBufferForSymbol.clear();
   SymbolBuilder::formatContextual(this->scratchBufferForSymbol, contextSymbol,
                                   descriptor);
-  return this->stringSaver.save(this->scratchBufferForSymbol);
+  return {this->stringSaver.save(this->scratchBufferForSymbol)};
 }
 
-SymbolString SymbolFormatter::formatLocal(unsigned counter) {
+SymbolNameRef SymbolFormatter::formatLocal(unsigned counter) {
   this->formatTemporaryToBuf(this->scratchBufferForSymbol, "local {}", counter);
-  return this->stringSaver.save(this->scratchBufferForSymbol);
+  return {this->stringSaver.save(this->scratchBufferForSymbol)};
 }
 
-std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
+SymbolNameRef SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
   auto it = this->locationBasedCache.find({defLoc});
   if (it != this->locationBasedCache.end()) {
     return it->second;
@@ -175,10 +176,10 @@ std::string_view SymbolFormatter::getMacroSymbol(clang::SourceLocation defLoc) {
 
   auto [newIt, inserted] = this->locationBasedCache.insert({{defLoc}, symbol});
   ENFORCE(inserted, "key was missing earlier, so insert should've succeeded");
-  return std::string_view(newIt->second);
+  return newIt->second;
 }
 
-SymbolString SymbolFormatter::getFileSymbol(const FileMetadata &fileMetadata) {
+SymbolNameRef SymbolFormatter::getFileSymbol(const FileMetadata &fileMetadata) {
   auto &stableFileId = fileMetadata.stableFileId;
   auto it = this->fileSymbolCache.find(stableFileId);
   if (it != this->fileSymbolCache.end()) {
@@ -196,7 +197,7 @@ SymbolString SymbolFormatter::getFileSymbol(const FileMetadata &fileMetadata) {
   ENFORCE(
       inserted,
       "StableFileId key was missing earlier, so insert should've succeeded");
-  return std::string_view(newIt->second);
+  return newIt->second;
 }
 
 // NOTE(def: canonical-decl):
@@ -239,32 +240,32 @@ SymbolString SymbolFormatter::getFileSymbol(const FileMetadata &fileMetadata) {
 // so include ordering doesn't matter, and consequently using
 // getCanonicalDecl is fine.
 
-std::optional<SymbolString> SymbolFormatter::getSymbolCached(
+std::optional<SymbolNameRef> SymbolFormatter::getSymbolCached(
     const clang::Decl &decl,
-    absl::FunctionRef<std::optional<SymbolString>()> getSymbol) {
+    absl::FunctionRef<std::optional<SymbolNameRef>()> getSymbol) {
   // Improve cache hit ratio by using the canonical decl as the key.
   // It is a little subtle as to why using it is correct,
   // see NOTE(ref: canonical-decl)
   auto *canonicalDecl = decl.getCanonicalDecl();
   auto it = this->declBasedCache.find(canonicalDecl);
   if (it != this->declBasedCache.end()) {
-    return std::string_view(it->second);
+    return it->second;
   }
   auto optSymbol = getSymbol();
   if (!optSymbol.has_value()) {
     return {};
   }
-  ENFORCE(!optSymbol.value().empty(),
+  ENFORCE(!optSymbol.value().value.empty(),
           "forgot to use nullopt to signal failure in computing symbol name");
   auto [newIt, inserted] =
       this->declBasedCache.insert({canonicalDecl, *optSymbol});
   ENFORCE(inserted);
-  return std::string_view(newIt->second);
+  return newIt->second;
 }
 
-std::optional<std::string_view> SymbolFormatter::getSymbolCached(
+std::optional<SymbolNameRef> SymbolFormatter::getSymbolCached(
     const clang::Decl *decl, clang::SourceLocation loc,
-    absl::FunctionRef<std::optional<SymbolString>()> getSymbol) {
+    absl::FunctionRef<std::optional<SymbolNameRef>()> getSymbol) {
   auto fileId = this->sourceManager.getFileID(loc);
   if (decl) {
     decl = decl->getCanonicalDecl();
@@ -273,24 +274,24 @@ std::optional<std::string_view> SymbolFormatter::getSymbolCached(
       std::pair<const clang::Decl *, llvm_ext::AbslHashAdapter<clang::FileID>>;
   auto it = this->namespacePrefixCache.find(KeyType{decl, {fileId}});
   if (it != this->namespacePrefixCache.end()) {
-    return std::string_view(it->second);
+    return it->second;
   }
   auto optSymbol = getSymbol();
   if (!optSymbol.has_value()) {
     return {};
   }
-  ENFORCE(!optSymbol.value().empty(),
+  ENFORCE(!optSymbol.value().value.empty(),
           "forgot to use nullopt to signal failure in compute symbol name");
   auto [newIt, inserted] =
       this->namespacePrefixCache.emplace(KeyType{decl, {fileId}}, *optSymbol);
   ENFORCE(inserted);
-  return std::string_view(newIt->second);
+  return newIt->second;
 }
 
-std::optional<std::string_view> SymbolFormatter::getNamespaceSymbolPrefix(
+std::optional<SymbolNameRef> SymbolFormatter::getNamespaceSymbolPrefix(
     const clang::NamespaceDecl &namespaceDecl, clang::SourceLocation loc) {
   return this->getSymbolCached(
-      &namespaceDecl, loc, [&]() -> std::optional<SymbolString> {
+      &namespaceDecl, loc, [&]() -> std::optional<SymbolNameRef> {
         auto optContextSymbol =
             this->getContextSymbol(*namespaceDecl.getDeclContext(), loc);
         if (!optContextSymbol.has_value()) {
@@ -315,13 +316,13 @@ std::optional<std::string_view> SymbolFormatter::getNamespaceSymbolPrefix(
       });
 }
 
-std::optional<std::string_view>
+std::optional<SymbolNameRef>
 SymbolFormatter::getLocationBasedSymbolPrefix(clang::SourceLocation loc) {
   if (loc.isInvalid()) {
     return {};
   }
   return this->getSymbolCached(
-      nullptr, loc, [&]() -> std::optional<SymbolString> {
+      nullptr, loc, [&]() -> std::optional<SymbolNameRef> {
         auto fileId = this->sourceManager.getFileID(loc);
         auto *fileMetadata = this->fileMetadataMap.getFileMetadata(fileId);
         if (!fileMetadata) {
@@ -332,7 +333,7 @@ SymbolFormatter::getLocationBasedSymbolPrefix(clang::SourceLocation loc) {
       });
 }
 
-std::optional<std::string_view>
+std::optional<SymbolNameRef>
 SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext,
                                   clang::SourceLocation loc) {
   loc = this->sourceManager.getExpansionLoc(loc);
@@ -372,14 +373,14 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext,
   return std::nullopt;
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getRecordSymbol(const clang::RecordDecl &recordDecl) {
   return this->getTagSymbol(recordDecl);
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
-  return this->getSymbolCached(tagDecl, [&]() -> std::optional<SymbolString> {
+  return this->getSymbolCached(tagDecl, [&]() -> std::optional<SymbolNameRef> {
     auto optContextSymbol = this->getContextSymbol(*tagDecl.getDeclContext(),
                                                    tagDecl.getLocation());
     if (!optContextSymbol.has_value()) {
@@ -440,27 +441,27 @@ SymbolFormatter::getTagSymbol(const clang::TagDecl &tagDecl) {
   });
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getBindingSymbol(const clang::BindingDecl &bindingDecl) {
   return this->getNextLocalSymbol(bindingDecl);
 }
 
-std::optional<SymbolString> SymbolFormatter::getClassTemplateSymbol(
+std::optional<SymbolNameRef> SymbolFormatter::getClassTemplateSymbol(
     const clang::ClassTemplateDecl &classTemplateDecl) {
   return this->getRecordSymbol(*classTemplateDecl.getTemplatedDecl());
 }
 
-std::optional<SymbolString> SymbolFormatter::getTypeAliasTemplateSymbol(
+std::optional<SymbolNameRef> SymbolFormatter::getTypeAliasTemplateSymbol(
     const clang::TypeAliasTemplateDecl &typeAliasTemplateDecl) {
   return this->getTypedefNameSymbol(*typeAliasTemplateDecl.getTemplatedDecl());
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getNextLocalSymbol(const clang::NamedDecl &decl) {
   if (decl.getDeclName().isEmpty()) {
     return {};
   }
-  return this->getSymbolCached(decl, [&]() -> std::optional<SymbolString> {
+  return this->getSymbolCached(decl, [&]() -> std::optional<SymbolNameRef> {
     auto loc = this->sourceManager.getExpansionLoc(decl.getLocation());
     auto defFileId = this->sourceManager.getFileID(loc);
     auto counter = this->localVariableCounters[{defFileId}]++;
@@ -468,10 +469,10 @@ SymbolFormatter::getNextLocalSymbol(const clang::NamedDecl &decl) {
   });
 }
 
-std::optional<SymbolString> SymbolFormatter::getEnumConstantSymbol(
+std::optional<SymbolNameRef> SymbolFormatter::getEnumConstantSymbol(
     const clang::EnumConstantDecl &enumConstantDecl) {
   return this->getSymbolCached(
-      enumConstantDecl, [&]() -> std::optional<SymbolString> {
+      enumConstantDecl, [&]() -> std::optional<SymbolNameRef> {
         auto parentEnumDecl =
             llvm::dyn_cast<clang::EnumDecl>(enumConstantDecl.getDeclContext());
         ENFORCE(parentEnumDecl,
@@ -479,7 +480,7 @@ std::optional<SymbolString> SymbolFormatter::getEnumConstantSymbol(
         if (!parentEnumDecl) {
           return {};
         }
-        std::optional<SymbolString> optContextSymbol =
+        std::optional<SymbolNameRef> optContextSymbol =
             parentEnumDecl->isScoped()
                 ? this->getEnumSymbol(*parentEnumDecl)
                 : this->getContextSymbol(*parentEnumDecl->getDeclContext(),
@@ -495,7 +496,7 @@ std::optional<SymbolString> SymbolFormatter::getEnumConstantSymbol(
       });
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getEnumSymbol(const clang::EnumDecl &enumDecl) {
   return this->getTagSymbol(enumDecl);
 }
@@ -535,10 +536,10 @@ std::string_view SymbolFormatter::getFunctionDisambiguator(
   return std::string_view{buf, end};
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
   return this->getSymbolCached(
-      functionDecl, [&]() -> std::optional<SymbolString> {
+      functionDecl, [&]() -> std::optional<SymbolNameRef> {
         auto optContextSymbol = this->getContextSymbol(
             *functionDecl.getDeclContext(), functionDecl.getLocation());
         if (!optContextSymbol.has_value()) {
@@ -556,32 +557,33 @@ SymbolFormatter::getFunctionSymbol(const clang::FunctionDecl &functionDecl) {
       });
 }
 
-std::optional<SymbolString> SymbolFormatter::getFunctionTemplateSymbol(
+std::optional<SymbolNameRef> SymbolFormatter::getFunctionTemplateSymbol(
     const clang::FunctionTemplateDecl &functionTemplateDecl) {
   return this->getFunctionSymbol(*functionTemplateDecl.getTemplatedDecl());
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getFieldSymbol(const clang::FieldDecl &fieldDecl) {
   if (fieldDecl.getDeclName().isEmpty()) {
     return {};
   }
-  return this->getSymbolCached(fieldDecl, [&]() -> std::optional<SymbolString> {
-    auto optContextSymbol = this->getContextSymbol(*fieldDecl.getDeclContext(),
-                                                   fieldDecl.getLocation());
-    if (!optContextSymbol.has_value()) {
-      return {};
-    }
-    return this->formatContextual(
-        optContextSymbol.value(),
-        DescriptorBuilder{
-            .name = llvm_ext::toStringView(fieldDecl.getName()),
-            .suffix = scip::Descriptor::Term,
-        });
-  });
+  return this->getSymbolCached(
+      fieldDecl, [&]() -> std::optional<SymbolNameRef> {
+        auto optContextSymbol = this->getContextSymbol(
+            *fieldDecl.getDeclContext(), fieldDecl.getLocation());
+        if (!optContextSymbol.has_value()) {
+          return {};
+        }
+        return this->formatContextual(
+            optContextSymbol.value(),
+            DescriptorBuilder{
+                .name = llvm_ext::toStringView(fieldDecl.getName()),
+                .suffix = scip::Descriptor::Term,
+            });
+      });
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl &namedDecl) {
 #define HANDLE(kind_)                                                \
   if (auto *decl = llvm::dyn_cast<clang::kind_##Decl>(&namedDecl)) { \
@@ -593,30 +595,30 @@ SymbolFormatter::getNamedDeclSymbol(const clang::NamedDecl &namedDecl) {
 
 /// Returns nullopt for anonymous namespaces in files for which
 /// getCanonicalPath returns nullopt.
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getNamespaceSymbol(const clang::NamespaceDecl &namespaceDecl) {
   return this->getNamespaceSymbolPrefix(namespaceDecl,
                                         namespaceDecl.getLocation());
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getLocalVarOrParmSymbol(const clang::VarDecl &varDecl) {
   ENFORCE(varDecl.isLocalVarDeclOrParm());
   return this->getNextLocalSymbol(varDecl);
 }
 
-#define GET_AS_LOCAL(name_)                                        \
-  std::optional<SymbolString> SymbolFormatter::get##name_##Symbol( \
-      const clang::name_##Decl &decl) {                            \
-    return this->getNextLocalSymbol(decl);                         \
+#define GET_AS_LOCAL(name_)                                         \
+  std::optional<SymbolNameRef> SymbolFormatter::get##name_##Symbol( \
+      const clang::name_##Decl &decl) {                             \
+    return this->getNextLocalSymbol(decl);                          \
   }
 FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(GET_AS_LOCAL)
 #undef GET_AS_LOCAL
 
-std::optional<SymbolString> SymbolFormatter::getTypedefNameSymbol(
+std::optional<SymbolNameRef> SymbolFormatter::getTypedefNameSymbol(
     const clang::TypedefNameDecl &typedefNameDecl) {
   return this->getSymbolCached(
-      typedefNameDecl, [&]() -> std::optional<SymbolString> {
+      typedefNameDecl, [&]() -> std::optional<SymbolNameRef> {
         auto optContextSymbol = this->getContextSymbol(
             *typedefNameDecl.getDeclContext(), typedefNameDecl.getLocation());
         if (!optContextSymbol.has_value()) {
@@ -631,7 +633,7 @@ std::optional<SymbolString> SymbolFormatter::getTypedefNameSymbol(
       });
 }
 
-std::optional<SymbolString> SymbolFormatter::getUsingShadowSymbol(
+std::optional<SymbolNameRef> SymbolFormatter::getUsingShadowSymbol(
     const clang::UsingShadowDecl &usingShadowDecl) {
   if (usingShadowDecl.getDeclName().isEmpty()) {
     return {};
@@ -641,7 +643,7 @@ std::optional<SymbolString> SymbolFormatter::getUsingShadowSymbol(
     return {};
   }
   return this->getSymbolCached(
-      usingShadowDecl, [&]() -> std::optional<SymbolString> {
+      usingShadowDecl, [&]() -> std::optional<SymbolNameRef> {
         auto optContextSymbol = this->getContextSymbol(
             *usingShadowDecl.getDeclContext(), usingShadowDecl.getLocation());
         if (!optContextSymbol) {
@@ -689,13 +691,13 @@ std::optional<SymbolString> SymbolFormatter::getUsingShadowSymbol(
       });
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getUsingSymbol(const clang::UsingDecl &) {
   ENFORCE(false, "call getUsingShadowSymbol instead");
   return {};
 }
 
-std::optional<SymbolString>
+std::optional<SymbolNameRef>
 SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
   if (varDecl.isLocalVarDeclOrParm()) {
     return this->getLocalVarOrParmSymbol(varDecl);
@@ -703,7 +705,7 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
   if (varDecl.getDeclName().isEmpty()) {
     return {};
   }
-  return this->getSymbolCached(varDecl, [&]() -> std::optional<SymbolString> {
+  return this->getSymbolCached(varDecl, [&]() -> std::optional<SymbolNameRef> {
     using Kind = clang::Decl::Kind;
     // Based on
     // https://sourcegraph.com/github.com/llvm/llvm-project/-/blob/clang/include/clang/Basic/DeclNodes.td?L57-64
@@ -740,7 +742,7 @@ SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
   });
 }
 
-std::optional<SymbolString> SymbolFormatter::getVarTemplateSymbol(
+std::optional<SymbolNameRef> SymbolFormatter::getVarTemplateSymbol(
     const clang::VarTemplateDecl &varTemplateDecl) {
   return this->getVarSymbol(*varTemplateDecl.getTemplatedDecl());
 }

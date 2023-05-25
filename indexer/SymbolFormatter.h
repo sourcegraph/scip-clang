@@ -20,6 +20,7 @@
 #include "indexer/FileMetadata.h"
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
+#include "indexer/SymbolName.h"
 
 namespace clang {
 #define FORWARD_DECLARE(DeclName) class DeclName##Decl;
@@ -71,11 +72,9 @@ struct SymbolBuilder {
   ///
   /// Since the standard formatting for SCIP symbols is prefix-based,
   /// this avoids the extra work of recomputing parent symbol strings.
-  static void formatContextual(std::string &buf, std::string_view contextSymbol,
+  static void formatContextual(std::string &buf, SymbolNameRef contextSymbol,
                                const DescriptorBuilder &descriptor);
 };
-
-using SymbolString = std::string_view;
 
 class SymbolFormatter final {
   const clang::SourceManager &sourceManager;
@@ -85,14 +84,14 @@ class SymbolFormatter final {
   llvm::StringSaver stringSaver;
 
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::SourceLocation>,
-                      SymbolString>
+                      SymbolNameRef>
       locationBasedCache;
   absl::flat_hash_map<
       std::pair<const clang::Decl *, llvm_ext::AbslHashAdapter<clang::FileID>>,
-      SymbolString>
+      SymbolNameRef>
       namespacePrefixCache;
-  absl::flat_hash_map<const clang::Decl *, SymbolString> declBasedCache;
-  absl::flat_hash_map<StableFileId, SymbolString> fileSymbolCache;
+  absl::flat_hash_map<const clang::Decl *, SymbolNameRef> declBasedCache;
+  absl::flat_hash_map<StableFileId, SymbolNameRef> fileSymbolCache;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
       anonymousTypeCounters;
   absl::flat_hash_map<llvm_ext::AbslHashAdapter<clang::FileID>, uint32_t>
@@ -111,62 +110,62 @@ public:
   SymbolFormatter(const SymbolFormatter &) = delete;
   SymbolFormatter &operator=(const SymbolFormatter &) = delete;
 
-  SymbolString getMacroSymbol(clang::SourceLocation defLoc);
+  SymbolNameRef getMacroSymbol(clang::SourceLocation defLoc);
 
-  SymbolString getFileSymbol(const FileMetadata &);
+  SymbolNameRef getFileSymbol(const FileMetadata &);
 
-#define DECLARE_GET_SYMBOL(DeclName)                 \
-  std::optional<SymbolString> get##DeclName##Symbol( \
+#define DECLARE_GET_SYMBOL(DeclName)                  \
+  std::optional<SymbolNameRef> get##DeclName##Symbol( \
       const clang::DeclName##Decl &);
   FOR_EACH_DECL_TO_BE_INDEXED(DECLARE_GET_SYMBOL)
 #undef DECLARE_GET_SYMBOL
 
-  std::optional<SymbolString> getLocalVarOrParmSymbol(const clang::VarDecl &);
+  std::optional<SymbolNameRef> getLocalVarOrParmSymbol(const clang::VarDecl &);
 
-  std::optional<SymbolString> getNamedDeclSymbol(const clang::NamedDecl &);
+  std::optional<SymbolNameRef> getNamedDeclSymbol(const clang::NamedDecl &);
 
-  std::optional<SymbolString> getTagSymbol(const clang::TagDecl &);
+  std::optional<SymbolNameRef> getTagSymbol(const clang::TagDecl &);
 
 private:
   /// Create a symbol for the context, optionally using \p loc to determine
   /// package information.
-  std::optional<SymbolString> getContextSymbol(const clang::DeclContext &,
-                                               clang::SourceLocation loc);
+  std::optional<SymbolNameRef> getContextSymbol(const clang::DeclContext &,
+                                                clang::SourceLocation loc);
 
   /// Construct a symbol for a namespace using package information based
   /// on \p loc rather than the NamespaceDecl's own location. This is because
   /// namespaces can cut across packages.
-  std::optional<SymbolString>
+  std::optional<SymbolNameRef>
   getNamespaceSymbolPrefix(const clang::NamespaceDecl &,
                            clang::SourceLocation loc);
 
-  std::optional<SymbolString> getNextLocalSymbol(const clang::NamedDecl &);
+  std::optional<SymbolNameRef> getNextLocalSymbol(const clang::NamedDecl &);
 
-  std::optional<SymbolString>
+  std::optional<SymbolNameRef>
   getSymbolCached(const clang::Decl &,
-                  absl::FunctionRef<std::optional<SymbolString>()>);
+                  absl::FunctionRef<std::optional<SymbolNameRef>()>);
 
   /// Cache the symbol based on the decl ptr (may be null) + the file containing
   /// the location.
-  std::optional<SymbolString>
+  std::optional<SymbolNameRef>
   getSymbolCached(const clang::Decl *, clang::SourceLocation,
-                  absl::FunctionRef<std::optional<std::string_view>()>);
+                  absl::FunctionRef<std::optional<SymbolNameRef>()>);
 
-  std::optional<SymbolString>
+  std::optional<SymbolNameRef>
   getLocationBasedSymbolPrefix(clang::SourceLocation loc);
 
   // --- Final step functions for symbol formatting ---
 
   /// Format a symbol for an entity isn't inside a namespace/type/etc. and isn't
   /// a local
-  SymbolString format(const SymbolBuilder &);
+  SymbolNameRef format(const SymbolBuilder &);
 
   /// Format a symbol for an entity inside some namespace/type/etc.
-  SymbolString formatContextual(std::string_view contextSymbol,
-                                const DescriptorBuilder &descriptor);
+  SymbolNameRef formatContextual(SymbolNameRef contextSymbol,
+                                 const DescriptorBuilder &descriptor);
 
   /// Format an entity which cannot be referenced outside the current file.
-  SymbolString formatLocal(unsigned counter);
+  SymbolNameRef formatLocal(unsigned counter);
 
   // --- Intermediate functions for symbol formatting ---
 
