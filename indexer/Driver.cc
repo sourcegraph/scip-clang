@@ -34,6 +34,7 @@
 #include "spdlog/spdlog.h"
 
 #include "llvm/ADT/StringMap.h"
+#include "llvm/Support/StringSaver.h"
 
 #include "scip/scip.pb.h"
 
@@ -1046,7 +1047,10 @@ private:
 
     absl::flat_hash_set<uint32_t> badJobIds{};
 
-    scip::IndexBuilder builder{};
+    llvm::BumpPtrAllocator allocator;
+    llvm::UniqueStringSaver stringSaver{allocator};
+    scip::SymbolNameInterner interner{stringSaver};
+    scip::IndexBuilder builder{interner};
     // TODO: Measure how much time this is taking and parallelize if too slow.
     for (auto &paths : this->shardPaths) {
       scip::Index indexShard;
