@@ -22,6 +22,10 @@
 #include "indexer/RAII.h"
 #include "indexer/SymbolName.h"
 
+namespace llvm {
+class UniqueStringSaver;
+} // namespace llvm
+
 namespace scip {
 
 std::strong_ordering compareRelationships(const scip::Relationship &lhs,
@@ -88,10 +92,10 @@ class SymbolInformationBuilder final {
 
 public:
   template <typename C1, typename C2>
-  SymbolInformationBuilder(std::string_view name, C1 &&docs, C2 &&rels)
+  SymbolInformationBuilder(SymbolNameRef name, C1 &&docs, C2 &&rels)
       : documentation(), relationships(),
-        _bomb(
-            BOMB_INIT(fmt::format("SymbolInformationBuilder for '{}'", name))) {
+        _bomb(BOMB_INIT(
+            fmt::format("SymbolInformationBuilder for '{}'", name.value))) {
     (void)name;
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
@@ -116,21 +120,31 @@ public:
 };
 
 using SymbolToInfoMap = absl::flat_hash_map<
-    std::string_view,
+    SymbolNameRef,
     llvm::PointerUnion<SymbolInformation *, SymbolInformationBuilder *>>;
+
+class SymbolNameInterner {
+  llvm::UniqueStringSaver &impl;
+
+public:
+  SymbolNameInterner(llvm::UniqueStringSaver &impl) : impl(impl) {}
+
+  SymbolNameRef intern(std::string &&);
+};
 
 class DocumentBuilder final {
   scip::Document soFar;
+  SymbolNameInterner interner;
   scip_clang::Bomb _bomb;
 
   absl::flat_hash_set<OccurrenceExt> occurrences;
 
   // Keyed by the symbol name. The SymbolInformationBuilder value
   // doesn't carry the name to avoid redundant allocations.
-  absl::flat_hash_map<SymbolName, SymbolInformationBuilder> symbolInfos;
+  absl::flat_hash_map<SymbolNameRef, SymbolInformationBuilder> symbolInfos;
 
 public:
-  DocumentBuilder(scip::Document &&document);
+  DocumentBuilder(scip::Document &&document, SymbolNameInterner interner);
   void merge(scip::Document &&doc);
   void populateSymbolToInfoMap(SymbolToInfoMap &);
   void finish(bool deterministic, scip::Document &out);
@@ -153,13 +167,15 @@ class IndexBuilder final {
   // aggregate information across different hashes into a single Document.
   absl::flat_hash_map<RootRelativePath, std::unique_ptr<DocumentBuilder>>
       multiplyIndexed;
-  absl::flat_hash_map<SymbolName, std::unique_ptr<SymbolInformationBuilder>>
+  absl::flat_hash_map<SymbolNameRef, std::unique_ptr<SymbolInformationBuilder>>
       externalSymbols;
+
+  SymbolNameInterner interner;
 
   scip_clang::Bomb _bomb;
 
 public:
-  IndexBuilder();
+  IndexBuilder(SymbolNameInterner interner);
   void addDocument(scip::Document &&doc, bool isMultiplyIndexed);
   void addExternalSymbol(scip::SymbolInformation &&extSym);
 
@@ -171,7 +187,7 @@ public:
   void finish(bool deterministic, std::ostream &);
 
 private:
-  void addExternalSymbolUnchecked(SymbolName &&,
+  void addExternalSymbolUnchecked(SymbolNameRef,
                                   scip::SymbolInformation &&symWithoutName);
 };
 

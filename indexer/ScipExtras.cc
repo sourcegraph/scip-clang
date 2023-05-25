@@ -11,6 +11,7 @@
 #include "perfetto/perfetto.h"
 
 #include "llvm/Support/Path.h"
+#include "llvm/Support/StringSaver.h"
 
 #include "scip/scip.pb.h"
 
@@ -97,9 +98,15 @@ void SymbolInformationBuilder::finish(bool deterministic,
       }));
 }
 
-DocumentBuilder::DocumentBuilder(scip::Document &&first)
-    : soFar(), _bomb(BOMB_INIT(fmt::format("DocumentBuilder for '{}",
-                                           first.relative_path()))) {
+SymbolNameRef SymbolNameInterner::intern(std::string &&s) {
+  return SymbolNameRef{std::string_view(this->impl.save(s))};
+}
+
+DocumentBuilder::DocumentBuilder(scip::Document &&first,
+                                 SymbolNameInterner interner)
+    : soFar(), interner(interner),
+      _bomb(BOMB_INIT(
+          fmt::format("DocumentBuilder for '{}", first.relative_path()))) {
   auto &language = *first.mutable_language();
   this->soFar.set_language(std::move(language));
   auto &relativePath = *first.mutable_relative_path();
@@ -112,7 +119,7 @@ void DocumentBuilder::merge(scip::Document &&doc) {
     this->occurrences.insert({std::move(occ)});
   }
   for (auto &symbolInfo : *doc.mutable_symbols()) {
-    SymbolName name{std::move(*symbolInfo.mutable_symbol())};
+    auto name = this->interner.intern(std::move(*symbolInfo.mutable_symbol()));
     auto it = this->symbolInfos.find(name);
     if (it == this->symbolInfos.end()) {
       // SAFETY: Don't inline this initializer call since lack of
@@ -120,9 +127,9 @@ void DocumentBuilder::merge(scip::Document &&doc) {
       // the std::move(name) may happen before passing name to
       // the initializer.
       SymbolInformationBuilder builder{
-          name.asStringRef(), std::move(*symbolInfo.mutable_documentation()),
+          name, std::move(*symbolInfo.mutable_documentation()),
           std::move(*symbolInfo.mutable_relationships())};
-      this->symbolInfos.emplace(std::move(name), std::move(builder));
+      this->symbolInfos.emplace(name, std::move(builder));
       continue;
     }
     auto &symbolInfoBuilder = it->second;
@@ -138,7 +145,7 @@ void DocumentBuilder::merge(scip::Document &&doc) {
 void DocumentBuilder::populateSymbolToInfoMap(
     SymbolToInfoMap &symbolToInfoMap) {
   for (auto &[symbolName, symbolInfoBuilder] : this->symbolInfos) {
-    symbolToInfoMap.emplace(std::string_view(symbolName.asStringRef()),
+    symbolToInfoMap.emplace(symbolName,
                             SymbolToInfoMap::mapped_type(&symbolInfoBuilder));
   }
 }
@@ -157,10 +164,10 @@ void DocumentBuilder::finish(bool deterministic, scip::Document &out) {
 
   scip_clang::extractTransform(
       std::move(this->symbolInfos), deterministic,
-      absl::FunctionRef<void(SymbolName &&, SymbolInformationBuilder &&)>(
+      absl::FunctionRef<void(SymbolNameRef &&, SymbolInformationBuilder &&)>(
           [&](auto &&name, auto &&builder) {
             scip::SymbolInformation symbolInfo{};
-            symbolInfo.set_symbol(std::move(name.asStringRefMut()));
+            symbolInfo.set_symbol(name.value.data(), name.value.size());
             builder.finish(deterministic, symbolInfo);
             *this->soFar.add_symbols() = std::move(symbolInfo);
           }));
@@ -173,8 +180,9 @@ RootRelativePath::RootRelativePath(std::string &&value)
   ENFORCE(llvm::sys::path::is_relative(this->value));
 }
 
-IndexBuilder::IndexBuilder()
-    : multiplyIndexed(), externalSymbols(), _bomb(BOMB_INIT("IndexBuilder")) {}
+IndexBuilder::IndexBuilder(SymbolNameInterner interner)
+    : multiplyIndexed(), externalSymbols(), interner(interner),
+      _bomb(BOMB_INIT("IndexBuilder")) {}
 
 void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
   ENFORCE(!doc.relative_path().empty());
@@ -184,7 +192,7 @@ void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
     if (it == this->multiplyIndexed.end()) {
       this->multiplyIndexed.insert(
           {std::move(docPath),
-           std::make_unique<DocumentBuilder>(std::move(doc))});
+           std::make_unique<DocumentBuilder>(std::move(doc), this->interner)});
     } else {
       auto &docBuilder = it->second;
       docBuilder->merge(std::move(doc));
@@ -200,7 +208,7 @@ void IndexBuilder::addDocument(scip::Document &&doc, bool isMultiplyIndexed) {
 }
 
 void IndexBuilder::addExternalSymbolUnchecked(
-    SymbolName &&name, scip::SymbolInformation &&extSym) {
+    SymbolNameRef name, scip::SymbolInformation &&extSym) {
   std::vector<std::string> docs{};
   absl::c_move(*extSym.mutable_documentation(), std::back_inserter(docs));
   absl::flat_hash_set<RelationshipExt> rels{};
@@ -211,16 +219,16 @@ void IndexBuilder::addExternalSymbolUnchecked(
   // guarantees around subexpression evaluation order mean that
   // the std::move(name) may happen before name.asStringRef() is called.
   auto builder = std::make_unique<SymbolInformationBuilder>(
-      name.asStringRef(), std::move(docs), std::move(rels));
-  this->externalSymbols.emplace(std::move(name), std::move(builder));
+      name, std::move(docs), std::move(rels));
+  this->externalSymbols.emplace(name, std::move(builder));
   return;
 }
 
 void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
-  SymbolName name{std::move(*extSym.mutable_symbol())};
+  auto name = this->interner.intern(std::move(*extSym.mutable_symbol()));
   auto it = this->externalSymbols.find(name);
   if (it == this->externalSymbols.end()) {
-    this->addExternalSymbolUnchecked(std::move(name), std::move(extSym));
+    this->addExternalSymbolUnchecked(name, std::move(extSym));
     return;
   }
   // NOTE(def: precondition-deterministic-ext-symbol-docs)
@@ -241,8 +249,7 @@ std::unique_ptr<SymbolToInfoMap> IndexBuilder::populateSymbolToInfoMap() {
   SymbolToInfoMap symbolToInfoMap;
   for (auto &document : this->documents) {
     for (auto &symbolInfo : *document.mutable_symbols()) {
-      auto symbolName = std::string_view(symbolInfo.symbol());
-      symbolToInfoMap.emplace(symbolName,
+      symbolToInfoMap.emplace(SymbolNameRef{symbolInfo.symbol()},
                               SymbolToInfoMap::mapped_type(&symbolInfo));
     }
   }
@@ -255,8 +262,9 @@ std::unique_ptr<SymbolToInfoMap> IndexBuilder::populateSymbolToInfoMap() {
 void IndexBuilder::addForwardDeclaration(
     const SymbolToInfoMap &symbolToInfoMap,
     scip::SymbolInformation &&forwardDeclSym) {
-  SymbolName name{std::move(*forwardDeclSym.mutable_symbol())};
-  auto it = symbolToInfoMap.find(name.asStringRef());
+  auto name =
+      this->interner.intern(std::move(*forwardDeclSym.mutable_symbol()));
+  auto it = symbolToInfoMap.find(name);
   if (it == symbolToInfoMap.end()) {
     if (!this->externalSymbols.contains(name)) {
       this->addExternalSymbolUnchecked(std::move(name),
@@ -353,11 +361,11 @@ void IndexBuilder::finish(bool deterministic, std::ostream &outputStream) {
           }));
   scip_clang::extractTransform(
       std::move(this->externalSymbols), deterministic,
-      absl::FunctionRef<void(SymbolName &&,
+      absl::FunctionRef<void(SymbolNameRef &&,
                              std::unique_ptr<SymbolInformationBuilder> &&)>(
           [&](auto &&name, auto &&builder) -> void {
             scip::SymbolInformation extSym{};
-            extSym.set_symbol(std::move(name.asStringRefMut()));
+            extSym.set_symbol(name.value.data(), name.value.size());
             builder->finish(deterministic, extSym);
             writer.writeExternalSymbol(std::move(extSym));
           }));
