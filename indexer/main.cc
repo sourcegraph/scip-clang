@@ -50,6 +50,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "One of 'debug', 'info', 'warning' or 'error'",
     cxxopts::value<std::string>()->default_value("info"));
   parser.add_options(defaultGroup)(
+    "package-map-path",
+    "Path to use for path->package mappings in JSON format.",
+    cxxopts::value<std::string>(cliOptions.packageMapPath));
+  parser.add_options(defaultGroup)(
     "show-compiler-diagnostics",
     "Show Clang diagnostics triggered when running semantic analysis."
     " Useful for debugging issues related to missing headers.",

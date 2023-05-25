@@ -85,7 +85,8 @@ bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
   ENFORCE(!absPathRef.asStringView().empty(),
           "inserting file with empty absolute path");
 
-  std::optional<PackageMetadata> optPackageMetadata = std::nullopt;
+  auto optPackageMetadata = this->packageMap.lookup(absPathRef);
+
   auto insertRelPath = [&](RootRelativePathRef relPathRef,
                            bool isInProject) -> bool {
     ENFORCE(!relPathRef.asStringView().empty(),

@@ -12,6 +12,7 @@
 #include "indexer/FileMetadata.h"
 #include "indexer/Hash.h"
 #include "indexer/LlvmAdapter.h"
+#include "indexer/PackageMap.h"
 #include "indexer/Path.h"
 
 namespace scip_clang {
@@ -78,11 +79,14 @@ class FileMetadataMap final {
 
   const RootPath &buildRootPath;
 
+  PackageMap &packageMap;
+
 public:
   FileMetadataMap() = delete;
   FileMetadataMap(const RootPath &projectRootPath,
-                  const RootPath &buildRootPath)
-      : map(), projectRootPath(projectRootPath), buildRootPath(buildRootPath) {}
+                  const RootPath &buildRootPath, PackageMap &packageMap)
+      : map(), projectRootPath(projectRootPath), buildRootPath(buildRootPath),
+        packageMap(packageMap) {}
   FileMetadataMap(FileMetadataMap &&other) = default;
   FileMetadataMap &operator=(FileMetadataMap &&) = delete;
   FileMetadataMap(const FileMetadataMap &) = delete;
