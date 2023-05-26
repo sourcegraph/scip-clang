@@ -53,6 +53,7 @@ class Type;
 
 namespace scip {
 class Document;
+class ForwardDeclIndex;
 class Index;
 class Occurrence;
 class SymbolInformation;
@@ -88,7 +89,14 @@ struct FileLocalSourceRange {
   static FileLocalSourceRange makeEmpty(const clang::SourceManager &,
                                         clang::SourceLocation);
 
-  void addToOccurrence(scip::Occurrence &occ) const;
+  template <typename MessageT> void addTo(MessageT &occ) const {
+    occ.add_range(this->startLine - 1);
+    occ.add_range(this->startColumn - 1);
+    if (this->startLine != this->endLine) {
+      occ.add_range(this->endLine - 1);
+    }
+    occ.add_range(this->endColumn - 1);
+  }
 
   std::string debugToString() const;
 };
@@ -232,7 +240,7 @@ class DocComment {
   std::string contents;
 
 public:
-  DocComment() = default;
+  DocComment() : contents(scip::missingDocumentationPlaceholder) {}
   explicit DocComment(std::string &&contents) : contents(std::move(contents)) {}
   DocComment(DocComment &&) = default;
   DocComment &operator=(DocComment &&) = default;
@@ -240,7 +248,42 @@ public:
   DocComment &operator=(const DocComment &) = delete;
 
   void replaceIfEmpty(DocComment &&);
+  void addTo(std::string &slot);
   void addTo(scip::SymbolInformation &);
+};
+
+struct RefersToForwardDecl {
+  bool value;
+
+  constexpr RefersToForwardDecl(bool value) : value(value) {}
+
+  RefersToForwardDecl(const clang::Decl &);
+};
+
+static constexpr RefersToForwardDecl NotForwardDecl =
+    RefersToForwardDecl{false};
+static constexpr RefersToForwardDecl IsForwardDecl = RefersToForwardDecl{true};
+
+class FileMetadataMap;
+
+class ForwardDeclMap final {
+  struct Value {
+    DocComment docComment;
+    // It is OK for this to be a vector instead of a set as the header
+    // skipping optimization would prevent occurrences for the same
+    // header being emitted multiple times.
+    std::vector<std::pair<RootRelativePathRef, FileLocalSourceRange>> ranges;
+  };
+  absl::flat_hash_map<SymbolNameRef, Value> map;
+
+public:
+  ForwardDeclMap() = default;
+
+  void insert(SymbolNameRef symbol, DocComment &&,
+              RootRelativePathRef projectFilePath,
+              FileLocalSourceRange occRange);
+
+  void emit(bool deterministic, scip::ForwardDeclIndex &);
 };
 
 class TuIndexer final {
@@ -256,7 +299,7 @@ class TuIndexer final {
 
   absl::flat_hash_map<SymbolNameRef, scip::SymbolInformation> externalSymbols;
 
-  absl::flat_hash_map<SymbolNameRef, DocComment> forwardDeclarations;
+  ForwardDeclMap forwardDeclarations;
 
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
@@ -301,7 +344,7 @@ public:
                                          scip::Document &);
 
   void emitExternalSymbols(bool deterministic, scip::Index &);
-  void emitForwardDeclarations(bool deterministic, scip::Index &);
+  void emitForwardDeclarations(bool deterministic, scip::ForwardDeclIndex &);
 
 private:
   std::pair<FileLocalSourceRange, clang::FileID>
@@ -314,7 +357,7 @@ private:
                               DocComment &&);
 
   void saveReference(SymbolNameRef symbol, clang::SourceLocation loc,
-                     int32_t extraRoles = 0);
+                     RefersToForwardDecl, int32_t extraRoles = 0);
 
   /// Helper method for recording a \c scip::Occurrence and a
   /// \c scip::SymbolInformation for a definition.

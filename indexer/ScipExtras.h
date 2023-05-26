@@ -1,6 +1,7 @@
 #ifndef SCIP_CLANG_SCIP_EXTRAS_H
 #define SCIP_CLANG_SCIP_EXTRAS_H
 
+#include <array>
 #include <compare>
 #include <iterator>
 #include <memory>
@@ -161,6 +162,27 @@ public:
   DERIVE_HASH_CMP_NEWTYPE(RootRelativePath, value, CMP_STR)
 };
 
+class ForwardDecl;
+
+class ForwardDeclOccurrence final {
+  SymbolNameRef symbol;
+  std::array<int32_t, 4> range;
+
+public:
+  template <typename MessageT>
+  ForwardDeclOccurrence(SymbolNameRef symbol, MessageT &ref) : symbol(symbol) {
+    ENFORCE(ref.range_size() == 3 || ref.range_size() == 4);
+    this->range.fill(-1);
+    for (int i = 0; i < ref.range_size(); ++i) {
+      this->range[i] = ref.range()[i];
+    }
+  }
+  void addTo(scip::Occurrence &);
+};
+
+using ForwardDeclOccurrenceMap =
+    absl::flat_hash_map</*relative path*/ std::string_view,
+                        std::vector<ForwardDeclOccurrence>>;
 class IndexBuilder final {
   std::vector<scip::Document> documents;
   // The key is deliberately the path only, not the path+hash, so that we can
@@ -169,6 +191,8 @@ class IndexBuilder final {
       multiplyIndexed;
   absl::flat_hash_map<SymbolNameRef, std::unique_ptr<SymbolInformationBuilder>>
       externalSymbols;
+
+  ForwardDeclOccurrenceMap forwardDeclOccurenceMap;
 
   SymbolNameInterner interner;
 
@@ -181,14 +205,15 @@ public:
 
   // The map contains interior references into IndexBuilder's state.
   std::unique_ptr<SymbolToInfoMap> populateSymbolToInfoMap();
-  void addForwardDeclaration(const SymbolToInfoMap &,
-                             scip::SymbolInformation &&forwardDeclSym);
+  void addForwardDeclaration(const SymbolToInfoMap &, scip::ForwardDecl &&);
 
   void finish(bool deterministic, std::ostream &);
 
 private:
   void addExternalSymbolUnchecked(SymbolNameRef,
                                   scip::SymbolInformation &&symWithoutName);
+
+  void addForwardDeclOccurrences(SymbolNameRef, scip::ForwardDecl &&);
 };
 
 } // namespace scip

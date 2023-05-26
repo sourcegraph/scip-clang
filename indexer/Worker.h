@@ -22,9 +22,9 @@
 #include "indexer/Path.h"
 #include "indexer/Preprocessing.h"
 
-namespace scip {
-class Index;
-}
+namespace google::protobuf {
+class Message;
+} // namespace google::protobuf
 
 namespace scip_clang {
 
@@ -111,7 +111,8 @@ private:
 
   ReceiveStatus
   processTranslationUnitAndRespond(IndexJobRequest &&semanticAnalysisRequest);
-  void emitIndex(scip::Index &&scipIndex, const StdPath &outputPath);
+  void emitIndex(google::protobuf::Message &&scipIndex,
+                 const StdPath &outputPath);
 
   ReceiveStatus processRequest(IndexJobRequest &&, IndexJobResult &);
   void triggerFaultIfApplicable() const;

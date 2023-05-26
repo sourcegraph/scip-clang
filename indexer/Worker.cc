@@ -237,7 +237,8 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
   }
 }
 
-void Worker::emitIndex(scip::Index &&scipIndex, const StdPath &outputPath) {
+void Worker::emitIndex(google::protobuf::Message &&message,
+                       const StdPath &outputPath) {
   std::ofstream outputStream(outputPath, std::ios_base::out
                                              | std::ios_base::binary
                                              | std::ios_base::trunc);
@@ -246,7 +247,7 @@ void Worker::emitIndex(scip::Index &&scipIndex, const StdPath &outputPath) {
                  outputPath.c_str(), std::strerror(errno));
     std::exit(EXIT_FAILURE);
   }
-  scipIndex.SerializeToOstream(&outputStream);
+  message.SerializeToOstream(&outputStream);
 }
 
 void Worker::sendResult(JobId requestId, IndexJobResult &&result) {

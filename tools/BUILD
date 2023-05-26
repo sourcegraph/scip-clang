@@ -11,6 +11,7 @@ compilation_database(
     testonly = True,
     output_base = OUTPUT_BASE,
     targets = [
+        "//proto:fwd_decls",
         "//indexer/os",
         "//indexer:scip-clang",
         "//indexer:scip-clang-lib",

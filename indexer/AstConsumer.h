@@ -8,6 +8,7 @@
 #include "clang/Sema/SemaConsumer.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "proto/fwd_decls.pb.h"
 #include "scip/scip.pb.h"
 
 #include "indexer/IpcMessages.h"
@@ -59,7 +60,7 @@ struct TuIndexingOutput {
   scip::Index docsAndExternals;
   /// Index storing information about forward declarations.
   /// Only the external_symbols list is populated.
-  scip::Index forwardDecls;
+  scip::ForwardDeclIndex forwardDecls;
 
   TuIndexingOutput() = default;
   TuIndexingOutput(const TuIndexingOutput &) = delete;

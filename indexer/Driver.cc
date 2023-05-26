@@ -36,6 +36,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/StringSaver.h"
 
+#include "proto/fwd_decls.pb.h"
 #include "scip/scip.pb.h"
 
 #include "indexer/CliOptions.h"
@@ -1028,7 +1029,7 @@ private:
     // a dependency on a library with a concurrent hash table.
 
     auto readIndexShard = [](const AbsolutePath &path,
-                             scip::Index &indexShard) -> bool {
+                             auto &indexShard) -> bool {
       TRACE_EVENT(tracing::indexIo, "(lambda readIndexShard)");
       auto &shardPath = path.asStringRef();
       std::ifstream inputStream(shardPath,
@@ -1089,13 +1090,13 @@ private:
     auto symbolToInfoMap = builder.populateSymbolToInfoMap();
 
     for (auto &paths : this->shardPaths) {
-      scip::Index indexShard;
+      scip::ForwardDeclIndex indexShard;
       if (!readIndexShard(paths.forwardDecls, indexShard)) {
         continue;
       }
       TRACE_EVENT(tracing::indexMerging, "addForwardDeclarations", "size",
-                  indexShard.external_symbols_size());
-      for (auto &forwardDeclSym : *indexShard.mutable_external_symbols()) {
+                  indexShard.forward_decls_size());
+      for (auto &forwardDeclSym : *indexShard.mutable_forward_decls()) {
         builder.addForwardDeclaration(*symbolToInfoMap,
                                       std::move(forwardDeclSym));
       }
