@@ -22,16 +22,16 @@ class IndexerAstVisitor : public clang::RecursiveASTVisitor<IndexerAstVisitor> {
   using Base = RecursiveASTVisitor;
 
   const FileMetadataMap &fileMetadataMap;
-  FileIdsToBeIndexedSet toBeIndexed;
+  const FileIdsToBeIndexedSet &toBeIndexed;
   bool deterministic;
 
   TuIndexer &tuIndexer;
 
 public:
   IndexerAstVisitor(const FileMetadataMap &fileMetadataMap,
-                    FileIdsToBeIndexedSet &&toBeIndexed, bool deterministic,
-                    TuIndexer &tuIndexer)
-      : fileMetadataMap(fileMetadataMap), toBeIndexed(std::move(toBeIndexed)),
+                    const FileIdsToBeIndexedSet &toBeIndexed,
+                    bool deterministic, TuIndexer &tuIndexer)
+      : fileMetadataMap(fileMetadataMap), toBeIndexed(toBeIndexed),
         deterministic(deterministic), tuIndexer(tuIndexer) {}
 
   // See clang/include/clang/Basic/DeclNodes.td for list of declarations.
@@ -198,15 +198,17 @@ void IndexerAstConsumer::HandleTranslationUnit(clang::ASTContext &astContext) {
                                   clangIdLookupMap, fileMetadataMap,
                                   toBeIndexed);
 
+  toBeIndexed.insert({astContext.getSourceManager().getMainFileID()});
+
   SymbolFormatter symbolFormatter{sourceManager, fileMetadataMap};
-  TuIndexer tuIndexer{sourceManager, this->sema->getLangOpts(),
-                      this->sema->getASTContext(), symbolFormatter,
-                      fileMetadataMap};
+  TuIndexer tuIndexer{
+      sourceManager, this->sema->getLangOpts(), this->sema->getASTContext(),
+      toBeIndexed,   symbolFormatter,           fileMetadataMap};
 
   this->saveIncludeReferences(toBeIndexed, macroIndexer, clangIdLookupMap,
                               fileMetadataMap, tuIndexer);
 
-  IndexerAstVisitor visitor{fileMetadataMap, std::move(toBeIndexed),
+  IndexerAstVisitor visitor{fileMetadataMap, toBeIndexed,
                             this->options.deterministic, tuIndexer};
   visitor.TraverseAST(astContext);
 

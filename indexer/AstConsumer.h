@@ -43,17 +43,6 @@ struct IndexerAstConsumerOptions {
   bool deterministic;
 };
 
-/// Type to track which files should be indexed.
-///
-/// For files that do not belong to this project; their symbols should be
-/// tracked in external symbols instead of creating a \c scip::Document.
-///
-/// Not every file that is part of this project will be part of this map.
-/// For example, if a file+hash was already indexed by another worker,
-/// then one shouldn't call insert(..) for that file.
-using FileIdsToBeIndexedSet =
-    absl::flat_hash_set<llvm_ext::AbslHashAdapter<clang::FileID>>;
-
 struct TuIndexingOutput {
   /// Index storing per-document output and external symbols
   /// for symbols that have definitions.
@@ -86,6 +75,9 @@ public:
   virtual void ForgetSema() override;
 
 private:
+  using FileIdsToBeIndexedSet =
+      absl::flat_hash_set<llvm_ext::AbslHashAdapter<clang::FileID>>;
+
   void computeFileIdsToBeIndexed(const clang::ASTContext &astContext,
                                  const EmitIndexJobDetails &emitIndexDetails,
                                  const ClangIdLookupMap &clangIdLookupMap,

@@ -372,12 +372,13 @@ void ForwardDeclMap::emit(bool deterministic, scip::ForwardDeclIndex &index) {
 TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      const clang::LangOptions &langOptions,
                      const clang::ASTContext &astContext,
+                     const FileIdsToBeIndexedSet &fileIdsToBeIndexed,
                      SymbolFormatter &symbolFormatter,
                      FileMetadataMap &fileMetadataMap)
     : sourceManager(sourceManager), langOptions(langOptions),
-      astContext(astContext), symbolFormatter(symbolFormatter),
-      approximateNameResolver(astContext), documentMap(),
-      fileMetadataMap(fileMetadataMap), externalSymbols(),
+      astContext(astContext), fileIdsToBeIndexed(fileIdsToBeIndexed),
+      symbolFormatter(symbolFormatter), approximateNameResolver(astContext),
+      documentMap(), fileMetadataMap(fileMetadataMap), externalSymbols(),
       forwardDeclarations() {}
 
 void TuIndexer::saveSyntheticFileDefinition(clang::FileID fileId,
@@ -427,6 +428,9 @@ void TuIndexer::saveInclude(clang::SourceRange sourceRange,
   // ranges in macro expansions, directly call saveOccurrenceImpl.
   auto [range, fileId] =
       FileLocalSourceRange::fromNonEmpty(this->sourceManager, sourceRange);
+  if (!this->fileIdsToBeIndexed.contains({fileId})) {
+    return;
+  }
   this->saveOccurrenceImpl(symbol, range, fileId, 0);
 }
 
@@ -1032,6 +1036,9 @@ void TuIndexer::saveForwardDeclaration(SymbolNameRef symbol,
                                        DocComment &&docComment) {
   auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
   auto [range, fileId] = this->getTokenExpansionRange(expansionLoc);
+  if (!this->fileIdsToBeIndexed.contains({fileId})) {
+    return;
+  }
   auto optStableFileId = this->fileMetadataMap.getStableFileId(fileId);
   if (!optStableFileId.has_value() || !optStableFileId->isInProject) {
     return;
@@ -1044,6 +1051,9 @@ void TuIndexer::saveReference(SymbolNameRef symbol, clang::SourceLocation loc,
                               RefersToForwardDecl fwdDecl, int32_t extraRoles) {
   auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
   auto fileId = this->sourceManager.getFileID(expansionLoc);
+  if (!this->fileIdsToBeIndexed.contains({fileId})) {
+    return;
+  }
   auto optStableFileId = this->fileMetadataMap.getStableFileId(fileId);
   if (!optStableFileId.has_value() || !optStableFileId->isInProject) {
     return;
@@ -1065,6 +1075,9 @@ void TuIndexer::saveDefinition(
     int32_t extraRoles) {
   auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
   auto fileId = this->sourceManager.getFileID(expansionLoc);
+  if (!this->fileIdsToBeIndexed.contains({fileId})) {
+    return;
+  }
   auto optStableFileId = this->fileMetadataMap.getStableFileId(fileId);
   if (!optStableFileId.has_value()) {
     return;
