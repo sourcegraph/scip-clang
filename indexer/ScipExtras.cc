@@ -13,12 +13,14 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/StringSaver.h"
 
+#include "proto/fwd_decls.pb.h"
 #include "scip/scip.pb.h"
 
 #include "indexer/AbslExtras.h"
 #include "indexer/Comparison.h"
 #include "indexer/Enforce.h"
 #include "indexer/ScipExtras.h"
+#include "indexer/SymbolName.h"
 #include "indexer/Tracing.h"
 
 namespace scip {
@@ -180,6 +182,14 @@ RootRelativePath::RootRelativePath(std::string &&value)
   ENFORCE(llvm::sys::path::is_relative(this->value));
 }
 
+void ForwardDeclOccurrence::addTo(scip::Occurrence &occ) {
+  auto sym = this->symbol.value;
+  occ.set_symbol(sym.data(), sym.size());
+  for (size_t i = 0; i < 4 && this->range[i] != -1; ++i) {
+    occ.add_range(this->range[i]);
+  }
+}
+
 IndexBuilder::IndexBuilder(SymbolNameInterner interner)
     : multiplyIndexed(), externalSymbols(), interner(interner),
       _bomb(BOMB_INIT("IndexBuilder")) {}
@@ -259,26 +269,33 @@ std::unique_ptr<SymbolToInfoMap> IndexBuilder::populateSymbolToInfoMap() {
   return std::make_unique<SymbolToInfoMap>(std::move(symbolToInfoMap));
 }
 
-void IndexBuilder::addForwardDeclaration(
-    const SymbolToInfoMap &symbolToInfoMap,
-    scip::SymbolInformation &&forwardDeclSym) {
+void IndexBuilder::addForwardDeclaration(const SymbolToInfoMap &symbolToInfoMap,
+                                         scip::ForwardDecl &&forwardDeclSym) {
   auto name =
       this->interner.intern(std::move(*forwardDeclSym.mutable_symbol()));
   auto it = symbolToInfoMap.find(name);
   if (it == symbolToInfoMap.end()) {
     if (!this->externalSymbols.contains(name)) {
-      this->addExternalSymbolUnchecked(std::move(name),
-                                       std::move(forwardDeclSym));
+      scip::SymbolInformation extSym{};
+      *extSym.add_documentation() = std::move(forwardDeclSym.documentation());
+      this->addExternalSymbolUnchecked(name, std::move(extSym));
     } else {
       // The main index confirms that this was an external symbol, which means
       // that we must have seen the definition in an out-of-project file.
       // In this case, just throw away the information we have,
       // and rely on what we found externally as the source of truth.
     }
+    this->addForwardDeclOccurrences(name, std::move(forwardDeclSym));
     return;
   }
   auto extIt = this->externalSymbols.find(name);
   if (extIt != this->externalSymbols.end()) {
+    // We found the symbol in a document, so the external symbols list is
+    // too pessimistic. This can happen when a TU processes a decl only via
+    // a forward decl (and hence conservatively assumes it must be external),
+    // but another in-project TU contains the definition.
+    //
+    // So remove the entry from the external symbols list.
     extIt->second->discard();
     this->externalSymbols.erase(extIt);
   }
@@ -295,31 +312,61 @@ void IndexBuilder::addForwardDeclaration(
                      == scip::missingDocumentationPlaceholder);
       if (isMissingDocumentation) {
         symbolInfo->mutable_documentation()->Clear();
-        for (auto &doc : *forwardDeclSym.mutable_documentation()) {
-          *symbolInfo->add_documentation() = std::move(doc);
-        }
+        *symbolInfo->add_documentation() =
+            std::move(*forwardDeclSym.mutable_documentation());
       }
     } else {
       auto &symbolInfoBuilder = *it->second.get<SymbolInformationBuilder *>();
       // FIXME(def: better-doc-merging): We shouldn't drop
       // documentation attached to a forward declaration.
       if (!symbolInfoBuilder.hasDocumentation()) {
-        symbolInfoBuilder.setDocumentation(
-            std::move(*forwardDeclSym.mutable_documentation()));
+        llvm::SmallVector<std::string, 1> docs;
+        docs.emplace_back(std::move(*forwardDeclSym.mutable_documentation()));
+        symbolInfoBuilder.setDocumentation(std::move(docs));
       }
     }
+  }
+  this->addForwardDeclOccurrences(name, std::move(forwardDeclSym));
+}
+
+void IndexBuilder::addForwardDeclOccurrences(SymbolNameRef name,
+                                             scip::ForwardDecl &&forwardDecl) {
+  for (auto &ref : *forwardDecl.mutable_references()) {
+    auto path =
+        this->interner.intern(std::move(*ref.mutable_relative_path())).value;
+    // deliberate default initialization
+    this->forwardDeclOccurenceMap[path].emplace_back(
+        ForwardDeclOccurrence{name, ref});
   }
 }
 
 struct IndexWriter {
   scip::Index index;
+  ForwardDeclOccurrenceMap forwardDeclOccurenceMap;
   std::ostream &outputStream;
 
   ~IndexWriter() {
     this->write();
   }
 
-  void writeDocument(scip::Document &&doc) {
+  void writeDocument(scip::Document &&doc, bool deterministic) {
+    auto path = std::string_view(doc.relative_path());
+    auto it = this->forwardDeclOccurenceMap.find(path);
+    if (it != this->forwardDeclOccurenceMap.end()) {
+      for (auto fwdDeclOcc : it->second) {
+        scip::Occurrence occ;
+        fwdDeclOcc.addTo(occ);
+        *doc.add_occurrences() = std::move(occ);
+      }
+      if (deterministic) {
+        absl::c_sort(*doc.mutable_occurrences(),
+                     [](const scip::Occurrence &lhs,
+                        const scip::Occurrence &rhs) -> bool {
+                       return scip::compareOccurrences(lhs, rhs)
+                              == std::strong_ordering::less;
+                     });
+      }
+    }
     *this->index.add_documents() = std::move(doc);
     this->write();
   }
@@ -345,10 +392,11 @@ void IndexBuilder::finish(bool deterministic, std::ostream &outputStream) {
               this->multiplyIndexed.size(), "externalSymbols.size",
               this->externalSymbols.size());
   this->_bomb.defuse();
-  IndexWriter writer{scip::Index{}, outputStream};
+  IndexWriter writer{scip::Index{}, std::move(this->forwardDeclOccurenceMap),
+                     outputStream};
 
   for (auto &doc : this->documents) {
-    writer.writeDocument(std::move(doc));
+    writer.writeDocument(std::move(doc), deterministic);
   }
   scip_clang::extractTransform(
       std::move(this->multiplyIndexed), deterministic,
@@ -357,7 +405,7 @@ void IndexBuilder::finish(bool deterministic, std::ostream &outputStream) {
           [&](auto && /*path*/, auto &&builder) -> void {
             scip::Document doc{};
             builder->finish(deterministic, doc);
-            writer.writeDocument(std::move(doc));
+            writer.writeDocument(std::move(doc), deterministic);
           }));
   scip_clang::extractTransform(
       std::move(this->externalSymbols), deterministic,

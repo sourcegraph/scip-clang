@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package scip;
+
+message ForwardDeclIndex {
+  repeated ForwardDecl forward_decls = 1;
+}
+
+message ForwardDecl {
+  string symbol = 1;
+  string documentation = 2;
+  repeated Reference references = 3;
+
+  message Reference {
+    repeated int32 range = 1;
+    string relative_path = 2;
+  }
+}

@@ -12,6 +12,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//indexer/os",
+        "//proto:fwd_decls",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/algorithm:container",
