@@ -92,11 +92,14 @@ class SymbolInformationBuilder final {
   scip_clang::Bomb _bomb;
 
 public:
+  SymbolNameRef name;
+
   template <typename C1, typename C2>
   SymbolInformationBuilder(SymbolNameRef name, C1 &&docs, C2 &&rels)
       : documentation(), relationships(),
         _bomb(BOMB_INIT(
-            fmt::format("SymbolInformationBuilder for '{}'", name.value))) {
+            fmt::format("SymbolInformationBuilder for '{}'", name.value))),
+        name(name) {
     (void)name;
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
@@ -120,9 +123,28 @@ public:
   void finish(bool deterministic, scip::SymbolInformation &out);
 };
 
-using SymbolToInfoMap = absl::flat_hash_map<
-    SymbolNameRef,
-    llvm::PointerUnion<SymbolInformation *, SymbolInformationBuilder *>>;
+class ForwardDeclResolver {
+  using SymbolInfoOrBuilderPtr =
+      llvm::PointerUnion<SymbolInformation *, SymbolInformationBuilder *>;
+
+  absl::flat_hash_map<SymbolSuffix, SymbolInfoOrBuilderPtr> docInternalMap;
+
+  absl::flat_hash_map<SymbolSuffix, absl::flat_hash_set<SymbolNameRef>>
+      externalsMap;
+
+public:
+  ForwardDeclResolver() = default;
+
+  void insert(SymbolSuffix, SymbolInformationBuilder *);
+  void insert(SymbolSuffix, SymbolInformation *);
+  void insertExternal(SymbolNameRef);
+
+  std::optional<SymbolInfoOrBuilderPtr> lookupInDocuments(SymbolSuffix) const;
+
+  const absl::flat_hash_set<SymbolNameRef> *lookupExternals(SymbolSuffix) const;
+
+  void deleteExternals(SymbolSuffix);
+};
 
 class SymbolNameInterner {
   llvm::UniqueStringSaver &impl;
@@ -131,6 +153,7 @@ public:
   SymbolNameInterner(llvm::UniqueStringSaver &impl) : impl(impl) {}
 
   SymbolNameRef intern(std::string &&);
+  SymbolNameRef intern(SymbolNameRef);
 };
 
 class DocumentBuilder final {
@@ -147,7 +170,7 @@ class DocumentBuilder final {
 public:
   DocumentBuilder(scip::Document &&document, SymbolNameInterner interner);
   void merge(scip::Document &&doc);
-  void populateSymbolToInfoMap(SymbolToInfoMap &);
+  void populateForwardDeclResolver(ForwardDeclResolver &);
   void finish(bool deterministic, scip::Document &out);
 };
 
@@ -204,8 +227,8 @@ public:
   void addExternalSymbol(scip::SymbolInformation &&extSym);
 
   // The map contains interior references into IndexBuilder's state.
-  std::unique_ptr<SymbolToInfoMap> populateSymbolToInfoMap();
-  void addForwardDeclaration(const SymbolToInfoMap &, scip::ForwardDecl &&);
+  std::unique_ptr<ForwardDeclResolver> populateForwardDeclResolver();
+  void addForwardDeclaration(ForwardDeclResolver &, scip::ForwardDecl &&);
 
   void finish(bool deterministic, std::ostream &);
 

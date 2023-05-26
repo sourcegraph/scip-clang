@@ -7,7 +7,7 @@ message ForwardDeclIndex {
 }
 
 message ForwardDecl {
-  string symbol = 1;
+  string suffix = 1;
   string documentation = 2;
   repeated Reference references = 3;
 

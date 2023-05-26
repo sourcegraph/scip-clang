@@ -1087,7 +1087,7 @@ private:
           this->options.compdbPath.asStringRef());
     }
 
-    auto symbolToInfoMap = builder.populateSymbolToInfoMap();
+    auto forwardDeclResolver = builder.populateForwardDeclResolver();
 
     for (auto &paths : this->shardPaths) {
       scip::ForwardDeclIndex indexShard;
@@ -1097,7 +1097,7 @@ private:
       TRACE_EVENT(tracing::indexMerging, "addForwardDeclarations", "size",
                   indexShard.forward_decls_size());
       for (auto &forwardDeclSym : *indexShard.mutable_forward_decls()) {
-        builder.addForwardDeclaration(*symbolToInfoMap,
+        builder.addForwardDeclaration(*forwardDeclResolver,
                                       std::move(forwardDeclSym));
       }
     }
