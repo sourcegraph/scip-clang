@@ -286,10 +286,22 @@ public:
   void emit(bool deterministic, scip::ForwardDeclIndex &);
 };
 
+/// Type to track which files should be indexed.
+///
+/// For files that do not belong to this project; their symbols should be
+/// tracked in external symbols instead of creating a \c scip::Document.
+///
+/// Not every file that is part of this project will be part of this map.
+/// For example, if a file+hash was already indexed by another worker,
+/// then one shouldn't call insert(..) for that file.
+using FileIdsToBeIndexedSet =
+    absl::flat_hash_set<llvm_ext::AbslHashAdapter<clang::FileID>>;
+
 class TuIndexer final {
   const clang::SourceManager &sourceManager;
   const clang::LangOptions &langOptions;
   [[maybe_unused]] const clang::ASTContext &astContext;
+  const FileIdsToBeIndexedSet &fileIdsToBeIndexed;
   SymbolFormatter &symbolFormatter;
   ApproximateNameResolver approximateNameResolver;
 
@@ -303,7 +315,8 @@ class TuIndexer final {
 
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
-            const clang::ASTContext &, SymbolFormatter &, FileMetadataMap &);
+            const clang::ASTContext &, const FileIdsToBeIndexedSet &,
+            SymbolFormatter &, FileMetadataMap &);
 
   /// Emit a fake 'definition' for a file, which can be used as a target
   /// of Go to definition from #include, as well as the source for
