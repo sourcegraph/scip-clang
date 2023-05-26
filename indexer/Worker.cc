@@ -130,7 +130,7 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
 
 Worker::Worker(WorkerOptions &&options)
     : options(std::move(options)),
-      packageMap(this->options.packageMapPath,
+      packageMap(this->options.projectRootPath, this->options.packageMapPath,
                  this->options.mode == WorkerMode::Testing),
       messageQueues(), compileCommands(), commandIndex(0), recorder(),
       statistics() {

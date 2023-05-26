@@ -1,0 +1,4 @@
+[
+  {"path": ".", "package": "main@v0"},
+  {"path": "external/dep1", "package": "dep1@v1"}
+]

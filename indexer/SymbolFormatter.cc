@@ -21,6 +21,7 @@
 #include "indexer/Hash.h"
 #include "indexer/IdPathMappings.h"
 #include "indexer/LlvmAdapter.h"
+#include "indexer/Path.h"
 #include "indexer/SymbolFormatter.h"
 #include "indexer/SymbolName.h"
 

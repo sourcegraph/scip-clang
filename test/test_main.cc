@@ -450,6 +450,12 @@ TEST_CASE("INDEX") {
         args.push_back(fmt::format("--driver-id=index-{}",
                                    test::globalCliOptions.testName));
         args.push_back("--deterministic");
+        auto packageMapPath =
+            StdPath(rootInSourceDir.asStringRef()) / "package-map.json";
+        if (std::filesystem::exists(packageMapPath)) {
+          args.push_back(
+              fmt::format("--package-map-path={}", packageMapPath.string()));
+        }
         boost::process::child driver(
             args, boost::process::start_dir(rootInSourceDir.asStringRef()),
             boost::process::std_out > stdout, boost::process::std_err > stderr);

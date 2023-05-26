@@ -39,10 +39,10 @@ bool fromJSON(const llvm::json::Value &jsonValue, ::PackageMapEntry &entry,
 
 namespace scip_clang {
 
-PackageMap::PackageMap(const StdPath &packageMapPath, bool isTesting)
+PackageMap::PackageMap(const RootPath &projectRootPath,
+                       const StdPath &packageMapPath, bool isTesting)
     : storage(), interner(this->storage), map(), warnedBadPaths(),
-      isTesting(isTesting) {
-  return;
+      projectRootPath(projectRootPath), isTesting(isTesting) {
   if (!packageMapPath.empty()) {
     this->populate(packageMapPath);
   }
@@ -63,7 +63,7 @@ void PackageMap::populate(const StdPath &packageMapPath) {
       llvm::json::parse<std::vector<PackageMapEntry>>(contents, "");
   if (auto error = vecOrError.takeError()) {
     // TODO: How to get an error message out of the error?
-    spdlog::error("failed to parse package map", llvm_ext::format(error));
+    spdlog::error("failed to parse package map: {}", llvm_ext::format(error));
     std::exit(EXIT_FAILURE);
   }
   llvm::SmallString<256> buf{};
@@ -97,8 +97,9 @@ void PackageMap::populate(const StdPath &packageMapPath) {
     auto name = this->store(v[0]);
     auto version = this->store(v[1]);
     auto rootPath = AbsolutePathRef::tryFrom(pathKey).value();
-    auto [it, inserted] =
-        this->map.emplace(rootPath, PackageMetadata{{name, version}, rootPath});
+    bool isMainPackage = rootPath == this->projectRootPath.asRef();
+    auto [it, inserted] = this->map.emplace(
+        rootPath, PackageMetadata{{name, version}, rootPath, isMainPackage});
     if (!inserted) {
       auto prior = it->second.id;
       if (prior.name != name || prior.version != version) {
@@ -115,7 +116,6 @@ std::string_view PackageMap::store(std::string_view p) {
 }
 
 bool PackageMap::checkPathIsNormalized(AbsolutePathRef filepath) {
-  return true;
   if (filepath.isNormalized()) {
     return true;
   }
@@ -138,7 +138,8 @@ std::optional<PackageMetadata> PackageMap::lookup(AbsolutePathRef filepath) {
     if (this->isTesting) {
       return PackageMetadata{
           testPackageId,
-          AbsolutePathRef::tryFrom(std::string_view("/")).value()};
+          AbsolutePathRef::tryFrom(std::string_view("/")).value(),
+          /*isMainPackage*/ true};
     }
     return {};
   }

@@ -96,6 +96,7 @@ static std::string formatSymbol(const std::string &symbol) {
                                          {"cxx . . $ ", "[..] "},
                                          {"cxx . ", ""}, // indexer prefix
                                          {"todo-pkg todo-version", "[..]"},
+                                         {"test-pkg test-version $", "[..] "},
                                      });
 }
 
@@ -445,9 +446,11 @@ void MultiTuSnapshotTest::checkOrUpdate(
     if (!test::isTuMainFilePath(inputPath.asStringView())) {
       continue;
     }
-    auto it = output.find(RootRelativePath{inputPath});
-    ENFORCE(it != output.end(), "snapshot missing file for {}",
-            inputPath.asStringView());
+    if (inputPath.asStringView().find("external") == std::string::npos) {
+      auto it = output.find(RootRelativePath{inputPath});
+      ENFORCE(it != output.end(), "snapshot missing file for {}",
+              inputPath.asStringView());
+    }
   }
   scip_clang::extractTransform(
       std::move(output), /*deterministic*/ true,

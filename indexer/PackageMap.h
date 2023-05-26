@@ -25,6 +25,8 @@ class PackageMap final {
 
   absl::flat_hash_set<std::string_view> warnedBadPaths;
 
+  RootPath projectRootPath;
+
   bool isTesting;
 
 public:
@@ -33,7 +35,8 @@ public:
   /// {"directory": "<some path>", "package": "name@version" }
   ///
   /// Changes to fallback behavior if packageMapPath is empty.
-  PackageMap(const StdPath &packageMapPath, bool isTesting);
+  PackageMap(const RootPath &projectRootPath, const StdPath &packageMapPath,
+             bool isTesting);
 
   /// Check if we have package information for \p filepath.
   ///

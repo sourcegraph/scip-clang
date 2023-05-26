@@ -55,6 +55,7 @@ scip_clang_test_suite(
         "index/**/*.c",
         "index/**/*.cc",
         "index/**/*.h",
+        "index/**/package-map.json",
     ]),
     preprocessor_data = glob([
         "preprocessor/**/*.yaml",

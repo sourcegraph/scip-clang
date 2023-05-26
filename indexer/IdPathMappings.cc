@@ -99,12 +99,24 @@ bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
     return this->map.insert({{fileId}, std::move(metadata)}).second;
   };
 
-  // In practice, CMake ends up passing paths to project files as well
-  // as files inside the build root. Normally, files inside the build root
-  // are generated ones, but to be safe, check if the corresponding file
-  // exists in the project. Since the build root itself is typically inside
-  // the project root, check the build root first.
-  if (auto buildRootRelPath = this->buildRootPath.tryMakeRelative(absPathRef)) {
+  if (optPackageMetadata.has_value()) {
+    if (auto optStrView =
+            optPackageMetadata->rootPath.makeRelative(absPathRef)) {
+      return insertRelPath(RootRelativePathRef(*optStrView, RootKind::External),
+                           /*isInProject*/ optPackageMetadata->isMainPackage);
+    } else {
+      spdlog::warn("package info map determined '{}' as root for path '{}', "
+                   "but prefix check failed",
+                   optPackageMetadata->rootPath.asStringView(),
+                   absPathRef.asStringView());
+    }
+    // In practice, CMake ends up passing paths to project files as well
+    // as files inside the build root. Normally, files inside the build root
+    // are generated ones, but to be safe, check if the corresponding file
+    // exists in the project. Since the build root itself is typically inside
+    // the project root, check the build root first.
+  } else if (auto buildRootRelPath =
+                 this->buildRootPath.tryMakeRelative(absPathRef)) {
     auto originalFileSourcePath =
         this->projectRootPath.makeAbsoluteAllowKindMismatch(
             buildRootRelPath.value());
@@ -124,18 +136,7 @@ bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
                  this->projectRootPath.tryMakeRelative(absPathRef)) {
     return insertRelPath(optProjectRootRelPath.value(), /*isInProject*/ true);
   }
-  if (optPackageMetadata.has_value()) {
-    if (auto optStrView =
-            optPackageMetadata->rootPath.makeRelative(absPathRef)) {
-      return insertRelPath(RootRelativePathRef(*optStrView, RootKind::External),
-                           /*isInProject*/ false);
-    } else {
-      spdlog::warn("package info map determined '{}' as root for path '{}', "
-                   "but prefix check failed",
-                   optPackageMetadata->rootPath.asStringView(),
-                   absPathRef.asStringView());
-    }
-  }
+
   auto optFileName = absPathRef.fileName();
   ENFORCE(optFileName.has_value(),
           "Clang returned file path {} without a file name",
