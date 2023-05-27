@@ -353,20 +353,23 @@ void ForwardDeclMap::emit(bool deterministic, scip::ForwardDeclIndex &index) {
               this->map.size());
   scip_clang::extractTransform(
       std::move(this->map), deterministic,
-      absl::FunctionRef<void(SymbolNameRef &&, Value &&)>(
-          [&](auto &&symbol, auto &&value) {
-            scip::ForwardDecl fwdDecl{};
-            fwdDecl.set_symbol(symbol.value.data(), symbol.value.size());
-            value.docComment.addTo(*fwdDecl.mutable_documentation());
-            for (auto [path, range] : value.ranges) {
-              scip::ForwardDecl::Reference ref{};
-              range.addTo(ref);
-              auto p = path.asStringView();
-              ref.set_relative_path(p.data(), p.size());
-              *fwdDecl.add_references() = std::move(ref);
-            }
-            *index.add_forward_decls() = std::move(fwdDecl);
-          }));
+      absl::FunctionRef<void(SymbolNameRef &&, Value &&)>([&](auto &&symbol,
+                                                              auto &&value) {
+        scip::ForwardDecl fwdDecl{};
+        auto optSuffix = symbol.getPackageAgnosticSuffix();
+        ENFORCE(optSuffix.has_value(), "missing $ in symbol name {}",
+                symbol.value);
+        fwdDecl.set_suffix(optSuffix->value.data(), optSuffix->value.size());
+        value.docComment.addTo(*fwdDecl.mutable_documentation());
+        for (auto [path, range] : value.ranges) {
+          scip::ForwardDecl::Reference ref{};
+          range.addTo(ref);
+          auto p = path.asStringView();
+          ref.set_relative_path(p.data(), p.size());
+          *fwdDecl.add_references() = std::move(ref);
+        }
+        *index.add_forward_decls() = std::move(fwdDecl);
+      }));
 }
 
 TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,

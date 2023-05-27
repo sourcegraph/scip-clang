@@ -74,7 +74,14 @@ struct SymbolBuilder {
   /// this avoids the extra work of recomputing parent symbol strings.
   static void formatContextual(std::string &buf, SymbolNameRef contextSymbol,
                                const DescriptorBuilder &descriptor);
+
+  static std::optional<scip::SymbolSuffix>
+      getPackageAgnosticSuffix(scip::SymbolNameRef);
+
+  static scip::SymbolName addFakePrefix(scip::SymbolSuffix);
 };
+
+class FileMetadataMap;
 
 class SymbolFormatter final {
   const clang::SourceManager &sourceManager;

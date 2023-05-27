@@ -108,6 +108,14 @@ void SymbolBuilder::formatTo(std::string &buf) const {
     ::addSpaceEscaped(out, text);
     out << ' ';
   }
+  // NOTE(def: symbol-string-hack-for-forward-decls): Add a '$' prefix
+  // after the space after the version, but before any descriptors.
+  // When splitting the symbol, we check for the '$' preceded by a ' '.
+  // Strictly speaking, it is possible that the same pattern is present
+  // due to a funky filename which contains the pattern ' $', it's highly
+  // improbable to cause any incorrect lookup by not colliding with an
+  // actual symbol name.
+  out << '$';
   for (auto &descriptor : this->descriptors) {
     descriptor.formatTo(out);
   }

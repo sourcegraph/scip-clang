@@ -30,11 +30,21 @@ public:
   DERIVE_HASH_CMP_NEWTYPE(SymbolName, value, CMP_STR)
 };
 
+struct SymbolSuffix {
+  std::string_view value;
+
+  DERIVE_HASH_CMP_NEWTYPE(SymbolSuffix, value, CMP_STR)
+
+  SymbolName addFakePrefix() const;
+};
+
 /// An unowned symbol name
 struct SymbolNameRef {
   std::string_view value;
 
   DERIVE_HASH_CMP_NEWTYPE(SymbolNameRef, value, CMP_STR)
+
+  std::optional<SymbolSuffix> getPackageAgnosticSuffix() const;
 };
 
 } // namespace scip

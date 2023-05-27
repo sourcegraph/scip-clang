@@ -730,7 +730,7 @@ There are two options for doing this:
    and use the suffix as the lookup key.
 
 Option 1 would increase the overhead of (de)serializing indexes,
-and requires us to fiddle with the Protobuf format
+and requires us to fiddle with the Index Protobuf schema
 (to add an extra field which tracks the prefix-free symbol name).
 
 So we go with option 2 instead. Specifically, the descriptor
@@ -739,4 +739,14 @@ add it to the end of the version, either is OK).
 We would forbid the use of `$` in package names and versions,
 allowing us to quickly split a symbol name.
 
+<!-- See NOTE(ref: symbol-string-hack-for-forward-decls) -->
+
 The extra `$` could be stripped when serializing the final index.
+
+Additionally, since Occurrences track the symbol name,
+we separate out occurrences for forward declarations
+(see [fwd_decls.proto](/proto/fwd_decls.proto))
+into a separate file with a different format,
+to avoid having to rewrite the symbol string for a large
+number of occurrences.
+Instead, those occurrences are written out at the end.

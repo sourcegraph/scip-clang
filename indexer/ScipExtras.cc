@@ -100,8 +100,51 @@ void SymbolInformationBuilder::finish(bool deterministic,
       }));
 }
 
+void ForwardDeclResolver::insert(SymbolSuffix suffix,
+                                 SymbolInformationBuilder *builder) {
+  this->docInternalMap.emplace(suffix, SymbolInfoOrBuilderPtr{builder});
+}
+
+void ForwardDeclResolver::insert(SymbolSuffix suffix,
+                                 SymbolInformation *symbolInfo) {
+  this->docInternalMap.emplace(suffix, SymbolInfoOrBuilderPtr{symbolInfo});
+}
+
+void ForwardDeclResolver::insertExternal(SymbolNameRef symbol) {
+  if (auto optSuffix = symbol.getPackageAgnosticSuffix()) {
+    this->externalsMap[*optSuffix].insert(symbol);
+  }
+}
+
+std::optional<ForwardDeclResolver::SymbolInfoOrBuilderPtr>
+ForwardDeclResolver::lookupInDocuments(SymbolSuffix suffix) const {
+  auto it = this->docInternalMap.find(suffix);
+  if (it == this->docInternalMap.end()) {
+    return {};
+  }
+  return it->second;
+}
+
+const absl::flat_hash_set<SymbolNameRef> *
+ForwardDeclResolver::lookupExternals(SymbolSuffix suffix) const {
+  auto it = this->externalsMap.find(suffix);
+  if (it == this->externalsMap.end()) {
+    return {};
+  }
+  return &it->second;
+}
+
+void ForwardDeclResolver::deleteExternals(SymbolSuffix suffix) {
+  this->externalsMap.erase(suffix);
+}
+
 SymbolNameRef SymbolNameInterner::intern(std::string &&s) {
   return SymbolNameRef{std::string_view(this->impl.save(s))};
+}
+
+SymbolNameRef SymbolNameInterner::intern(SymbolNameRef s) {
+  return SymbolNameRef{
+      std::string_view(this->impl.save(llvm::StringRef(s.value)))};
 }
 
 DocumentBuilder::DocumentBuilder(scip::Document &&first,
@@ -144,11 +187,12 @@ void DocumentBuilder::merge(scip::Document &&doc) {
   }
 }
 
-void DocumentBuilder::populateSymbolToInfoMap(
-    SymbolToInfoMap &symbolToInfoMap) {
+void DocumentBuilder::populateForwardDeclResolver(
+    ForwardDeclResolver &forwardDeclResolver) {
   for (auto &[symbolName, symbolInfoBuilder] : this->symbolInfos) {
-    symbolToInfoMap.emplace(symbolName,
-                            SymbolToInfoMap::mapped_type(&symbolInfoBuilder));
+    if (auto optSuffix = symbolName.getPackageAgnosticSuffix()) {
+      forwardDeclResolver.insert(*optSuffix, &symbolInfoBuilder);
+    }
   }
 }
 
@@ -251,60 +295,92 @@ void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
   builder->mergeRelationships(std::move(*extSym.mutable_relationships()));
 }
 
-std::unique_ptr<SymbolToInfoMap> IndexBuilder::populateSymbolToInfoMap() {
+std::unique_ptr<ForwardDeclResolver>
+IndexBuilder::populateForwardDeclResolver() {
   TRACE_EVENT(scip_clang::tracing::indexMerging,
-              "IndexBuilder::populateSymbolToInfoMap", "documents.size",
+              "IndexBuilder::populateForwardDeclResolver", "documents.size",
               this->documents.size(), "multiplyIndexed.size",
               this->multiplyIndexed.size());
-  SymbolToInfoMap symbolToInfoMap;
+  ForwardDeclResolver forwardDeclResolver;
   for (auto &document : this->documents) {
     for (auto &symbolInfo : *document.mutable_symbols()) {
-      symbolToInfoMap.emplace(SymbolNameRef{symbolInfo.symbol()},
-                              SymbolToInfoMap::mapped_type(&symbolInfo));
+      if (auto optSuffix =
+              SymbolNameRef{symbolInfo.symbol()}.getPackageAgnosticSuffix()) {
+        forwardDeclResolver.insert(*optSuffix, &symbolInfo);
+      }
     }
   }
   for (auto &[_, docBuilder] : this->multiplyIndexed) {
-    docBuilder->populateSymbolToInfoMap(symbolToInfoMap);
+    docBuilder->populateForwardDeclResolver(forwardDeclResolver);
   }
-  return std::make_unique<SymbolToInfoMap>(std::move(symbolToInfoMap));
+  return std::make_unique<ForwardDeclResolver>(std::move(forwardDeclResolver));
 }
 
-void IndexBuilder::addForwardDeclaration(const SymbolToInfoMap &symbolToInfoMap,
-                                         scip::ForwardDecl &&forwardDeclSym) {
-  auto name =
-      this->interner.intern(std::move(*forwardDeclSym.mutable_symbol()));
-  auto it = symbolToInfoMap.find(name);
-  if (it == symbolToInfoMap.end()) {
-    if (!this->externalSymbols.contains(name)) {
-      scip::SymbolInformation extSym{};
-      *extSym.add_documentation() = std::move(forwardDeclSym.documentation());
-      this->addExternalSymbolUnchecked(name, std::move(extSym));
-    } else {
+void IndexBuilder::addForwardDeclaration(
+    ForwardDeclResolver &forwardDeclResolver,
+    scip::ForwardDecl &&forwardDeclSym) {
+  auto suffix = SymbolSuffix{
+      this->interner.intern(std::move(*forwardDeclSym.mutable_suffix())).value};
+  auto optSymbolInfoOrBuilderPtr =
+      forwardDeclResolver.lookupInDocuments(suffix);
+  if (!optSymbolInfoOrBuilderPtr.has_value()) {
+    if (auto *externals = forwardDeclResolver.lookupExternals(suffix)) {
       // The main index confirms that this was an external symbol, which means
       // that we must have seen the definition in an out-of-project file.
       // In this case, just throw away the information we have,
       // and rely on what we found externally as the source of truth.
+      ENFORCE(!externals->empty(),
+              "externals list for a suffix should be non-empty");
+      // TODO: Log a debug warning if externals->size() > 1
+      for (auto symbolName : *externals) {
+        this->addForwardDeclOccurrences(symbolName,
+                                        scip::ForwardDecl{forwardDeclSym});
+      }
+    } else {
+      scip::SymbolInformation extSym{};
+      // Make up a fake prefix, as we have no package information 🤷🏽
+      auto name = this->interner.intern(
+          std::move(suffix.addFakePrefix().asStringRefMut()));
+      *extSym.add_documentation() = std::move(forwardDeclSym.documentation());
+      this->addExternalSymbolUnchecked(name, std::move(extSym));
+      this->addForwardDeclOccurrences(name, std::move(forwardDeclSym));
     }
-    this->addForwardDeclOccurrences(name, std::move(forwardDeclSym));
     return;
   }
-  auto extIt = this->externalSymbols.find(name);
-  if (extIt != this->externalSymbols.end()) {
+  auto symbolInfoOrBuilderPtr = optSymbolInfoOrBuilderPtr.value();
+  if (auto *externals = forwardDeclResolver.lookupExternals(suffix)) {
     // We found the symbol in a document, so the external symbols list is
     // too pessimistic. This can happen when a TU processes a decl only via
     // a forward decl (and hence conservatively assumes it must be external),
     // but another in-project TU contains the definition.
     //
     // So remove the entry from the external symbols list.
-    extIt->second->discard();
-    this->externalSymbols.erase(extIt);
+    for (auto name : *externals) {
+      auto it = this->externalSymbols.find(name);
+      if (it != this->externalSymbols.end()) {
+        it->second->discard();
+        this->externalSymbols.erase(it);
+      }
+    }
+    forwardDeclResolver.deleteExternals(suffix);
   }
+  SymbolNameRef name;
+  if (auto *symbolInfo =
+          symbolInfoOrBuilderPtr.dyn_cast<scip::SymbolInformation *>()) {
+    name = SymbolNameRef{std::string_view(symbolInfo->symbol())};
+  } else {
+    auto *symbolInfoBuilder =
+        symbolInfoOrBuilderPtr.get<SymbolInformationBuilder *>();
+    name = symbolInfoBuilder->name;
+  }
+  name = this->interner.intern(name);
   if (!forwardDeclSym.documentation().empty()) {
     // FIXME(def: better-doc-merging): The missing documentation placeholder
     // value is due to a bug in the backend which seemingly came up randomly
     // and also got fixed somehow. We should remove the workaround if this
     // is no longer an issue.
-    if (auto *symbolInfo = it->second.dyn_cast<scip::SymbolInformation *>()) {
+    if (auto *symbolInfo =
+            symbolInfoOrBuilderPtr.dyn_cast<scip::SymbolInformation *>()) {
       bool isMissingDocumentation =
           symbolInfo->documentation_size() == 0
           || (symbolInfo->documentation_size() == 1
@@ -316,7 +392,8 @@ void IndexBuilder::addForwardDeclaration(const SymbolToInfoMap &symbolToInfoMap,
             std::move(*forwardDeclSym.mutable_documentation());
       }
     } else {
-      auto &symbolInfoBuilder = *it->second.get<SymbolInformationBuilder *>();
+      auto &symbolInfoBuilder =
+          *symbolInfoOrBuilderPtr.get<SymbolInformationBuilder *>();
       // FIXME(def: better-doc-merging): We shouldn't drop
       // documentation attached to a forward declaration.
       if (!symbolInfoBuilder.hasDocumentation()) {
