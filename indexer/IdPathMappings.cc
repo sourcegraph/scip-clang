@@ -6,6 +6,7 @@
 #include "absl/functional/function_ref.h"
 
 #include "clang/Basic/SourceLocation.h"
+#include "llvm/Support/FileSystem.h"
 
 #include "indexer/FileMetadata.h"
 #include "indexer/Hash.h"
@@ -106,9 +107,14 @@ bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
     auto originalFileSourcePath =
         this->projectRootPath.makeAbsoluteAllowKindMismatch(
             buildRootRelPath.value());
-    std::error_code error{};
-    if (std::filesystem::exists(originalFileSourcePath.asStringRef(), error)
-        && !error) {
+    llvm::SmallString<64> realPath{};
+    std::error_code error = llvm::sys::fs::real_path(
+        originalFileSourcePath.asStringRef(), realPath);
+    // It is possible using symlinks for there to be the situation that
+    // projectRoot / relativePath exists, but is actually a symlink to
+    // inside the build root, rather than an in-project file. So check that
+    // that real_path is the same.
+    if (!error && realPath.str() == originalFileSourcePath.asStringRef()) {
       return insertRelPath(RootRelativePathRef(buildRootRelPath->asStringView(),
                                                RootKind::Project),
                            /*isInProject*/ true);
