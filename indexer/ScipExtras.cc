@@ -342,6 +342,7 @@ void IndexBuilder::addForwardDeclaration(
           std::move(suffix.addFakePrefix().asStringRefMut()));
       *extSym.add_documentation() = std::move(forwardDeclSym.documentation());
       this->addExternalSymbolUnchecked(name, std::move(extSym));
+      forwardDeclResolver.insertExternal(name);
       this->addForwardDeclOccurrences(name, std::move(forwardDeclSym));
     }
     return;
