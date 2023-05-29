@@ -176,7 +176,13 @@ std::optional<PackageMetadata> PackageMap::lookup(AbsolutePathRef filepath) {
     return it->second;
   }
   llvm::SmallString<64> buf;
-  if (!this->checkPathIsNormalized(filepath)) {
+  // A PackageMap persists across TUs, whereas the filepath argument
+  // is a reference that lives only as long as a TU, so intern the path
+  // before adding extra references inside the map later.
+  if (this->checkPathIsNormalized(filepath)) {
+    filepath =
+        AbsolutePathRef::tryFrom(this->store(filepath.asStringView())).value();
+  } else {
     filepath.normalize(buf);
     filepath = AbsolutePathRef::tryFrom(this->store(buf.str())).value();
   }
