@@ -8,7 +8,7 @@
 - [Formatting](#formatting)
 - [IDE integration](#ide-integration)
 - [Debugging](#debugging)
-  - [UBSan stacktraces](#ubsan-stacktraces)
+  - [Stacktraces](#stacktraces)
   - [Attaching a debugger](#attaching-a-debugger)
   - [Debugging on Linux](#debugging-on-linux)
   - [Inspecting Clang ASTs](#inspecting-clang-asts)
@@ -112,15 +112,18 @@ need to reload the editor).
 
 ## Debugging
 
-### UBSan stacktraces
+### Stacktraces
 
-The default mode of UBSan will not print stack traces on failures.
+The default modes of ASan and UBSan do not print stack traces on failures.
 I recommend maintaining a parallel build of LLVM
 at the same commit as in [fetch_deps.bzl](/fetch_deps.bzl).
-UBSan needs a `llvm-symbolizer` binary on `PATH`
-to print stack traces, which can provided via the separate build.
+Both sanitizers need access to `llvm-symbolizer` to print stack traces,
+which can provided via the separate build.
 
 ```bash
+# For ASan
+ASAN_SYMBOLIZER_PATH="$PWD/../llvm-project/build/bin/llvm-symbolizer" ASAN_OPTIONS=symbolize=1 <scip-clang invocation>
+# For UBSan
 PATH="$PWD/../llvm-project/build/bin:$PATH" UBSAN_OPTIONS=print_stacktrace=1 <scip-clang invocation>
 ```
 
