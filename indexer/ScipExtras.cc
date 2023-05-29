@@ -269,13 +269,9 @@ void IndexBuilder::addExternalSymbolUnchecked(
   for (auto &rel : *extSym.mutable_relationships()) {
     rels.insert({std::move(rel)});
   }
-  // SAFETY: Don't inline this assignment statement since lack of
-  // guarantees around subexpression evaluation order mean that
-  // the std::move(name) may happen before name.asStringRef() is called.
   auto builder = std::make_unique<SymbolInformationBuilder>(
       name, std::move(docs), std::move(rels));
   this->externalSymbols.emplace(name, std::move(builder));
-  return;
 }
 
 void IndexBuilder::addExternalSymbol(scip::SymbolInformation &&extSym) {
@@ -312,6 +308,9 @@ IndexBuilder::populateForwardDeclResolver() {
   }
   for (auto &[_, docBuilder] : this->multiplyIndexed) {
     docBuilder->populateForwardDeclResolver(forwardDeclResolver);
+  }
+  for (auto &[symbolName, _] : this->externalSymbols) {
+    forwardDeclResolver.insertExternal(symbolName);
   }
   return std::make_unique<ForwardDeclResolver>(std::move(forwardDeclResolver));
 }
