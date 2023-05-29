@@ -24,6 +24,20 @@ struct PackageMapEntry {
   std::string package;
 };
 
+bool checkValid(std::string_view s, std::string_view context) {
+  for (auto c : s) {
+    if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
+        || ('0' <= c && c <= '9') || c == '.' || c == '_' || c == '-') {
+      continue;
+    }
+    spdlog::warn(
+        "invalid character '{}' in {}, expected one of [a-zA-Z0-9._\\-]", c,
+        context);
+    return false;
+  }
+  return true;
+}
+
 } // namespace
 
 namespace llvm::json {
@@ -67,6 +81,7 @@ void PackageMap::populate(const StdPath &packageMapPath) {
     std::exit(EXIT_FAILURE);
   }
   llvm::SmallString<256> buf{};
+  bool foundMainPackageMetadata = false;
   for (auto &packageMapEntry : vecOrError.get()) {
     auto error = llvm::sys::fs::real_path(packageMapEntry.rootPath, buf);
     if (error) {
@@ -96,11 +111,16 @@ void PackageMap::populate(const StdPath &packageMapPath) {
     }
     auto name = this->store(v[0]);
     auto version = this->store(v[1]);
+    if (!::checkValid(name, "name") || !::checkValid(version, "version")) {
+      continue;
+    }
     auto rootPath = AbsolutePathRef::tryFrom(pathKey).value();
     bool isMainPackage = rootPath == this->projectRootPath.asRef();
     auto [it, inserted] = this->map.emplace(
         rootPath, PackageMetadata{{name, version}, rootPath, isMainPackage});
-    if (!inserted) {
+    if (inserted) {
+      foundMainPackageMetadata |= isMainPackage;
+    } else {
       auto prior = it->second.id;
       if (prior.name != name || prior.version != version) {
         spdlog::warn("package map has conflicting package information ('{}@{}' "
@@ -108,6 +128,14 @@ void PackageMap::populate(const StdPath &packageMapPath) {
                      name, version, prior.name, prior.version, pathKey);
       }
     }
+  }
+  if (!foundMainPackageMetadata) {
+    spdlog::warn(
+        "missing package information for the current project in package map");
+    spdlog::info(
+        R"(hint: add an object with {{"path": ".", "package": "blah@vX.Y"}} or)"
+        R"( {{"path": "{}", "package": "blah@vX.Y"}} to {})",
+        this->projectRootPath.asRef().asStringView(), packageMapPath.string());
   }
 }
 
