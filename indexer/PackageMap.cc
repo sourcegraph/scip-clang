@@ -80,6 +80,11 @@ void PackageMap::populate(const StdPath &packageMapPath) {
     spdlog::error("failed to parse package map: {}", llvm_ext::format(error));
     std::exit(EXIT_FAILURE);
   }
+  if (vecOrError.get().size() == 0) {
+    spdlog::error(
+        "package map had size 0, make sure to add one entry per package");
+    std::exit(EXIT_FAILURE);
+  }
   llvm::SmallString<256> buf{};
   bool foundMainPackageMetadata = false;
   for (auto &packageMapEntry : vecOrError.get()) {
