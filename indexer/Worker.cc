@@ -206,6 +206,7 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
   args.push_back("-Wno-everything"); // Warnings aren't helpful.
   args.push_back("-working-directory");
   args.push_back(fileSystemOptions.WorkingDir);
+  args.push_back("-ferror-limit=0"); // TODO: Add test for this
   // clang-format off
   // TODO(def: flag-passthrough, issue: https://github.com/sourcegraph/scip-clang/issues/23)
   // Support passing through CLI flags to Clang, similar to --extra-arg in lsif-clang
