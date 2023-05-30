@@ -745,7 +745,7 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   }
   if (auto optSymbol =
           this->symbolFormatter.getTagSymbol(*tagTypeLoc.getDecl())) {
-    this->saveReference(optSymbol.value(), tagTypeLoc.getNameLoc(),
+    this->saveReference(*optSymbol, tagTypeLoc.getNameLoc(),
                         RefersToForwardDecl{*tagTypeLoc.getDecl()});
   }
 }
