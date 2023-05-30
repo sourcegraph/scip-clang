@@ -100,22 +100,19 @@ void DescriptorBuilder::formatTo(llvm::raw_ostream &out) const {
 void SymbolBuilder::formatTo(std::string &buf) const {
   llvm::raw_string_ostream out(buf);
   out << "cxx . "; // scheme manager
-  for (auto text : {this->packageId.name, this->packageId.version}) {
-    if (text.empty()) {
-      out << ". ";
-      continue;
-    }
-    ::addSpaceEscaped(out, text);
+  if (this->packageId.name.empty()) {
+    out << ". ";
+  } else {
+    ::addSpaceEscaped(out, this->packageId.name);
     out << ' ';
   }
-  // NOTE(def: symbol-string-hack-for-forward-decls): Add a '$' prefix
-  // after the space after the version, but before any descriptors.
-  // When splitting the symbol, we check for the '$' preceded by a ' '.
-  // Strictly speaking, it is possible that the same pattern is present
-  // due to a funky filename which contains the pattern ' $', it's highly
-  // improbable to cause any incorrect lookup by not colliding with an
-  // actual symbol name.
-  out << '$';
+  if (!this->packageId.version.empty()) {
+    ::addSpaceEscaped(out, this->packageId.version);
+  }
+  out << "$ ";
+  // NOTE(def: symbol-string-hack-for-forward-decls): Add a '$' suffix
+  // after the version, but before the space for the symbol name.
+  // When splitting the symbol, we check for the '$' followed by a ' '.
   for (auto &descriptor : this->descriptors) {
     descriptor.formatTo(out);
   }
