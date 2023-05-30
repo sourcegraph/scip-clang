@@ -130,12 +130,13 @@ void PackageMap::populate(const StdPath &packageMapPath) {
     }
   }
   if (!foundMainPackageMetadata) {
-    spdlog::warn(
+    spdlog::error(
         "missing package information for the current project in package map");
     spdlog::info(
         R"(hint: add an object with {{"path": ".", "package": "blah@vX.Y"}} or)"
         R"( {{"path": "{}", "package": "blah@vX.Y"}} to {})",
         this->projectRootPath.asRef().asStringView(), packageMapPath.string());
+    std::exit(EXIT_FAILURE);
   }
 }
 
