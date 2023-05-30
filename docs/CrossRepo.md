@@ -63,3 +63,45 @@ $ scip-clang --package-map-path=other-package-map.json <other flags>...
 Once both these indexing operations are performed and the indexes
 are uploaded to a Sourcegraph instance, cross-repository navigation
 should work across `package0` and `package1`.
+
+## Limitations
+
+At the moment, the amount of indexing work required
+scales quadratically with the depth of the dependency graph.
+Specifically, if package PC depends on PB which depends on PA,
+then PA will need to be indexed thrice (once by itself, once when PB is indexed,
+once when PC is indexed), PB will be indexed twice (once by itself,
+once when PC is indexed), and PC will be indexed once.
+
+The reason for this is that the indexer needs to identify
+package information for which declaration is defined in which package,
+so that it can correctly support code navigation for forward declarations.
+However, strictly speaking, any package can forward-declare any entity.
+
+For example, if PA defines a function f, and a header in PC
+forward-declares `pa::f`, then when C is indexed, the indexer
+needs to somehow know that the definition of `f` lives in some
+file in PA. There are broadly 3 possible ways to do this:
+
+1. Always index all TUs. This is the current strategy.
+   This is the build equivalent of building everything from source.
+2. Provide a way to reuse the indexes from dependencies,
+   and use those to resolve forward declarations.
+   This is the build equivalent of using archives/shared libraries/TBDs.
+3. Only index the TUs for the "current" package. If the
+   definition for a forward declaration is not found,
+   no reference information is emitted (slightly worse UX, but faster).
+   This is not supported directly in scip-clang,
+   but can be achieved by removing entries for
+   out-of-project files from the compilation database.
+4. Rely on some heuristics and/or user-supplied hint.
+   For example, if there was a way to provide a hint that
+   unresolved forward declarations in namespace `pa` must map
+   to declarations in package PA, then indexer could
+   trust that information and correctly emit a reference
+   for `pa::f` at the forward declaration without having
+   to re-index TUs in PA.
+
+We're [looking for feedback](https://github.com/sourcegraph/scip-clang/issues/358)
+on which approach would work best for your use case,
+before implementing a solution for this.
