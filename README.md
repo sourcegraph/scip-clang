@@ -25,8 +25,8 @@ You can also test out [code navigation in Chromium](https://sourcegraph.com/gith
   - [Generating a compilation database](#generating-a-compilation-database)
   - [Building code](#building-code)
   - [Initial scip-clang testing](#initial-scip-clang-testing)
-  - [Running scip-clang on the entire codebase](#running-scip-clang-on-the-entire-codebase)
-  - [Setting up cross-repo code nav]
+  - [Running scip-clang on a single repo](#running-scip-clang-on-the-entire-codebase)
+  - [Setting up cross-repo code navigation](#setting-up-cross-repo-code-navigation)
 - [Troubleshooting](#troubleshooting)
 - [Reporting issues](#reporting-issues)
 - [Documentation](#documentation)
@@ -140,7 +140,7 @@ If there are any other errors,
 such as standard library or platform headers not being found,
 please [report an issue](#reporting-issues).
 
-### Running scip-clang on the entire codebase
+### Running scip-clang on a single repo
 
 ```bash
 scip-clang --compdb-path=build/compile_commands.json
