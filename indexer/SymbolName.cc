@@ -25,16 +25,17 @@ std::optional<scip::SymbolSuffix>
 SymbolBuilder::getPackageAgnosticSuffix(scip::SymbolNameRef name) {
   // See NOTE(ref: symbol-string-hack-for-forward-decls)
   auto ix = name.value.find('$');
-  if (ix == std::string::npos || ix == 0 || name.value[ix - 1] != ' ') {
+  if (ix == std::string::npos || ix == name.value.size() - 1
+      || name.value[ix + 1] != ' ') {
     return std::nullopt;
   }
-  return scip::SymbolSuffix{name.value.substr(ix + 1)};
+  return scip::SymbolSuffix{name.value.substr(ix + 2)};
 }
 
 // static
 scip::SymbolName SymbolBuilder::addFakePrefix(scip::SymbolSuffix suffix) {
   std::string buf;
-#define FAKE_SYMBOL_PREFIX "cxx . . . $"
+#define FAKE_SYMBOL_PREFIX "cxx . . $ "
   buf.reserve(sizeof(FAKE_SYMBOL_PREFIX) + suffix.value.size());
   buf.append(FAKE_SYMBOL_PREFIX);
 #undef FAKE_SYMBOL_PREFIX
