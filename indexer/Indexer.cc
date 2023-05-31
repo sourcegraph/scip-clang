@@ -860,24 +860,29 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
     // Individual bindings will be visited by VisitBindingDecl
     return;
   }
+#define GET_SYMBOL                                              \
+  auto optSymbol = this->symbolFormatter.getVarSymbol(varDecl); \
+  if (!optSymbol.has_value()) {                                 \
+    return;                                                     \
+  }
+  auto loc = varDecl.getLocation();
+  if (varDecl.isLocalExternDecl()) {
+    GET_SYMBOL;
+    this->saveReference(*optSymbol, loc, &varDecl);
+    return;
+  }
   if (varDecl.isLocalVarDeclOrParm()) {
-    auto optSymbol = this->symbolFormatter.getLocalVarOrParmSymbol(varDecl);
-    if (!optSymbol.has_value()) {
-      return;
-    }
-    this->saveDefinition(optSymbol.value(), varDecl.getLocation(),
-                         std::nullopt);
+    GET_SYMBOL;
+    this->saveDefinition(*optSymbol, loc, std::nullopt);
   }
   if (varDecl.isStaticDataMember() || varDecl.isFileVarDecl()) {
+    GET_SYMBOL;
     // Non-static data members are handled by saveFieldDecl
-    auto optSymbol = this->symbolFormatter.getVarSymbol(varDecl);
-    if (!optSymbol.has_value()) {
-      return;
-    }
     scip::SymbolInformation symbolInfo{};
     this->getDocComment(varDecl).addTo(symbolInfo);
-    this->saveDefinition(optSymbol.value(), varDecl.getLocation(), symbolInfo);
+    this->saveDefinition(*optSymbol, loc, symbolInfo);
   }
+#undef GET_SYMBOL
 }
 
 void TuIndexer::saveVarTemplateDecl(const clang::VarTemplateDecl &) {

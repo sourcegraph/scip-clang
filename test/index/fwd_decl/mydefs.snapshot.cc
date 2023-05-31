@@ -14,3 +14,6 @@
   
   int Global = 3;
 //    ^^^^^^ definition [..] Global.
+  
+  int externInt = 30;
+//    ^^^^^^^^^ definition [..] externInt.
