@@ -81,7 +81,7 @@ However, strictly speaking, any package can forward-declare any entity.
 For example, if PA defines a function f, and a header in PC
 forward-declares `pa::f`, then when C is indexed, the indexer
 needs to somehow know that the definition of `f` lives in some
-file in PA. There are broadly 3 possible ways to do this:
+file in PA. There are a few different ways to do this:
 
 1. Always index all TUs. This is the current strategy.
    This is the build equivalent of building everything from source.
