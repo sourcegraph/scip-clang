@@ -324,20 +324,21 @@ void DocComment::addTo(scip::SymbolInformation &symbolInfo) {
   this->addTo(*symbolInfo.add_documentation());
 }
 
-RefersToForwardDecl::RefersToForwardDecl(const clang::Decl &decl)
-    : value(false) {
+// static
+bool RefersToForwardDecl::check(const clang::Decl &decl) {
   auto canonicalDecl = decl.getCanonicalDecl();
   if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(canonicalDecl)) {
-    this->value = !varDecl->isThisDeclarationADefinition();
+    return !varDecl->isThisDeclarationADefinition();
   } else if (auto *tagDecl = llvm::dyn_cast<clang::TagDecl>(canonicalDecl)) {
-    this->value = !tagDecl->isThisDeclarationADefinition();
+    return !tagDecl->isThisDeclarationADefinition();
   } else if (auto *functionDecl =
                  llvm::dyn_cast<clang::FunctionDecl>(canonicalDecl)) {
-    this->value = !functionDecl->isThisDeclarationADefinition();
+    return !functionDecl->isThisDeclarationADefinition();
   } else if (auto *functionTemplateDecl =
                  llvm::dyn_cast<clang::FunctionTemplateDecl>(canonicalDecl)) {
-    this->value = !functionTemplateDecl->isThisDeclarationADefinition();
+    return !functionTemplateDecl->isThisDeclarationADefinition();
   }
+  return false;
 }
 
 void ForwardDeclMap::insert(SymbolNameRef symbol, DocComment &&docComment,
@@ -480,8 +481,7 @@ void TuIndexer::saveTypedefTypeLoc(
   if (auto *typedefNameDecl = typedefTypeLoc.getTypedefNameDecl()) {
     if (auto optSymbol =
             this->symbolFormatter.getTypedefNameSymbol(*typedefNameDecl)) {
-      this->saveReference(*optSymbol, typedefTypeLoc.getNameLoc(),
-                          NotForwardDecl);
+      this->saveReference(*optSymbol, typedefTypeLoc.getNameLoc());
     }
   }
 }
@@ -490,8 +490,7 @@ void TuIndexer::saveUsingTypeLoc(const clang::UsingTypeLoc &usingTypeLoc) {
   if (auto *usingShadowDecl = usingTypeLoc.getFoundDecl()) {
     if (auto optSymbol =
             this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
-      this->saveReference(*optSymbol, usingTypeLoc.getNameLoc(),
-                          NotForwardDecl);
+      this->saveReference(*optSymbol, usingTypeLoc.getNameLoc());
     }
   }
 }
@@ -509,7 +508,7 @@ void TuIndexer::saveFieldDecl(const clang::FieldDecl &fieldDecl) {
 void TuIndexer::saveFieldReference(const clang::FieldDecl &fieldDecl,
                                    clang::SourceLocation loc) {
   if (auto optSymbol = this->symbolFormatter.getFieldSymbol(fieldDecl)) {
-    this->saveReference(*optSymbol, loc, NotForwardDecl);
+    this->saveReference(*optSymbol, loc);
   }
 }
 
@@ -625,7 +624,7 @@ void TuIndexer::trySaveTypeReference(const clang::Type *type,
     return;
   }
   if (auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl)) {
-    this->saveReference(*optSymbol, loc, RefersToForwardDecl{*namedDecl});
+    this->saveReference(*optSymbol, loc, namedDecl);
   }
 }
 
@@ -639,8 +638,7 @@ void TuIndexer::saveNestedNameSpecifierLoc(
       // Don't use nameSpecLoc.getLocalSourceRange() as that may give
       // two MacroID SourceLocations, in case the NestedNameSpecifier
       // arises from a macro expansion.
-      this->saveReference(*optSymbol, nameSpecLoc.getLocalBeginLoc(),
-                          NotForwardDecl);
+      this->saveReference(*optSymbol, nameSpecLoc.getLocalBeginLoc());
     }
   };
 
@@ -746,7 +744,7 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   if (auto optSymbol =
           this->symbolFormatter.getTagSymbol(*tagTypeLoc.getDecl())) {
     this->saveReference(*optSymbol, tagTypeLoc.getNameLoc(),
-                        RefersToForwardDecl{*tagTypeLoc.getDecl()});
+                        tagTypeLoc.getDecl());
   }
 }
 
@@ -763,8 +761,7 @@ void TuIndexer::saveTemplateTypeParmTypeLoc(
     const clang::TemplateTypeParmTypeLoc &templateTypeParmTypeLoc) {
   if (auto optSymbol = this->symbolFormatter.getTemplateTypeParmSymbol(
           *templateTypeParmTypeLoc.getDecl())) {
-    this->saveReference(*optSymbol, templateTypeParmTypeLoc.getNameLoc(),
-                        NotForwardDecl);
+    this->saveReference(*optSymbol, templateTypeParmTypeLoc.getNameLoc());
   }
 }
 
@@ -793,8 +790,7 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
     }
     if (optSymbol.has_value()) {
       this->saveReference(*optSymbol,
-                          templateSpecializationTypeLoc.getTemplateNameLoc(),
-                          NotForwardDecl);
+                          templateSpecializationTypeLoc.getTemplateNameLoc());
     }
     break;
   }
@@ -803,8 +799,7 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
     if (auto optSymbol =
             this->symbolFormatter.getUsingShadowSymbol(*usingShadowDecl)) {
       this->saveReference(*optSymbol,
-                          templateSpecializationTypeLoc.getTemplateNameLoc(),
-                          NotForwardDecl);
+                          templateSpecializationTypeLoc.getTemplateNameLoc());
     }
     break;
   }
@@ -848,8 +843,7 @@ void TuIndexer::saveUsingShadowDecl(
     if (auto *namedDecl = usingShadowDecl.getTargetDecl()) {
       if (auto optSymbol =
               this->symbolFormatter.getNamedDeclSymbol(*namedDecl)) {
-        this->saveReference(*optSymbol, usingShadowDecl.getLocation(),
-                            NotForwardDecl);
+        this->saveReference(*optSymbol, usingShadowDecl.getLocation());
       }
     }
   }
@@ -901,8 +895,7 @@ void TuIndexer::saveCXXConstructExpr(
     }
     if (auto optSymbol =
             this->symbolFormatter.getFunctionSymbol(*cxxConstructorDecl)) {
-      this->saveReference(*optSymbol, cxxConstructExpr.getBeginLoc(),
-                          NotForwardDecl);
+      this->saveReference(*optSymbol, cxxConstructExpr.getBeginLoc());
     }
   }
 }
@@ -929,8 +922,7 @@ void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   //       ^ getLocation()
   // ^^^^^^ getSourceRange()
   // ^ getExprLoc()
-  this->saveReference(optSymbol.value(), declRefExpr.getLocation(),
-                      RefersToForwardDecl{*foundDecl});
+  this->saveReference(optSymbol.value(), declRefExpr.getLocation(), foundDecl);
   // ^ TODO: Add read-write access to the symbol role here
 }
 
@@ -950,8 +942,7 @@ void TuIndexer::saveMemberExpr(const clang::MemberExpr &memberExpr) {
   if (!memberExpr.getMemberNameInfo().getName().isIdentifier()) {
     return;
   }
-  this->saveReference(optSymbol.value(), memberExpr.getMemberLoc(),
-                      RefersToForwardDecl{*namedDecl});
+  this->saveReference(optSymbol.value(), memberExpr.getMemberLoc(), namedDecl);
 }
 
 void TuIndexer::saveUnresolvedMemberExpr(
@@ -977,8 +968,7 @@ void TuIndexer::trySaveMemberReferenceViaLookup(
   for (auto *namedDecl : namedDecls) {
     auto optSymbol = this->symbolFormatter.getNamedDeclSymbol(*namedDecl);
     if (optSymbol) {
-      this->saveReference(*optSymbol, memberNameInfo.getLoc(),
-                          RefersToForwardDecl{*namedDecl});
+      this->saveReference(*optSymbol, memberNameInfo.getLoc(), namedDecl);
     }
   }
 }
@@ -1051,7 +1041,8 @@ void TuIndexer::saveForwardDeclaration(SymbolNameRef symbol,
 }
 
 void TuIndexer::saveReference(SymbolNameRef symbol, clang::SourceLocation loc,
-                              RefersToForwardDecl fwdDecl, int32_t extraRoles) {
+                              const clang::Decl *maybeFwdDecl,
+                              int32_t extraRoles) {
   auto expansionLoc = this->sourceManager.getExpansionLoc(loc);
   auto fileId = this->sourceManager.getFileID(expansionLoc);
   if (!this->fileIdsToBeIndexed.contains({fileId})) {
@@ -1063,9 +1054,9 @@ void TuIndexer::saveReference(SymbolNameRef symbol, clang::SourceLocation loc,
   }
   ENFORCE((extraRoles & scip::SymbolRole::Definition) == 0,
           "use saveDefinition instead");
-  if (fwdDecl.value) {
+  if (maybeFwdDecl && RefersToForwardDecl::check(*maybeFwdDecl)) {
     auto [range, _] = this->getTokenExpansionRange(expansionLoc);
-    this->forwardDeclarations.insert(symbol, DocComment{},
+    this->forwardDeclarations.insert(symbol, this->getDocComment(*maybeFwdDecl),
                                      optStableFileId->path, range);
     return;
   }

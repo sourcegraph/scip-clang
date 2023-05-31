@@ -83,6 +83,19 @@ std::strong_ordering operator<=>(const OccurrenceExt &lhs,
   return scip::compareOccurrences(lhs.occ, rhs.occ);
 }
 
+bool SymbolInformationBuilder::hasDocumentation() const {
+  return !this->documentation.empty()
+         && this->documentation[0] != scip::missingDocumentationPlaceholder;
+}
+
+// static
+bool SymbolInformationBuilder::hasDocumentation(
+    const scip::SymbolInformation &symbolInfo) {
+  return symbolInfo.documentation_size() > 0
+         && symbolInfo.documentation()[0]
+                != scip::missingDocumentationPlaceholder;
+}
+
 void SymbolInformationBuilder::finish(bool deterministic,
                                       scip::SymbolInformation &out) {
   this->_bomb.defuse();
@@ -332,6 +345,13 @@ void IndexBuilder::addForwardDeclaration(
               "externals list for a suffix should be non-empty");
       // TODO: Log a debug warning if externals->size() > 1
       for (auto symbolName : *externals) {
+        auto it = this->externalSymbols.find(symbolName);
+        ENFORCE(it != this->externalSymbols.end(),
+                "lookupExternals succeeded earlier");
+        if (!it->second->hasDocumentation()) {
+          llvm::SmallVector<std::string, 1> vec{forwardDeclSym.documentation()};
+          it->second->setDocumentation(std::move(vec));
+        }
         this->addForwardDeclOccurrences(symbolName,
                                         scip::ForwardDecl{forwardDeclSym});
       }
@@ -381,12 +401,7 @@ void IndexBuilder::addForwardDeclaration(
     // is no longer an issue.
     if (auto *symbolInfo =
             symbolInfoOrBuilderPtr.dyn_cast<scip::SymbolInformation *>()) {
-      bool isMissingDocumentation =
-          symbolInfo->documentation_size() == 0
-          || (symbolInfo->documentation_size() == 1
-              && symbolInfo->documentation()[0]
-                     == scip::missingDocumentationPlaceholder);
-      if (isMissingDocumentation) {
+      if (!SymbolInformationBuilder::hasDocumentation(*symbolInfo)) {
         symbolInfo->mutable_documentation()->Clear();
         *symbolInfo->add_documentation() =
             std::move(*forwardDeclSym.mutable_documentation());

@@ -104,22 +104,28 @@ public:
     this->setDocumentation(std::move(docs));
     this->mergeRelationships(std::move(rels));
   }
-  bool hasDocumentation() const {
-    return !this->documentation.empty();
-  }
+
+  bool hasDocumentation() const;
+
+  static bool hasDocumentation(const scip::SymbolInformation &);
+
   template <typename C> void setDocumentation(C &&newDocumentation) {
     ENFORCE(!this->hasDocumentation());
+    this->documentation.clear();
     absl::c_move(std::move(newDocumentation),
                  std::back_inserter(this->documentation));
   };
+
   template <typename C> void mergeRelationships(C &&newRelationships) {
     for (auto &rel : newRelationships) {
       this->relationships.insert({std::move(rel)});
     }
   }
+
   void discard() {
     this->_bomb.defuse();
   }
+
   void finish(bool deterministic, scip::SymbolInformation &out);
 };
 
