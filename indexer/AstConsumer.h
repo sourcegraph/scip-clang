@@ -21,6 +21,7 @@ class CompilerInstance;
 
 namespace scip_clang {
 class ClangIdLookupMap;
+class PackageMap;
 class FileMetadataMap;
 class IndexerPreprocessorWrapper;
 class MacroIndexer;
@@ -41,6 +42,7 @@ struct IndexerAstConsumerOptions {
   RootPath buildRootPath;
   WorkerCallback getEmitIndexDetails;
   bool deterministic;
+  PackageMap &packageMap;
 };
 
 struct TuIndexingOutput {

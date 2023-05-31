@@ -116,6 +116,7 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
                        compdbPath,
                        indexOutputPath,
                        statsFilePath,
+                       cliOptions.packageMapPath,
                        cliOptions.showCompilerDiagnostics,
                        cliOptions.logLevel,
                        cliOptions.deterministic,
@@ -128,8 +129,11 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
 }
 
 Worker::Worker(WorkerOptions &&options)
-    : options(std::move(options)), messageQueues(), compileCommands(),
-      commandIndex(0), recorder(), statistics() {
+    : options(std::move(options)),
+      packageMap(this->options.projectRootPath, this->options.packageMapPath,
+                 this->options.mode == WorkerMode::Testing),
+      messageQueues(), compileCommands(), commandIndex(0), recorder(),
+      statistics() {
   switch (this->options.mode) {
   case WorkerMode::Ipc:
     this->messageQueues = std::make_unique<MessageQueuePair>(
@@ -218,7 +222,7 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
       this->options.deterministic};
   IndexerAstConsumerOptions astConsumerOptions{
       this->options.projectRootPath, buildRootPath, std::move(workerCallback),
-      this->options.deterministic};
+      this->options.deterministic, this->packageMap};
   auto frontendActionFactory = IndexerFrontendActionFactory(
       preprocessorOptions, astConsumerOptions, tuIndexingOutput);
 

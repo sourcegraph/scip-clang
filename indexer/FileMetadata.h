@@ -58,6 +58,7 @@ struct PackageId {
 struct PackageMetadata {
   PackageId id;
   AbsolutePathRef rootPath;
+  bool isMainPackage;
 };
 
 /// Represents important metadata related to a file.

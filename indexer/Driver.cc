@@ -206,6 +206,7 @@ struct DriverOptions {
   AbsolutePath compdbPath;
   AbsolutePath indexOutputPath;
   AbsolutePath statsFilePath;
+  AbsolutePath packageMapPath;
   bool showCompilerDiagnostics;
   DriverIpcOptions ipcOptions;
   size_t numWorkers;
@@ -224,7 +225,7 @@ struct DriverOptions {
   explicit DriverOptions(std::string driverId, const CliOptions &cliOpts)
       : workerExecutablePath(),
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
-        indexOutputPath(), statsFilePath(),
+        indexOutputPath(), statsFilePath(), packageMapPath(),
         showCompilerDiagnostics(cliOpts.showCompilerDiagnostics),
         ipcOptions{cliOpts.ipcSizeHintBytes, cliOpts.receiveTimeout},
         numWorkers(cliOpts.numWorkers), deterministic(cliOpts.deterministic),
@@ -279,6 +280,7 @@ struct DriverOptions {
     setAbsolutePath(cliOpts.indexOutputPath, this->indexOutputPath);
     setAbsolutePath(cliOpts.compdbPath, this->compdbPath);
     setAbsolutePath(cliOpts.statsFilePath, this->statsFilePath);
+    setAbsolutePath(cliOpts.packageMapPath, this->packageMapPath);
 
     auto makeDirs = [](const StdPath &path, const char *name) {
       std::error_code error;
@@ -321,6 +323,10 @@ struct DriverOptions {
     }
     if (!this->statsFilePath.asStringRef().empty()) {
       args.push_back("--measure-statistics");
+    }
+    if (!this->packageMapPath.asStringRef().empty()) {
+      args.push_back(
+          fmt::format("--package-map-path={}", packageMapPath.asStringRef()));
     }
     if (this->noStacktrace) {
       args.push_back("--no-stack-trace");

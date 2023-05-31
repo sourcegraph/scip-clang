@@ -30,6 +30,7 @@ struct CliOptions {
   std::string temporaryOutputDir;
   std::string indexOutputPath;
   std::string statsFilePath;
+  std::string packageMapPath;
   bool showCompilerDiagnostics;
 
   size_t ipcSizeHintBytes;

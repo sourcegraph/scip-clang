@@ -254,15 +254,15 @@ public:
 
 struct RefersToForwardDecl {
   bool value;
+  DocComment comment;
 
-  constexpr RefersToForwardDecl(bool value) : value(value) {}
+  RefersToForwardDecl(bool value) : value(value), comment() {}
 
-  RefersToForwardDecl(const clang::Decl &);
+  RefersToForwardDecl(DocComment &&comment)
+      : value(true), comment(std::move(comment)) {}
+
+  static bool check(const clang::Decl &);
 };
-
-static constexpr RefersToForwardDecl NotForwardDecl =
-    RefersToForwardDecl{false};
-static constexpr RefersToForwardDecl IsForwardDecl = RefersToForwardDecl{true};
 
 class FileMetadataMap;
 
@@ -370,7 +370,8 @@ private:
                               DocComment &&);
 
   void saveReference(SymbolNameRef symbol, clang::SourceLocation loc,
-                     RefersToForwardDecl, int32_t extraRoles = 0);
+                     const clang::Decl *maybeFwdDecl = nullptr,
+                     int32_t extraRoles = 0);
 
   /// Helper method for recording a \c scip::Occurrence and a
   /// \c scip::SymbolInformation for a definition.

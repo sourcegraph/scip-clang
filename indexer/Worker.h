@@ -19,6 +19,7 @@
 #include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
+#include "indexer/PackageMap.h"
 #include "indexer/Path.h"
 #include "indexer/Preprocessing.h"
 
@@ -55,6 +56,7 @@ struct WorkerOptions {
   StdPath indexOutputPath; // only valid if mode == Compdb
   StdPath statsFilePath;   // only valid if mode == Compdb
 
+  StdPath packageMapPath;
   bool showCompilerDiagnostics;
 
   spdlog::level::level_enum logLevel;
@@ -72,6 +74,8 @@ struct WorkerOptions {
 
 class Worker final {
   WorkerOptions options;
+
+  PackageMap packageMap;
 
   // Non-null iff options.mode == Ipc
   std::unique_ptr<MessageQueuePair> messageQueues;

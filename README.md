@@ -1,7 +1,8 @@
 # scip-clang: SCIP indexer for C and C++ ![(Status: Beta)](https://img.shields.io/badge/status-beta-yellow?style=flat)
 
-Status: scip-clang currently supports single-repository precise code navigation
-for C and C++.
+scip-clang is a precise code indexer based on Clang 16,
+which supports cross-repository code navigation for C and C++
+in Sourcegraph.
 
 Here are some code navigation examples in [llvm/llvm-project](https://sourcegraph.com/github.com/llvm/llvm-project):
 - [Find references for #include](https://sourcegraph.com/github.com/llvm/llvm-project@97a03eb2eb5acf269db6253fe540626b52950f97/-/blob/llvm/include/llvm/ADT/SmallSet.h?L1:1-1:81#tab=references)
@@ -24,7 +25,8 @@ You can also test out [code navigation in Chromium](https://sourcegraph.com/gith
   - [Generating a compilation database](#generating-a-compilation-database)
   - [Building code](#building-code)
   - [Initial scip-clang testing](#initial-scip-clang-testing)
-  - [Running scip-clang on the entire codebase](#running-scip-clang-on-the-entire-codebase)
+  - [Running scip-clang on a single repo](#running-scip-clang-on-the-entire-codebase)
+  - [Setting up cross-repo code navigation](#setting-up-cross-repo-code-navigation)
 - [Troubleshooting](#troubleshooting)
 - [Reporting issues](#reporting-issues)
 - [Documentation](#documentation)
@@ -138,7 +140,7 @@ If there are any other errors,
 such as standard library or platform headers not being found,
 please [report an issue](#reporting-issues).
 
-### Running scip-clang on the entire codebase
+### Running scip-clang on a single repo
 
 ```bash
 scip-clang --compdb-path=build/compile_commands.json
@@ -148,6 +150,10 @@ The `--show-compiler-diagnostics` flag is deliberately omitted here,
 since scip-clang is still able to index code in the presence of
 compiler errors, and any errors in headers will get repeated
 for each translation unit in which the header is included.
+
+### Setting up cross-repo code navigation
+
+See the [cross-repository setup docs](/docs/CrossRepo.md).
 
 ## Troubleshooting
 

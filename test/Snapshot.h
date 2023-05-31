@@ -66,6 +66,8 @@ void compareOrUpdateSingleFile(SnapshotMode mode, std::string_view actual,
 void compareDiff(std::string_view expected, std::string_view actual,
                  std::string_view errorMessage);
 
+/// Helper class to run snapshot tests recursively for all TUs
+/// under a subdirectory.
 class MultiTuSnapshotTest final {
   RootPath rootPath;
   struct InputOutput {
