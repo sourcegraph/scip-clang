@@ -2,5 +2,8 @@
 
 int main(int, char **) {
   dep1::f();
-  return 0;
+  dep1::C *c = dep1::newC();
+  dep1::deleteC(c);
+  dep1::S<int> s{};
+  return s.identity(0);
 }
