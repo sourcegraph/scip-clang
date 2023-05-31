@@ -10,3 +10,8 @@ void doStuff(S *, C *c) {
     undo_magic();
   }
 }
+
+int useExtern() {
+  extern int externInt;
+  return externInt;
+}

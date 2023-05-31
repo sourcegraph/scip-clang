@@ -23,3 +23,11 @@
 //    ^^^^^^^^^^ reference [..] undo_magic(49f6e7a06ebc5aa8).
     }
   }
+  
+  int useExtern() {
+//    ^^^^^^^^^ definition [..] useExtern(b126dc7c1de90089).
+    extern int externInt;
+//             ^^^^^^^^^ reference [..] externInt.
+    return externInt;
+//         ^^^^^^^^^ reference [..] externInt.
+  }

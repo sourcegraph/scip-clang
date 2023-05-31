@@ -705,7 +705,7 @@ SymbolFormatter::getUsingSymbol(const clang::UsingDecl &) {
 
 std::optional<SymbolNameRef>
 SymbolFormatter::getVarSymbol(const clang::VarDecl &varDecl) {
-  if (varDecl.isLocalVarDeclOrParm()) {
+  if (varDecl.isLocalVarDeclOrParm() && !varDecl.isLocalExternDecl()) {
     return this->getLocalVarOrParmSymbol(varDecl);
   }
   if (varDecl.getDeclName().isEmpty()) {
