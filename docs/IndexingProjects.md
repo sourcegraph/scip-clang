@@ -1,5 +1,45 @@
 # Indexing test projects
 
+## scip-clang
+
+For the sake of this example, I'll only describe how
+to index scip-clang with cross-repo code navigation support
+for [Abseil](https://github.com/abseil/abseil-cpp/).
+
+First, index Abseil.
+
+```
+git checkout 4ffaea74
+cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-g0" -DABSL_BUILD_TESTING=ON -DABSL_USE_GOOGLETEST_HEAD=ON
+scip-clang --compdb-path=build/compile_commands.json --package-map=abseil-package-map.json
+```
+
+The `abseil-package-map.json` file used here is:
+
+```json
+[ {"path": ".", "package": "abseil-cpp@4ffaea74"} ]
+```
+
+Next, index scip-clang itself. We subset out the compilation
+database first to not index TUs in other packages.
+
+```bash
+jq '[.[] | select(.file | (contains("indexer/") or startswith("test/") or contains("com_google_absl")))]' compile_commands.json > min.json
+./bazel-bin/indexer/scip-clang --compdb-path=min.json --package-map-path=package-map.json
+```
+
+Here, the `package-map.json` is as follows:
+
+```json
+[
+  {"path": ".", "package": "scip-clang@v0.1.3"},
+  {"path": "./bazel-scip-clang/external/com_google_absl", "package": "abseil-cpp@4ffaea74"}
+]
+```
+
+The exact versions need to be determined based on current tag
+or hashes provided to Bazel.
+
 ## LLVM
 
 Tested environments: Ubuntu 18.04, Ubuntu 22.04, macOS 13.
