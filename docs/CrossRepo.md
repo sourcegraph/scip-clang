@@ -24,10 +24,14 @@ The package map JSON file contains a list of objects in the following format:
 ]
 ```
 
+As an example, you can see [scip-clang's own package map file](/tools/package-map.json).
+
 1. The `path` key may be an absolute path, or a path relative to the current directory
-   (which must be the project root).
+   (which must be the project root). For example:
+   - For projects using Bazel, these paths will generally look like:
+     `./bazel-myproject/external/com_company_libcool`.
 2. The `package` key consists of a `name` followed by an `@` separator and a `version`.
-   - The name and version must only contain characters belonging to `[a-zA-Z0-9_\-.]`.
+   - The name and version must only contain characters belonging to `[a-zA-Z0-9_\-\.]`.
    - The version should be chosen based on release information.
      For example, if you use git tags to mark releases in repos,
      and repositories only depend on tagged releases (instead of arbitrary commits),
@@ -44,7 +48,10 @@ Files under the directories `path/to/package1_root`
 will be treated as belonging to `package1`'s `v1` version.
 
 If one package root is a prefix of another, package information
-is assigned based on the longest match.
+is assigned based on the longest match. For example, if you're
+using git submodules, then packages in subdirectories will be
+recognized correctly if there is a package map entry
+pointing to the subdirectory.
 
 For cross-repository navigation to work,
 `package1` must also be indexed with the same version information:

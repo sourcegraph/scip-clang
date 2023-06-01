@@ -4,12 +4,18 @@ scip-clang is a precise code indexer based on Clang 16,
 which supports cross-repository code navigation for C and C++
 in Sourcegraph.
 
-Here are some code navigation examples in [llvm/llvm-project](https://sourcegraph.com/github.com/llvm/llvm-project):
-- [Find references for #include](https://sourcegraph.com/github.com/llvm/llvm-project@97a03eb2eb5acf269db6253fe540626b52950f97/-/blob/llvm/include/llvm/ADT/SmallSet.h?L1:1-1:81#tab=references)
-- [Find references for macros](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/llvm/include/llvm/Support/Debug.h?L101:9-101:19#tab=references)
-- [Find references for types](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/clang/include/clang/AST/ASTContext.h?L1472:34-1472:45#tab=references)
+Here are some code navigation examples:
+- [Cross-repository navigation in Boost](https://sourcegraph.com/github.com/boostorg/assert@f10ddd608e087a89ee5bfc41cf2987cc5ef61473/-/blob/include/boost/assert.hpp?L60:10-60:22#tab=references)
+- In [Chromium](https://sourcegraph.com/github.com/chromium/chromium@b21c706/-/blob/base/atomic_ref_count.h?L19:7-19:21#tab=references).
+- In [llvm/llvm-project](https://sourcegraph.com/github.com/llvm/llvm-project):
+  - [Find references for #include](https://sourcegraph.com/github.com/llvm/llvm-project@97a03eb2eb5acf269db6253fe540626b52950f97/-/blob/llvm/include/llvm/ADT/SmallSet.h?L1:1-1:81#tab=references)
+  - [Find references for macros](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/llvm/include/llvm/Support/Debug.h?L101:9-101:19#tab=references)
+  - [Find references for types](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/clang/include/clang/AST/ASTContext.h?L1472:34-1472:45#tab=references)
 
-You can also test out [code navigation in Chromium](https://sourcegraph.com/github.com/chromium/chromium@b21c706/-/blob/base/atomic_ref_count.h?L19:7-19:21#tab=references).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/sourcegraph/scip-clang/assets/93103176/08b3aa95-c3ee-4c56-9920-20dfa4a7070d">
+  <img alt="Boost cross-repository Find References screenshot" src="https://github.com/sourcegraph/scip-clang/assets/93103176/1baf9a40-37ac-4896-bd1b-dc453730f91b">
+</picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/sourcegraph/scip-clang/assets/93103176/54cc557e-16c8-4890-b9d1-b40d6e215084">
