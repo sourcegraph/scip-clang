@@ -107,6 +107,10 @@ See the [Usage](#usage) section for step-by-step instructions.
 - **Bazel**: Use either
   [hedronvision/bazel-compile-commands-extractor](bazel-compile-commands-extractor)
   or [grailbio/bazel-compilation-database](https://github.com/grailbio/bazel-compilation-database).
+  Caveat: The grailbio generator sometimes accidentally adds
+  unexpanded Make variables in compilation commands,
+  so you may need to remove them as a preprocessing step,
+  before invoking `scip-clang`.
 
 - **Meson**: Use the Ninja backend,
   [which generates a compilation database](https://sourcegraph.com/search?q=context:global+repo:%5Egithub%5C.com/mesonbuild/meson%24+compile_commands.json&patternType=standard&sm=1&groupBy=path).
