@@ -5,6 +5,11 @@
 For the sake of this example, I'll only describe how
 to index scip-clang with cross-repo code navigation support
 for [Abseil](https://github.com/abseil/abseil-cpp/).
+See [tools/package-map.json](/tools/package-map.json) for more entries
+
+> Aside: For a full index, one also needs to run `sed -e 's|$(STACK_FRAME_UNLIMITED)||'` on
+> the compilation database due to the unexpanded Make variable used
+> in compilation commands for LLVM which prevents type-checking from running.
 
 First, index Abseil.
 
@@ -28,6 +33,8 @@ jq '[.[] | select(.file | (contains("indexer/") or startswith("test/") or contai
 ./bazel-bin/indexer/scip-clang --compdb-path=min.json --package-map-path=package-map.json
 ```
 
+> Aside: If indexing `scip-clang` along with 
+
 Here, the `package-map.json` is as follows:
 
 ```json
@@ -39,6 +46,11 @@ Here, the `package-map.json` is as follows:
 
 The exact versions need to be determined based on current tag
 or hashes provided to Bazel.
+
+Other notes:
+- Indexing rapidjson requires a recursive clone since it uses GTest
+  via a submodule.
+- Indexing spdlog requires pass `-DSPDLOG_ENABLE_TESTING=ON` to cmake.
 
 ## LLVM
 
@@ -129,4 +141,55 @@ cd postgres
 meson setup ../postgres-build .
 ninja -C ../postgres-build
 scip-clang --compdb-path=../postgres-build/compile_commands.json
+```
+
+## Boost
+
+Here are the steps for a cross-repo indexing setup.
+
+> CAVEAT: At the time of writing, scip-clang doesn't have explicit support
+> for indexing multiple projects at once (see https://github.com/sourcegraph/scip-clang/issues/360)
+> so the instructions below will end up duplicating a lot of work,
+> since the compilation database is not pruned based on dependencies.
+>
+> The overall indexing will take about 96 core hours on a GCP N2 instance.
+
+First, do a recursive clone of the boost monorepo.
+
+```bash
+git clone https://github.com/boostorg/boost --recursive
+cd boost
+git checkout boost-1.82.0
+cmake -B build -DENABLE_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+```
+
+Invoke the indexer for each project with this Python script:
+
+```python
+import json
+import os
+import subprocess
+
+cwd = os.getcwd()
+
+dirs = []
+pmap = []
+for dirname in os.listdir("./libs"):
+    abs_path = "{}/libs/{}".format(cwd, dirname)
+    if not os.path.isdir(abs_path):
+        continue
+    dirs.append(abs_path)
+    pmap.append({"path": abs_path, "package": "boost-{}@boost-1.82.0".format(dirname)})
+
+with open('package-map.json', 'w') as f:
+    json.dump(pmap, f)
+
+for d in dirs:
+    if os.path.isfile(d + "/index.scip"):
+        continue
+    print("Indexing {}".format(d))
+    res = subprocess.run(["scip-clang --package-map-path=../../package-map.json --compdb-path=../../build/compile_commands.json"], cwd=d, shell=True)
+    if res.returncode != 0:
+        continue
+    subprocess.run(["src code-intel upload"], cwd=d, shell=True, env={"SRC_ACCESS_TOKEN": os.getenv("SRC_ACCESS_TOKEN"), "PATH": os.getenv("PATH")})
 ```

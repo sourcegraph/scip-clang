@@ -1,0 +1,12 @@
+[
+    {"path": ".", "package": "scip-clang@134a873"},
+    {"path": "./bazel-scip-clang/external/com_google_absl", "package": "abseil-cpp@4ffaea74"},
+    {"path": "/home/varun/.cache/bazel/_bazel_varun/e45ff3cfa68a557b274978dc134d6467/external/llvm-raw", "package": "llvm-project@e0f3110b854a"},
+    {"path": "./bazel-scip-clang/external/boost/libs/date_time", "package": "boost-date_time@boost-1.82.0"},
+    {"path": "./bazel-scip-clang/external/boost/libs/interprocess", "package": "boost-interprocess@boost-1.82.0"},
+    {"path": "./bazel-scip-clang/external/boost/libs/process", "package": "boost-process@boost-1.82.0"},
+    {"path": "./bazel-scip-clang/external/rapidjson", "package": "rapidjson@a98e9999"},
+    {"path": "./bazel-scip-clang/external/cxxopts", "package": "cxxopts@3.0.0"},
+    {"path": "./bazel-scip-clang/external/spdlog", "package": "spdlog@edc51df1"},
+    {"path": "./bazel-scip-clang/external/doctest", "package": "doctest@2.4.9"}
+]
