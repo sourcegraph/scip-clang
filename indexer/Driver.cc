@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <variant>
 #include <vector>
 
@@ -613,7 +614,12 @@ public:
       auto &worker = this->workers[workerId];
       BOOST_TRY {
         if (worker.processHandle.running()) {
-          worker.processHandle.wait_for(std::chrono::milliseconds(100));
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          if (worker.processHandle.running()) {
+            spdlog::info("expected worker process to have exited but it is "
+                         "still running, pid: {}",
+                         worker.processHandle.id());
+          }
         }
       }
       BOOST_CATCH(boost::process::process_error & error) {
