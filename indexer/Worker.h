@@ -115,6 +115,12 @@ private:
 
   ReceiveStatus
   processTranslationUnitAndRespond(IndexJobRequest &&semanticAnalysisRequest);
+
+  ReceiveStatus sendRequestAndReceive(JobId semaRequestId,
+                                      std::string_view tuMainFilePath,
+                                      SemanticAnalysisJobResult &&,
+                                      IndexJobRequest &emitIndexRequest);
+
   void emitIndex(google::protobuf::Message &&scipIndex,
                  const StdPath &outputPath);
 
