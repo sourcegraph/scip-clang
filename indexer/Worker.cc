@@ -18,6 +18,7 @@
 #include "indexer/AstConsumer.h"
 #include "indexer/CliOptions.h"
 #include "indexer/CompilationDatabase.h"
+#include "indexer/IpcMessages.h"
 #include "indexer/Logging.h"
 #include "indexer/Preprocessing.h"
 #include "indexer/Statistics.h"
@@ -269,6 +270,24 @@ void Worker::sendResult(JobId requestId, IndexJobResult &&result) {
   this->flushStreams();
 }
 
+Worker::ReceiveStatus Worker::sendRequestAndReceive(
+    JobId semaRequestId, std::string_view tuMainFilePath,
+    SemanticAnalysisJobResult &&semaResult, IndexJobRequest &emitIndexRequest) {
+  this->sendResult(semaRequestId,
+                   IndexJobResult{IndexJob::Kind::SemanticAnalysis,
+                                  std::move(semaResult), EmitIndexJobResult{}});
+  auto status = this->waitForRequest(emitIndexRequest);
+  if (status != ReceiveStatus::OK) {
+    return status;
+  }
+  if (emitIndexRequest.id == JobId::Shutdown()) {
+    spdlog::warn("expected EmitIndex request for '{}' but got Shutdown signal",
+                 tuMainFilePath);
+    std::exit(EXIT_FAILURE);
+  }
+  return status;
+}
+
 Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
     IndexJobRequest &&semanticAnalysisRequest) {
   TRACE_EVENT_BEGIN(
@@ -284,6 +303,7 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   Worker::ReceiveStatus innerStatus;
   JobId emitIndexRequestId;
   unsigned callbackInvoked = 0;
+
   auto callback =
       [this, semaRequestId, &innerStatus, &emitIndexRequestId, &tuMainFilePath,
        &callbackInvoked](SemanticAnalysisJobResult &&semaResult,
@@ -302,20 +322,11 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
       }
       return true;
     }
-    this->sendResult(semaRequestId,
-                     IndexJobResult{IndexJob::Kind::SemanticAnalysis,
-                                    std::move(semaResult),
-                                    EmitIndexJobResult{}});
     IndexJobRequest emitIndexRequest{};
-    innerStatus = this->waitForRequest(emitIndexRequest);
+    innerStatus = this->sendRequestAndReceive(
+        semaRequestId, tuMainFilePath, std::move(semaResult), emitIndexRequest);
     if (innerStatus != ReceiveStatus::OK) {
       return false;
-    }
-    if (emitIndexRequest.id == JobId::Shutdown()) {
-      spdlog::warn(
-          "expected EmitIndex request for '{}' but got Shutdown signal",
-          tuMainFilePath);
-      std::exit(EXIT_FAILURE);
     }
     TRACE_EVENT_BEGIN(tracing::indexing, "worker.emitIndex",
                       perfetto::Flow::Global(emitIndexRequest.id.traceId()));
@@ -330,6 +341,8 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   };
   TuIndexingOutput tuIndexingOutput{};
   auto &semaDetails = semanticAnalysisRequest.job.semanticAnalysis;
+  // deliberate copy
+  std::vector<std::string> commandLine = semaDetails.command.CommandLine;
 
   scip_clang::exceptionContext =
       fmt::format("processing {}", semaDetails.command.Filename);
@@ -337,9 +350,29 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
                                tuIndexingOutput);
   scip_clang::exceptionContext = "";
 
-  ENFORCE(callbackInvoked == 1,
-          "callbackInvoked = {} for TU with main file '{}'", callbackInvoked,
-          tuMainFilePath);
+  if (callbackInvoked == 0) {
+    spdlog::warn("failed to index '{}' as semantic analysis didn't run; retry "
+                 "running scip-clang with --show-compiler-diagnostics",
+                 tuMainFilePath);
+    for (auto &arg : commandLine) {
+      if (arg.starts_with("$(") && arg.ends_with(")")) {
+        spdlog::info(
+            "hint: found unexpanded '{}' in command line arguments for '{}'",
+            arg, tuMainFilePath);
+      }
+    }
+    // TODO: Add a different result kind indicating semantic analysis failure.
+    // Keep going with no-ops so as to not create errors.
+    IndexJobRequest emitIndexRequest{};
+    innerStatus = this->sendRequestAndReceive(semaRequestId, tuMainFilePath,
+                                              SemanticAnalysisJobResult{},
+                                              emitIndexRequest);
+    emitIndexRequestId = emitIndexRequest.id;
+  } else {
+    ENFORCE(callbackInvoked == 1,
+            "callbackInvoked = {} for TU with main file '{}'", callbackInvoked,
+            tuMainFilePath);
+  }
   if (innerStatus != ReceiveStatus::OK) {
     return innerStatus;
   }
