@@ -696,8 +696,9 @@ void ResumableParser::adjustCliArguments(
         break;
       }
       case CompilerKind::Clang:
-        stdlibPath =
-            (StdPath(resourceDir) / ".." / "include" / "c++" / "v1").string();
+        stdlibPath = (StdPath(resourceDir) / ".." / ".." / ".." / "include"
+                      / "c++" / "v1")
+                         .string();
         break;
       }
       spdlog::debug("add include directory for stdlib: '{}'", stdlibPath);
