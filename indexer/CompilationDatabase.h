@@ -113,8 +113,17 @@ public:
                  bool checkFilesExist = true);
 
 private:
-  void tryInferResourceDir(const std::string &directoryPath,
-                           std::vector<std::string> &commandLine);
+  // FIXME(def: reuse-clang-driver-arg-adjustment)
+  // A worker process directly invokes the frontend with a set of arguments.
+  // However, Clang's driver does a series of adjustments such as adding
+  // include directories for the stdlib in some situations.
+  //
+  // Right now, this is a stop-gap solution which reimplements some
+  // of the driver's code. Ideally, we would reuse the logic which creates
+  // a toolchain etc., so that we can respect toolchain settings properly
+  // using the full logic rather than a facsimile.
+  void adjustCliArguments(const std::string &directoryPath,
+                          std::vector<std::string> &commandLine);
   void emitResourceDirError(std::string &&error);
 };
 

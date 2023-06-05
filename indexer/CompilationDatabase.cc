@@ -603,12 +603,12 @@ void ResumableParser::parseMore(
       if (cmd.CommandLine.empty()) {
         continue;
       }
-      this->tryInferResourceDir(cmd.Directory, cmd.CommandLine);
+      this->adjustCliArguments(cmd.Directory, cmd.CommandLine);
     }
   }
 }
 
-void ResumableParser::tryInferResourceDir(
+void ResumableParser::adjustCliArguments(
     const std::string &directoryPath, std::vector<std::string> &commandLine) {
   auto &compilerPath = commandLine.front();
   auto it = this->extraArgsMap.find(compilerPath);
@@ -671,6 +671,37 @@ void ResumableParser::tryInferResourceDir(
         fmt::join(resourceDirResult.cliInvocation, " "), resourceDir));
     return fail();
   }
+
+  // On Linux, grailbio/compilation-database does not add any
+  // isysroot arguments to the compiler invocation, so stdlib headers
+  // aren't found by default. Work around that by adding extra -isystem
+  // directories.
+
+  // TODO: Add tests for this...
+  // FIXME: This won't handle using libstdc++ with clang...
+  bool containsSysrootRelatedArg =
+      absl::c_any_of(commandLine, [](const std::string &arg) -> bool {
+        return arg.starts_with("-isysroot") || arg.starts_with("--sysroot");
+      });
+  if (!containsSysrootRelatedArg) {
+    std::string stdlibPath;
+    switch (resourceDirResult.compilerKind) {
+    case CompilerKind::Gcc: {
+      auto gccVersion = llvm::sys::path::filename(resourceDir);
+      stdlibPath = (StdPath(resourceDir) / ".." / ".." / ".." / ".." / "include"
+                    / "c++" / std::string_view(gccVersion))
+                       .string();
+      break;
+    }
+    case CompilerKind::Clang:
+      stdlibPath =
+          (StdPath(resourceDir) / ".." / "include" / "c++" / "v1").string();
+      break;
+    }
+    extraArgs.push_back("-isystem");
+    extraArgs.emplace_back(std::move(stdlibPath));
+  }
+
   auto [newIt, inserted] =
       this->extraArgsMap.emplace(compilerPath, std::move(extraArgs));
   ENFORCE(inserted);
