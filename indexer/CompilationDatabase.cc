@@ -672,34 +672,37 @@ void ResumableParser::adjustCliArguments(
     return fail();
   }
 
-  // On Linux, grailbio/compilation-database does not add any
-  // isysroot arguments to the compiler invocation, so stdlib headers
-  // aren't found by default. Work around that by adding extra -isystem
-  // directories.
+  // scip-clang finds the stdlib under the / sysroot just fine.
+  if (!resourceDir.starts_with("/usr/lib/gcc")) {
+    // On Linux, grailbio/compilation-database does not add any
+    // sysroot arguments to the compiler invocation, so stdlib headers
+    // aren't found by default. Work around that by adding extra -isystem
+    // directories.
 
-  // TODO: Add tests for this...
-  // FIXME: This won't handle using libstdc++ with clang...
-  bool containsSysrootRelatedArg =
-      absl::c_any_of(commandLine, [](const std::string &arg) -> bool {
-        return arg.starts_with("-isysroot") || arg.starts_with("--sysroot");
-      });
-  if (!containsSysrootRelatedArg) {
-    std::string stdlibPath;
-    switch (resourceDirResult.compilerKind) {
-    case CompilerKind::Gcc: {
-      auto gccVersion = llvm::sys::path::filename(resourceDir);
-      stdlibPath = (StdPath(resourceDir) / ".." / ".." / ".." / ".." / "include"
-                    / "c++" / std::string_view(gccVersion))
-                       .string();
-      break;
+    // TODO: Add tests for this...
+    // FIXME: This won't handle using libstdc++ with clang...
+    bool containsSysrootRelatedArg =
+        absl::c_any_of(commandLine, [](const std::string &arg) -> bool {
+          return arg.starts_with("-isysroot") || arg.starts_with("--sysroot");
+        });
+    if (!containsSysrootRelatedArg) {
+      std::string stdlibPath;
+      switch (resourceDirResult.compilerKind) {
+      case CompilerKind::Gcc: {
+        auto gccVersion = llvm::sys::path::filename(resourceDir);
+        stdlibPath = (StdPath(resourceDir) / ".." / ".." / ".." / ".."
+                      / "include" / "c++" / std::string_view(gccVersion))
+                         .string();
+        break;
+      }
+      case CompilerKind::Clang:
+        stdlibPath =
+            (StdPath(resourceDir) / ".." / "include" / "c++" / "v1").string();
+        break;
+      }
+      extraArgs.push_back("-isystem");
+      extraArgs.emplace_back(std::move(stdlibPath));
     }
-    case CompilerKind::Clang:
-      stdlibPath =
-          (StdPath(resourceDir) / ".." / "include" / "c++" / "v1").string();
-      break;
-    }
-    extraArgs.push_back("-isystem");
-    extraArgs.emplace_back(std::move(stdlibPath));
   }
 
   auto [newIt, inserted] =
