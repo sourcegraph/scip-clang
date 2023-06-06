@@ -14,6 +14,7 @@
   - [Inspecting Clang ASTs](#inspecting-clang-asts)
   - [Automated test case reduction](#automated-test-case-reduction)
   - [Debugging preprocessor issues](#debugging-preprocessor-issues)
+  - [Debugging using a local Clang checkout](#debugging-using-a-local-clang-checkout)
 - [Profiling](#profiling)
   - [Stack sampling](#stack-sampling)
   - [Tracing using Perfetto](#tracing-using-perfetto)
@@ -228,6 +229,23 @@ One can check that the structure of the YAML file matches what we expect
 bazel build //tools:analyze_pp_trace
 ./bazel-bin/tools/analyze_pp_trace --yaml-path pp-trace.yaml
 ```
+
+### Debugging using a local Clang checkout
+
+Sometimes, the best way to debug something is to be able to put print statements
+inside Clang itself. For that, you can stub out the usage of `llvm-raw` in `fetch_deps.bzl`
+
+```starlark
+  # Comment out the corresponding http_archive call
+  native.new_local_repository(
+    name = "llvm-raw",
+    path = "/home/me/code/llvm-project",
+    build_file_content = "# empty",
+  )
+```
+
+After that, add print debugging statements inside Clang (e.g. using `llvm::errs() <<`),
+and rebuild `scip-clang` like usual.
 
 ## Profiling
 
