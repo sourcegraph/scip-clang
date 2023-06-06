@@ -80,6 +80,13 @@ public:
   bool reachedLimit() const;
 };
 
+struct ToolchainConfig {
+  std::string compilerDriverPath;
+  /// The vector may be empty if we failed to determine
+  /// the correct arguments.
+  std::vector<std::string> extraArgs;
+};
+
 class ResumableParser {
   std::string jsonStreamBuffer;
   std::optional<rapidjson::FileReadStream> compDbStream;
@@ -89,12 +96,14 @@ class ResumableParser {
   bool inferResourceDir;
   absl::flat_hash_set<std::string> emittedErrors;
 
-  /// Mapping from compiler -> extra command-line arguments needed
-  /// to set up include directories correctly.
+  /// Mapping from compiler/wrapper path to extra information needed
+  /// to tweak the compilation database entry before invoking the driver.
   ///
-  /// The vector may be empty if we failed to determine the correct
-  /// arguments.
-  absl::flat_hash_map<std::string, std::vector<std::string>> extraArgsMap;
+  /// For example, Bazel uses a compiler wrapper, but scip-clang needs
+  /// to use the full path to the compiler driver when running semantic
+  /// analysis, so that include directories are picked up correctly
+  /// relative to the driver's location.
+  absl::flat_hash_map<std::string, ToolchainConfig> toolchainConfigMap;
 
 public:
   ResumableParser() = default;
