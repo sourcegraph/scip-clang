@@ -1,5 +1,13 @@
 # scip-clang ChangeLog
 
+## v0.2.1 (beta)
+
+- Fixes a bug where the base compiler was not located correctly,
+  leading to standard library headers not being found.
+  This bug is when using a custom LLVM toolchain for Bazel,
+  such as grailbio/bazel-toolchain.
+  (https://github.com/sourcegraph/scip-clang/pull/375)
+
 ## v0.2.0 (beta)
 
 - Adds initial support for **cross-repository code navigation**.
