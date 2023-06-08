@@ -15,6 +15,8 @@
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
 
+#include "llvm/Support/Regex.h"
+
 #include "indexer/Derive.h"
 #include "indexer/FileSystem.h"
 
@@ -106,6 +108,23 @@ struct ToolchainConfig {
   std::vector<std::string> extraArgs;
 };
 
+struct ParseOptions {
+  bool inferResourceDir;
+  bool skipNonMainFileEntries;
+
+  explicit ParseOptions(bool isTesting = false)
+      : inferResourceDir(!isTesting), skipNonMainFileEntries(!isTesting) {}
+
+  ParseOptions(bool inferResourceDir, bool skipNonMainFileEntries)
+      : inferResourceDir(inferResourceDir),
+        skipNonMainFileEntries(skipNonMainFileEntries) {}
+};
+
+struct ParseStats {
+  unsigned skippedNonTuFileExtension = 0;
+  unsigned skippedNonExistentTuFile = 0;
+};
+
 class ResumableParser {
   std::string jsonStreamBuffer;
   std::optional<rapidjson::FileReadStream> compDbStream;
@@ -113,8 +132,10 @@ class ResumableParser {
   rapidjson::Reader reader;
   size_t currentIndex = 0;
 
-  bool inferResourceDir;
+  ParseOptions options;
   absl::flat_hash_set<std::string> emittedErrors;
+
+  llvm::Regex fileExtensionRegex;
 
   /// Mapping from compiler/wrapper path to extra information needed
   /// to tweak the command object before invoking the driver.
@@ -126,6 +147,8 @@ class ResumableParser {
   absl::flat_hash_map<std::string, ToolchainConfig> toolchainConfigMap;
 
 public:
+  ParseStats stats;
+
   ResumableParser() = default;
   ResumableParser(const ResumableParser &) = delete;
   ResumableParser &operator=(const ResumableParser &) = delete;
@@ -133,8 +156,7 @@ public:
   /// If \param inferResourceDir is set, then the parser will automatically
   /// add extra '-resource-dir' '<path>' arguments to the parsed
   /// CompileCommands' CommandLine field.
-  void initialize(compdb::File compdb, size_t refillCount,
-                  bool inferResourceDir);
+  void initialize(compdb::File compdb, size_t refillCount, ParseOptions);
 
   // Parses at most refillCount elements (passed during initialization)
   // from the compilation database passed during initialization.

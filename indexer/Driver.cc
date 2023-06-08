@@ -958,6 +958,15 @@ public:
                "{:.1f}s, merging: {:.1f}s, num errored TUs: {}).\n",
                numTus.first.value, total.value<secs>(), indexing.value<secs>(),
                merging.value<secs>(), numTus.second);
+    auto parseStats = this->compdbParser.stats;
+    auto totalSkipped = parseStats.skippedNonExistentTuFile
+                        + parseStats.skippedNonTuFileExtension;
+    if (totalSkipped != 0) {
+      fmt::print("Skipped: {} compilation database entries (non main file "
+                 "extension: {}, not found on disk: {}).\n",
+                 totalSkipped, parseStats.skippedNonTuFileExtension,
+                 parseStats.skippedNonExistentTuFile);
+    }
   }
 
 private:
@@ -1194,12 +1203,14 @@ private:
     this->compdbCommandCount = compdbFile.commandCount();
     this->options.numWorkers =
         std::min(this->compdbCommandCount, this->numWorkers());
-    spdlog::debug("total {} compilation jobs", this->compdbCommandCount);
+    spdlog::debug("total {} command objects in compilation database",
+                  this->compdbCommandCount);
 
     // FIXME(def: resource-dir-extra): If we're passed in a resource dir
     // as an extra argument, we should not pass it here.
-    this->compdbParser.initialize(compdbFile, this->refillCount(),
-                                  !this->options.isTesting);
+    this->compdbParser.initialize(
+        compdbFile, this->refillCount(),
+        compdb::ParseOptions(this->options.isTesting));
     return FileGuard(compdbFile.file);
   }
 

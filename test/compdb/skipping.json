@@ -1,0 +1,47 @@
+[
+  {
+    "command": "abc",
+    "directory": "not_skipped",
+    "file": "a.c"
+  },
+  {
+    "command": "abc",
+    "directory": "not_skipped",
+    "file": "a.cpp"
+  },
+  {
+    "command": "abc",
+    "directory": "not_skipped",
+    "file": "a.cc"
+  },
+  {
+    "command": "abc",
+    "directory": "skipped",
+    "file": "foo.h"
+  },
+  {
+    "command": "abc",
+    "directory": "skipped",
+    "file": "foo.hpp"
+  },
+  {
+    "command": "abc",
+    "directory": "skipped",
+    "file": "foo.hxx"
+  },
+  {
+    "command": "abc",
+    "directory": "not_skipped",
+    "file": "a.cxx"
+  },
+  {
+    "command": "abc",
+    "directory": "skipped",
+    "file": "foo.def"
+  },
+  {
+    "command": "abc",
+    "directory": "skipped",
+    "file": "foo.S"
+  }
+]

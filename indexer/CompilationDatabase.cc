@@ -565,7 +565,7 @@ compdb::File::openAndExitOnErrors(const StdPath &path,
 }
 
 void ResumableParser::initialize(compdb::File compdb, size_t refillCount,
-                                 bool inferResourceDir) {
+                                 ParseOptions options) {
   auto averageJobSize = compdb.sizeInBytes() / compdb.commandCount();
   // Some customers have averageJobSize = 150KiB.
   // If numWorkers == 300 (very high core count machine),
@@ -580,7 +580,14 @@ void ResumableParser::initialize(compdb::File compdb, size_t refillCount,
       rapidjson::FileReadStream(compdb.file, this->jsonStreamBuffer.data(),
                                 this->jsonStreamBuffer.size());
   this->reader.IterativeParseInit();
-  this->inferResourceDir = inferResourceDir;
+  this->options = options;
+  std::vector<std::string> extensions;
+  // Via https://stackoverflow.com/a/3223792/2682729
+  for (auto ext : {"c", "C", "cc", "cpp", "CPP", "cxx", "c++"}) {
+    extensions.emplace_back(llvm::Regex::escape(fmt::format(".{}", ext)));
+  };
+  this->fileExtensionRegex =
+      llvm::Regex(fmt::format(".+({})$", fmt::join(extensions, "|")));
 }
 
 void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out,
@@ -633,8 +640,15 @@ void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out,
     for (auto &cmd : this->handler->commands) {
       cmd.index = this->currentIndex;
       ++this->currentIndex;
+      if (this->options.skipNonMainFileEntries) {
+        if (!this->fileExtensionRegex.match(cmd.filePath)) {
+          ++this->stats.skippedNonTuFileExtension;
+          continue;
+        }
+      }
       if (checkFilesExist
           && !doesFileExist(cmd.filePath, cmd.workingDirectory)) {
+        ++this->stats.skippedNonExistentTuFile;
         continue;
       }
       out.emplace_back(std::move(cmd));
@@ -642,7 +656,7 @@ void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out,
     this->handler->commands.clear();
   }
 
-  if (this->inferResourceDir) {
+  if (this->options.inferResourceDir) {
     for (auto &cmd : out) {
       if (cmd.arguments.empty()) {
         continue;
