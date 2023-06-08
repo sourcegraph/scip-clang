@@ -63,6 +63,9 @@ enum class Key : uint32_t {
 /// The 'command object' terminology is taken from the official Clang docs.
 /// https://clang.llvm.org/docs/JSONCompilationDatabase.html
 struct CommandObject {
+  static constexpr size_t POISON_INDEX = 8080808080;
+
+  size_t index = /*poison value*/ POISON_INDEX;
   /// Strictly speaking, this should be an absolute directory in an actual
   /// compilation database (see NOTE(ref: directory-field-is-absolute)),
   /// but we use a std::string instead as it may be a relative path for
@@ -108,6 +111,7 @@ class ResumableParser {
   std::optional<rapidjson::FileReadStream> compDbStream;
   std::optional<CommandObjectHandler> handler;
   rapidjson::Reader reader;
+  size_t currentIndex = 0;
 
   bool inferResourceDir;
   absl::flat_hash_set<std::string> emittedErrors;

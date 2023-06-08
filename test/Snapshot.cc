@@ -338,7 +338,7 @@ MultiTuSnapshotTest::MultiTuSnapshotTest(
 compdb::CommandObject
 CommandObjectBuilder::build(const RootPath &rootInSandbox) {
   return compdb::CommandObject{
-      std::string(rootInSandbox.asRef().asStringView()),
+      this->index, std::string(rootInSandbox.asRef().asStringView()),
       rootInSandbox.makeAbsolute(this->tuPathInSandbox).asStringRef(),
       std::move(this->commandLine)};
 }
@@ -410,6 +410,7 @@ MultiTuSnapshotTest::buildInputToOutputMap() {
 }
 
 void MultiTuSnapshotTest::iterateOverTus(PerTuCallback perTuCallback) {
+  size_t index = 0;
   for (auto &io : this->inputOutputs) {
     auto &sourceFileRelPath = io.sourceFilePath.asStringRef();
     if (!test::isTuMainFilePath(sourceFileRelPath)) {
@@ -435,8 +436,9 @@ void MultiTuSnapshotTest::iterateOverTus(PerTuCallback perTuCallback) {
         }
       }
     }
-    perTuCallback(CommandObjectBuilder{io.sourceFilePath.asRef(),
+    perTuCallback(CommandObjectBuilder{index, io.sourceFilePath.asRef(),
                                        std::move(commandLine)});
+    ++index;
   }
 }
 
