@@ -8,9 +8,9 @@
 #include <string>
 #include <string_view>
 
-#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/JSON.h"
 
+#include "indexer/CompilationDatabase.h"
 #include "indexer/Derive.h"
 #include "indexer/Hash.h"
 #include "indexer/Path.h"
@@ -100,7 +100,7 @@ template <> struct fmt::formatter<scip_clang::JobId> {
 namespace scip_clang {
 
 struct SemanticAnalysisJobDetails {
-  clang::tooling::CompileCommand command;
+  compdb::CommandObject command;
 };
 SERIALIZABLE(SemanticAnalysisJobDetails)
 

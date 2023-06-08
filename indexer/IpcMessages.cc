@@ -15,26 +15,6 @@
 #include "indexer/Derive.h"
 #include "indexer/IpcMessages.h"
 
-namespace clang::tooling {
-
-llvm::json::Value toJSON(const clang::tooling::CompileCommand &cc) {
-  return llvm::json::Object{{"directory", cc.Directory},
-                            {"file", cc.Filename},
-                            {"output", cc.Output},
-                            {"arguments", cc.CommandLine}};
-}
-
-bool fromJSON(const llvm::json::Value &jsonValue,
-              clang::tooling::CompileCommand &cc, llvm::json::Path path) {
-  llvm::json::ObjectMapper mapper(jsonValue, path);
-  return mapper && mapper.map("directory", cc.Directory)
-         && mapper.map("file", cc.Filename)
-         && mapper.mapOptional("output", cc.Output)
-         && mapper.map("arguments", cc.CommandLine);
-}
-
-} // namespace clang::tooling
-
 namespace scip_clang {
 
 std::string driverToWorkerQueueName(std::string_view driverId,

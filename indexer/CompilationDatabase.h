@@ -15,9 +15,12 @@
 #include "spdlog/fmt/fmt.h"
 #include "spdlog/spdlog.h"
 
-#include "clang/Tooling/CompilationDatabase.h"
-
+#include "indexer/Derive.h"
 #include "indexer/FileSystem.h"
+
+namespace clang::tooling {
+struct CompileCommand;
+} // namespace clang::tooling
 
 namespace scip_clang {
 namespace compdb {
@@ -26,15 +29,14 @@ struct ValidationOptions {
   bool checkDirectoryPathsAreAbsolute;
 };
 
-class CompilationDatabaseFile {
+class File {
   size_t _sizeInBytes;
   size_t _commandCount;
 
 public:
   FILE *file;
 
-  static CompilationDatabaseFile openAndExitOnErrors(const StdPath &,
-                                                     ValidationOptions);
+  static File openAndExitOnErrors(const StdPath &, ValidationOptions);
 
   size_t sizeInBytes() const {
     return this->_sizeInBytes;
@@ -44,8 +46,8 @@ public:
   }
 
 private:
-  static CompilationDatabaseFile open(const StdPath &, ValidationOptions,
-                                      std::error_code &fileSizeError);
+  static File open(const StdPath &, ValidationOptions,
+                   std::error_code &fileSizeError);
 };
 
 // Key to identify fields in a command object
@@ -58,16 +60,30 @@ enum class Key : uint32_t {
   Output = 1 << 5,
 };
 
+/// The 'command object' terminology is taken from the official Clang docs.
+/// https://clang.llvm.org/docs/JSONCompilationDatabase.html
+struct CommandObject {
+  /// Strictly speaking, this should be an absolute directory in an actual
+  /// compilation database (see NOTE(ref: directory-field-is-absolute)),
+  /// but we use a std::string instead as it may be a relative path for
+  /// test cases.
+  std::string workingDirectory;
+  // May be relative or absolute
+  std::string filePath;
+  std::vector<std::string> arguments;
+};
+SERIALIZABLE(CommandObject)
+
 // Handler for extracting command objects from compilation database.
 class CommandObjectHandler
     : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>,
                                           CommandObjectHandler> {
   compdb::Key previousKey;
-  clang::tooling::CompileCommand wipCommand;
+  compdb::CommandObject wipCommand;
   size_t parseLimit;
 
 public:
-  std::vector<clang::tooling::CompileCommand> commands;
+  std::vector<compdb::CommandObject> commands;
 
   CommandObjectHandler(size_t parseLimit)
       : previousKey(Key::Unset), wipCommand(), parseLimit(parseLimit),
@@ -97,7 +113,7 @@ class ResumableParser {
   absl::flat_hash_set<std::string> emittedErrors;
 
   /// Mapping from compiler/wrapper path to extra information needed
-  /// to tweak the compilation database entry before invoking the driver.
+  /// to tweak the command object before invoking the driver.
   ///
   /// For example, Bazel uses a compiler wrapper, but scip-clang needs
   /// to use the full path to the compiler driver when running semantic
@@ -113,13 +129,12 @@ public:
   /// If \param inferResourceDir is set, then the parser will automatically
   /// add extra '-resource-dir' '<path>' arguments to the parsed
   /// CompileCommands' CommandLine field.
-  void initialize(CompilationDatabaseFile compdb, size_t refillCount,
+  void initialize(compdb::File compdb, size_t refillCount,
                   bool inferResourceDir);
 
   // Parses at most refillCount elements (passed during initialization)
   // from the compilation database passed during initialization.
-  void parseMore(std::vector<clang::tooling::CompileCommand> &out,
-                 bool checkFilesExist = true);
+  void parseMore(std::vector<CommandObject> &out, bool checkFilesExist = true);
 
 private:
   void tryInferResourceDir(const std::string &directoryPath,

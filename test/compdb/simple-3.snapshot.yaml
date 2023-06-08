@@ -3,21 +3,18 @@
     - arg1
     - arg2
     - '-X=arg3'
-  file:            f1
+  filePath:        f1
   directory:       d1
-  output:          ''
 - command:
     - arg1
     - arg2
     - '-X="arg3"'
-  file:            f2
+  filePath:        f2
   directory:       d2
-  output:          out2
 - command:
     - '-Y=dq"dq'
     - '-Z=blah'
     - '-W=ww'
-  file:            f3
+  filePath:        f3
   directory:       d3
-  output:          ''
 ...

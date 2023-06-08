@@ -88,7 +88,7 @@ See the [Usage](#usage) section for step-by-step instructions.
 
 ## System Requirements
 
-1. About 2MB of temporary space per compilation database entry.
+1. About 2MB of temporary space for every TU in the compilation database.
    ```bash
    echo "$(perl -e "print $(jq 'length' build/compile_commands.json) / 512.0") GB"
    ```

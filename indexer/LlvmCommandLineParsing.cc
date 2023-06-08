@@ -8,10 +8,9 @@
 #include "indexer/Enforce.h"
 #include "indexer/LlvmCommandLineParsing.h"
 
-// ----------------------------------- ATTENTION
-// --------------------------------- The code in this file is vendored from
-// Clang's JSONCompilationDatabase.cpp because the parser is not exposed in any
-// header.
+// --------------------------- ATTENTION -------------------------------------
+// The code in this file is vendored from Clang's JSONCompilationDatabase.cpp
+// because the parser is not exposed in any header.
 //
 // We could potentially have instead reused the APIs TokenizeWindowsCommandLine
 // and TokenizeGNUCommandLine from llvm/Support/CommandLine.h, but it is unclear

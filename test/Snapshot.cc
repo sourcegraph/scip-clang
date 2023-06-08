@@ -18,6 +18,7 @@
 #pragma clang diagnostic pop
 #include "spdlog/fmt/fmt.h"
 
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "scip/scip.pb.h"
@@ -334,16 +335,16 @@ MultiTuSnapshotTest::MultiTuSnapshotTest(
   }
 }
 
-clang::tooling::CompileCommand
-MultiTuSnapshotTest::CompdbEntryBuilder::build(const RootPath &rootInSandbox) {
-  return clang::tooling::CompileCommand{
-      rootInSandbox.asRef().asStringView(),
+compdb::CommandObject
+CommandObjectBuilder::build(const RootPath &rootInSandbox) {
+  return compdb::CommandObject{
+      std::string(rootInSandbox.asRef().asStringView()),
       rootInSandbox.makeAbsolute(this->tuPathInSandbox).asStringRef(),
-      std::move(this->commandLine), ""};
+      std::move(this->commandLine)};
 }
 
 llvm::json::Value
-MultiTuSnapshotTest::CompdbBuilder::toJSON(const RootPath &rootInSandbox) {
+CompilationDatabaseBuilder::toJSON(const RootPath &rootInSandbox) {
   std::vector<llvm::json::Value> jsonEntries;
   for (auto &builder : this->entries) {
     jsonEntries.emplace_back(llvm::json::Value(builder.build(rootInSandbox)));
@@ -356,7 +357,7 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
   auto inputToOutputMap = this->buildInputToOutputMap();
   absl::flat_hash_map<RootRelativePath, RootRelativePath> alreadyUsedFiles;
 
-  this->iterateOverTus([&](CompdbEntryBuilder &&entryBuilder) -> void {
+  this->iterateOverTus([&](CommandObjectBuilder &&entryBuilder) -> void {
     auto tuPath = RootRelativePath{entryBuilder.tuPathInSandbox};
     auto output = compute(this->rootPath, std::move(entryBuilder));
 
@@ -375,14 +376,14 @@ void MultiTuSnapshotTest::run(SnapshotMode mode,
 
 void MultiTuSnapshotTest::runWithMerging(
     SnapshotMode mode, RunMultiTuCompileCommandCallback compute) {
-  std::vector<CompdbEntryBuilder> compdbBuilders{};
+  std::vector<CommandObjectBuilder> compdbBuilders{};
 
-  this->iterateOverTus([&](CompdbEntryBuilder &&entryBuilder) {
+  this->iterateOverTus([&](CommandObjectBuilder &&entryBuilder) {
     compdbBuilders.emplace_back(std::move(entryBuilder));
   });
 
-  auto output =
-      compute(this->rootPath, CompdbBuilder{std::move(compdbBuilders)});
+  auto output = compute(this->rootPath,
+                        CompilationDatabaseBuilder{std::move(compdbBuilders)});
 
   this->checkOrUpdate(mode, std::move(output.snapshots),
                       this->buildInputToOutputMap());
@@ -434,8 +435,8 @@ void MultiTuSnapshotTest::iterateOverTus(PerTuCallback perTuCallback) {
         }
       }
     }
-    perTuCallback(
-        CompdbEntryBuilder{io.sourceFilePath.asRef(), std::move(commandLine)});
+    perTuCallback(CommandObjectBuilder{io.sourceFilePath.asRef(),
+                                       std::move(commandLine)});
   }
 }
 
