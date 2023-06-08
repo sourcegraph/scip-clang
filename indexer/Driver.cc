@@ -35,6 +35,7 @@
 #include "spdlog/spdlog.h"
 
 #include "llvm/ADT/StringMap.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/StringSaver.h"
 
 #include "proto/fwd_decls.pb.h"
@@ -467,7 +468,7 @@ class Scheduler final {
   uint32_t nextTaskId = 0;
   /// Monotonically growing map of all jobs that have been created so far.
   /// This number will generally be unrelated to \c compdbCommandCount
-  /// because a single compilation database entry will typically lead
+  /// because a single command object will typically lead
   /// to creation of multiple jobs.
   ///
   /// In principle, after a job is completed, we could start removing
@@ -538,7 +539,7 @@ public:
       switch (job.kind) {
       case IndexJob::Kind::SemanticAnalysis:
         return fmt::format("running semantic analysis for '{}'",
-                           job.semanticAnalysis.command.Filename);
+                           job.semanticAnalysis.command.filePath);
       case IndexJob::Kind::EmitIndex:
         auto &fileInfos = job.emitIndex.filesToBeIndexed;
         auto fileInfoIt = absl::c_find_if(
@@ -920,7 +921,7 @@ public:
       ENFORCE(job.kind == IndexJob::Kind::SemanticAnalysis);
       perJobStats.emplace_back(
           jobId.taskId(),
-          StatsEntry{job.semanticAnalysis.command.Filename, std::move(stats)});
+          StatsEntry{job.semanticAnalysis.command.filePath, std::move(stats)});
     }
     absl::c_sort(perJobStats, [](const auto &p1, const auto &p2) -> bool {
       return p1.first < p2.first;
@@ -1142,7 +1143,7 @@ private:
   }
 
   size_t refillJobs() {
-    std::vector<clang::tooling::CompileCommand> commands{};
+    std::vector<compdb::CommandObject> commands{};
     this->compdbParser.parseMore(commands);
     for (auto &command : commands) {
       this->scheduler.queueNewTask(
@@ -1184,7 +1185,7 @@ private:
   FileGuard openCompilationDatabase() {
     std::error_code error;
     StdPath compdbStdPath{this->compdbPath().asStringRef()};
-    auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(
+    auto compdbFile = compdb::File::openAndExitOnErrors(
         compdbStdPath,
         compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute =
                                       !this->options.isTesting});

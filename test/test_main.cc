@@ -19,7 +19,6 @@
 #include "doctest/doctest.h"
 #include "spdlog/fmt/fmt.h"
 
-#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/YAMLTraits.h"
 
 #include "scip/scip.pb.h"
@@ -64,17 +63,15 @@ struct CompDbTestCase {
 };
 
 // Use YAML instead of JSON for easy line-based diffs (a la insta in Rust-land)
-template <> struct llvm::yaml::MappingTraits<clang::tooling::CompileCommand> {
-  static void mapping(llvm::yaml::IO &io, clang::tooling::CompileCommand &cmd) {
-    io.mapRequired("command", cmd.CommandLine);
-    io.mapRequired("file", cmd.Filename);
-    io.mapRequired("directory", cmd.Directory);
-    io.mapRequired("output", cmd.Output);
+template <> struct llvm::yaml::MappingTraits<compdb::CommandObject> {
+  static void mapping(llvm::yaml::IO &io, compdb::CommandObject &cmd) {
+    io.mapRequired("command", cmd.arguments);
+    io.mapRequired("filePath", cmd.filePath);
+    io.mapRequired("directory", cmd.workingDirectory);
   }
 };
 
-template <>
-struct llvm::yaml::SequenceElementTraits<clang::tooling::CompileCommand> {
+template <> struct llvm::yaml::SequenceElementTraits<compdb::CommandObject> {
   static const bool flow = false;
 };
 
@@ -170,7 +167,7 @@ TEST_CASE("COMPDB_PARSING") {
     StdPath jsonFilePath = dataDir;
     jsonFilePath.append(testCase.jsonFilename);
 
-    auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(
+    auto compdbFile = compdb::File::openAndExitOnErrors(
         jsonFilePath,
         compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = false});
     if (!compdbFile.file) {
@@ -186,12 +183,12 @@ TEST_CASE("COMPDB_PARSING") {
     for (auto refillCount : testCase.refillCountsToTry) {
       compdb::ResumableParser parser{};
       parser.initialize(compdbFile, refillCount, false);
-      std::vector<std::vector<clang::tooling::CompileCommand>> commandGroups;
+      std::vector<std::vector<compdb::CommandObject>> commandGroups;
       std::string buffer;
       llvm::raw_string_ostream outStr(buffer);
       llvm::yaml::Output yamlOut(outStr);
       while (true) {
-        std::vector<clang::tooling::CompileCommand> commands;
+        std::vector<compdb::CommandObject> commands;
         parser.parseMore(commands, /*checkFilesExist*/ false);
         if (commands.size() == 0) {
           break;
@@ -308,19 +305,18 @@ TEST_CASE("PREPROCESSING") {
       }};
   myTest.run(
       test::globalCliOptions.testMode,
-      [](const RootPath &rootInSandbox, auto &&compdbEntryBuilder)
+      [](const RootPath &rootInSandbox, auto &&cmdObjectBuilder)
           -> absl::flat_hash_map<RootRelativePath, std::string> {
         TempFile tmpYamlFile(
             fmt::format("{}.yaml", test::globalCliOptions.testName));
 
         RootRelativePath key{
             RootRelativePathRef{"test/preprocessor", RootKind::Project}};
-        auto tuPath = compdbEntryBuilder.tuPathInSandbox;
+        auto tuPath = cmdObjectBuilder.tuPathInSandbox;
         auto rootInSourceDir =
             ::deriveRootInSourceDir(key.asRef(), rootInSandbox, tuPath);
 
-        clang::tooling::CompileCommand command =
-            compdbEntryBuilder.build(rootInSandbox);
+        compdb::CommandObject command = cmdObjectBuilder.build(rootInSandbox);
 
         CliOptions cliOptions{};
         cliOptions.workerMode = "testing";

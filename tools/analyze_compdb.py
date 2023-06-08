@@ -210,7 +210,7 @@ class AnalysisResult:
 # The first column name is the path.
 # Other columns correspond to the list of requested measurements.
 #
-# The second list contains one row per compilation database entry.
+# The second list contains one row per command object.
 # The first element of the row is the path.
 # The other elements are various measurements.
 def analyze(

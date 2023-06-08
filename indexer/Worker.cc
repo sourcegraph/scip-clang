@@ -141,7 +141,7 @@ Worker::Worker(WorkerOptions &&options)
         MessageQueuePair::forWorker(this->options.ipcOptions));
     break;
   case WorkerMode::Compdb: {
-    auto compdbFile = compdb::CompilationDatabaseFile::openAndExitOnErrors(
+    auto compdbFile = compdb::File::openAndExitOnErrors(
         this->options.compdbPath,
         compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = true});
     compdb::ResumableParser parser{};
@@ -196,17 +196,17 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
                                     WorkerCallback workerCallback,
                                     TuIndexingOutput &tuIndexingOutput) {
   auto optPathRef =
-      AbsolutePathRef::tryFrom(std::string_view(job.command.Directory));
+      AbsolutePathRef::tryFrom(std::string_view(job.command.workingDirectory));
   ENFORCE(optPathRef.has_value()); // See NOTE(ref: directory-field-is-absolute)
   RootPath buildRootPath{AbsolutePath{optPathRef.value()}, RootKind::Build};
 
   clang::FileSystemOptions fileSystemOptions;
-  fileSystemOptions.WorkingDir = std::move(job.command.Directory);
+  fileSystemOptions.WorkingDir = job.command.workingDirectory;
 
   llvm::IntrusiveRefCntPtr<clang::FileManager> fileManager(
       new clang::FileManager(fileSystemOptions, nullptr));
 
-  auto args = std::move(job.command.CommandLine);
+  auto args = std::move(job.command.arguments);
   args.push_back("-fsyntax-only");   // Only type-checking, no codegen.
   args.push_back("-Wno-everything"); // Warnings aren't helpful.
   args.push_back("-working-directory");
@@ -237,7 +237,7 @@ void Worker::processTranslationUnit(SemanticAnalysisJobDetails &&job,
   }
 
   {
-    LogTimerRAII timer(fmt::format("invocation for {}", job.command.Filename));
+    LogTimerRAII timer(fmt::format("invocation for {}", job.command.filePath));
     bool ranSuccessfully = invocation.run();
     (void)ranSuccessfully;
   }
@@ -299,7 +299,7 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   SemanticAnalysisJobResult semaResult{};
   auto semaRequestId = semanticAnalysisRequest.id;
   auto tuMainFilePath =
-      semanticAnalysisRequest.job.semanticAnalysis.command.Filename;
+      semanticAnalysisRequest.job.semanticAnalysis.command.filePath;
   Worker::ReceiveStatus innerStatus;
   JobId emitIndexRequestId;
   unsigned callbackInvoked = 0;
@@ -334,7 +334,7 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
             "expected EmitIndex request for '{}' but got SemanticAnalysis "
             "request for '{}'",
             tuMainFilePath,
-            emitIndexRequest.job.semanticAnalysis.command.Filename);
+            emitIndexRequest.job.semanticAnalysis.command.filePath);
     emitIndexDetails = std::move(emitIndexRequest.job.emitIndex);
     emitIndexRequestId = emitIndexRequest.id;
     return true;
@@ -342,10 +342,10 @@ Worker::ReceiveStatus Worker::processTranslationUnitAndRespond(
   TuIndexingOutput tuIndexingOutput{};
   auto &semaDetails = semanticAnalysisRequest.job.semanticAnalysis;
   // deliberate copy
-  std::vector<std::string> commandLine = semaDetails.command.CommandLine;
+  std::vector<std::string> commandLine = semaDetails.command.arguments;
 
   scip_clang::exceptionContext =
-      fmt::format("processing {}", semaDetails.command.Filename);
+      fmt::format("processing {}", semaDetails.command.filePath);
   this->processTranslationUnit(std::move(semaDetails), callback,
                                tuIndexingOutput);
   scip_clang::exceptionContext = "";

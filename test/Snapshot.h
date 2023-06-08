@@ -8,11 +8,11 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/function_ref.h"
 
-#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "scip/scip.pb.h"
 
+#include "indexer/CompilationDatabase.h"
 #include "indexer/FileSystem.h"
 #include "indexer/Path.h"
 
@@ -66,6 +66,19 @@ void compareOrUpdateSingleFile(SnapshotMode mode, std::string_view actual,
 void compareDiff(std::string_view expected, std::string_view actual,
                  std::string_view errorMessage);
 
+struct CommandObjectBuilder {
+  RootRelativePathRef tuPathInSandbox;
+  std::vector<std::string> commandLine;
+
+  compdb::CommandObject build(const RootPath &rootInSandbox);
+};
+
+struct CompilationDatabaseBuilder {
+  std::vector<CommandObjectBuilder> entries;
+
+  llvm::json::Value toJSON(const RootPath &rootInSandbox);
+};
+
 /// Helper class to run snapshot tests recursively for all TUs
 /// under a subdirectory.
 class MultiTuSnapshotTest final {
@@ -86,19 +99,6 @@ public:
                           const RootRelativePath &)>
                           getSnapshotPath);
 
-  struct CompdbEntryBuilder {
-    RootRelativePathRef tuPathInSandbox;
-    std::vector<std::string> commandLine;
-
-    clang::tooling::CompileCommand build(const RootPath &rootInSandbox);
-  };
-
-  struct CompdbBuilder {
-    std::vector<CompdbEntryBuilder> entries;
-
-    llvm::json::Value toJSON(const RootPath &rootInSandbox);
-  };
-
   using SnapshotContentsMap =
       absl::flat_hash_map<RootRelativePath, std::string>;
 
@@ -108,7 +108,7 @@ public:
   /// Different TUs should not reuse the same headers, because this API
   /// currently doesn't handle index merging.
   using RunCompileCommandCallback = absl::FunctionRef<SnapshotContentsMap(
-      const RootPath &rootInSandbox, CompdbEntryBuilder &&)>;
+      const RootPath &rootInSandbox, CommandObjectBuilder &&)>;
 
   void run(SnapshotMode, RunCompileCommandCallback);
 
@@ -118,7 +118,7 @@ public:
   };
 
   using RunMultiTuCompileCommandCallback = absl::FunctionRef<MergeResult(
-      const RootPath &rootInSandbox, CompdbBuilder &&)>;
+      const RootPath &rootInSandbox, CompilationDatabaseBuilder &&)>;
 
   void runWithMerging(SnapshotMode, RunMultiTuCompileCommandCallback);
 
@@ -127,7 +127,7 @@ private:
       absl::flat_hash_map<RootRelativePathRef, RootRelativePathRef>;
   InputToOutputMap buildInputToOutputMap();
 
-  using PerTuCallback = absl::FunctionRef<void(CompdbEntryBuilder &&)>;
+  using PerTuCallback = absl::FunctionRef<void(CommandObjectBuilder &&)>;
   void iterateOverTus(PerTuCallback);
 
   void checkOrUpdate(SnapshotMode, SnapshotContentsMap &&,

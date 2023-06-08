@@ -157,6 +157,21 @@ ToolchainPathsResult static determineToolchainPaths(
 
 namespace scip_clang {
 namespace compdb {
+
+llvm::json::Value toJSON(const CommandObject &cmd) {
+  return llvm::json::Object{{"directory", cmd.workingDirectory},
+                            {"file", cmd.filePath},
+                            {"arguments", cmd.arguments}};
+}
+
+bool fromJSON(const llvm::json::Value &jsonValue, CommandObject &cmd,
+              llvm::json::Path path) {
+  llvm::json::ObjectMapper mapper(jsonValue, path);
+  return mapper && mapper.map("directory", cmd.workingDirectory)
+         && mapper.map("file", cmd.filePath)
+         && mapper.map("arguments", cmd.arguments);
+}
+
 namespace {
 
 // Handler to validate a compilation database in a streaming fashion.
@@ -287,7 +302,7 @@ public:
       if (this->options.checkDirectoryPathsAreAbsolute
           && this->lastKey == Key::Directory) {
         auto dirPath = std::string_view(str, length);
-        // NOTE(ref: directory-field-is-absolute): While the JSON compilation
+        // NOTE(def: directory-field-is-absolute): While the JSON compilation
         // database schema
         // (https://clang.llvm.org/docs/JSONCompilationDatabase.html) does not
         // specify if the "directory" key should be an absolute path or not, if
@@ -456,21 +471,20 @@ bool CommandObjectHandler::String(const char *str, rapidjson::SizeType length,
     ENFORCE(false, "unexpected input");
     return false;
   case Key::Directory:
-    this->wipCommand.Directory = std::string(str, length);
+    this->wipCommand.workingDirectory = std::string(str, length);
     break;
   case Key::File:
-    this->wipCommand.Filename = std::string(str, length);
+    this->wipCommand.filePath = std::string(str, length);
     break;
   case Key::Command:
-    this->wipCommand.CommandLine = scip_clang::unescapeCommandLine(
+    this->wipCommand.arguments = scip_clang::unescapeCommandLine(
         clang::tooling::JSONCommandLineSyntax::AutoDetect,
         std::string_view(str, length));
     break;
   case Key::Arguments: // Validator makes sure we have an array outside.
-    this->wipCommand.CommandLine.emplace_back(str, length);
+    this->wipCommand.arguments.emplace_back(str, length);
     break;
-  case Key::Output:
-    this->wipCommand.Output = std::string(str, length);
+  case Key::Output: // Do nothing
     break;
   }
   return true;
@@ -506,11 +520,10 @@ bool CommandObjectHandler::reachedLimit() const {
   return this->commands.size() == this->parseLimit;
 }
 
-CompilationDatabaseFile
-CompilationDatabaseFile::open(const StdPath &path,
-                              ValidationOptions validationOptions,
-                              std::error_code &fileSizeError) {
-  CompilationDatabaseFile compdbFile{};
+compdb::File compdb::File::open(const StdPath &path,
+                                ValidationOptions validationOptions,
+                                std::error_code &fileSizeError) {
+  compdb::File compdbFile{};
   compdbFile.file = std::fopen(path.c_str(), "rb");
   if (!compdbFile.file) {
     return compdbFile;
@@ -525,11 +538,11 @@ CompilationDatabaseFile::open(const StdPath &path,
   return compdbFile;
 }
 
-CompilationDatabaseFile CompilationDatabaseFile::openAndExitOnErrors(
-    const StdPath &path, ValidationOptions validationOptions) {
+compdb::File
+compdb::File::openAndExitOnErrors(const StdPath &path,
+                                  ValidationOptions validationOptions) {
   std::error_code fileSizeError;
-  auto compdbFile =
-      CompilationDatabaseFile::open(path, validationOptions, fileSizeError);
+  auto compdbFile = compdb::File::open(path, validationOptions, fileSizeError);
   if (!compdbFile.file) {
     spdlog::error("failed to open '{}': {}", path.string(),
                   std::strerror(errno));
@@ -548,8 +561,8 @@ CompilationDatabaseFile CompilationDatabaseFile::openAndExitOnErrors(
   return compdbFile;
 }
 
-void ResumableParser::initialize(CompilationDatabaseFile compdb,
-                                 size_t refillCount, bool inferResourceDir) {
+void ResumableParser::initialize(compdb::File compdb, size_t refillCount,
+                                 bool inferResourceDir) {
   auto averageJobSize = compdb.sizeInBytes() / compdb.commandCount();
   // Some customers have averageJobSize = 150KiB.
   // If numWorkers == 300 (very high core count machine),
@@ -567,8 +580,8 @@ void ResumableParser::initialize(CompilationDatabaseFile compdb,
   this->inferResourceDir = inferResourceDir;
 }
 
-void ResumableParser::parseMore(
-    std::vector<clang::tooling::CompileCommand> &out, bool checkFilesExist) {
+void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out,
+                                bool checkFilesExist) {
   if (this->reader.IterativeParseComplete()) {
     if (this->reader.HasParseError()) {
       spdlog::error(
@@ -615,7 +628,8 @@ void ResumableParser::parseMore(
     }
     std::string pathBuffer;
     for (auto &cmd : this->handler->commands) {
-      if (checkFilesExist && !doesFileExist(cmd.Filename, cmd.Directory)) {
+      if (checkFilesExist
+          && !doesFileExist(cmd.filePath, cmd.workingDirectory)) {
         continue;
       }
       out.emplace_back(std::move(cmd));
@@ -625,10 +639,10 @@ void ResumableParser::parseMore(
 
   if (this->inferResourceDir) {
     for (auto &cmd : out) {
-      if (cmd.CommandLine.empty()) {
+      if (cmd.arguments.empty()) {
         continue;
       }
-      this->tryInferResourceDir(cmd.Directory, cmd.CommandLine);
+      this->tryInferResourceDir(cmd.workingDirectory, cmd.arguments);
     }
   }
 }

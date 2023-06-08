@@ -10,12 +10,12 @@
 #include "absl/functional/function_ref.h"
 #include "spdlog/fwd.h"
 
-#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "indexer/AstConsumer.h"
 #include "indexer/CliOptions.h"
+#include "indexer/CompilationDatabase.h"
 #include "indexer/FileSystem.h"
 #include "indexer/IpcMessages.h"
 #include "indexer/JsonIpcQueue.h"
@@ -81,7 +81,7 @@ class Worker final {
   std::unique_ptr<MessageQueuePair> messageQueues;
 
   // Set iff options.mode == Compdb
-  std::vector<clang::tooling::CompileCommand> compileCommands;
+  std::vector<compdb::CommandObject> compileCommands;
   size_t commandIndex;
 
   /// The llvm::yaml::Output object doesn't take ownership
