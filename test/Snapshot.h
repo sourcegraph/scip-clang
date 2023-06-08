@@ -67,6 +67,7 @@ void compareDiff(std::string_view expected, std::string_view actual,
                  std::string_view errorMessage);
 
 struct CommandObjectBuilder {
+  size_t index;
   RootRelativePathRef tuPathInSandbox;
   std::vector<std::string> commandLine;
 

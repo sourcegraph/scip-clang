@@ -464,8 +464,6 @@ class Scheduler final {
   /// Values are indexes into \c workers.
   std::vector<unsigned> stoppedWorkers;
 
-  /// Monotonically growing counter.
-  uint32_t nextTaskId = 0;
   /// Monotonically growing map of all jobs that have been created so far.
   /// This number will generally be unrelated to \c compdbCommandCount
   /// because a single command object will typically lead
@@ -631,10 +629,17 @@ public:
     }
   }
 
-  void queueNewTask(IndexJob &&j) {
-    auto jobId = JobId::newTask(this->nextTaskId);
-    this->nextTaskId++;
-    this->allJobList.emplace(jobId, TrackedIndexJob{std::move(j), {}});
+  void queueSemaTask(compdb::CommandObject &&cmdObject) {
+    auto jobId = JobId::newTask(cmdObject.index);
+    IndexJob job{IndexJob::Kind::SemanticAnalysis,
+                 SemanticAnalysisJobDetails{std::move(cmdObject)},
+                 EmitIndexJobDetails{}};
+    auto [it, inserted] =
+        this->allJobList.emplace(jobId, TrackedIndexJob{std::move(job), {}});
+    ENFORCE(inserted,
+            "expected jobId {} to be added for the first time, but found a "
+            "matching job added earlier",
+            jobId);
     this->pendingJobs.push_back(jobId);
   }
 
@@ -1146,10 +1151,7 @@ private:
     std::vector<compdb::CommandObject> commands{};
     this->compdbParser.parseMore(commands);
     for (auto &command : commands) {
-      this->scheduler.queueNewTask(
-          IndexJob{IndexJob::Kind::SemanticAnalysis,
-                   SemanticAnalysisJobDetails{std::move(command)},
-                   EmitIndexJobDetails{}});
+      this->scheduler.queueSemaTask(std::move(command));
     }
     return commands.size();
   }

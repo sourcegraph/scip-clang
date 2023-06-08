@@ -159,6 +159,8 @@ namespace scip_clang {
 namespace compdb {
 
 llvm::json::Value toJSON(const CommandObject &cmd) {
+  // The keys here match what is present in a compilation database.
+  // Skip the index as that's not expected by the rapidjson parser
   return llvm::json::Object{{"directory", cmd.workingDirectory},
                             {"file", cmd.filePath},
                             {"arguments", cmd.arguments}};
@@ -166,6 +168,7 @@ llvm::json::Value toJSON(const CommandObject &cmd) {
 
 bool fromJSON(const llvm::json::Value &jsonValue, CommandObject &cmd,
               llvm::json::Path path) {
+  // The keys match what is present in a compilation database.
   llvm::json::ObjectMapper mapper(jsonValue, path);
   return mapper && mapper.map("directory", cmd.workingDirectory)
          && mapper.map("file", cmd.filePath)
@@ -628,6 +631,8 @@ void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out,
     }
     std::string pathBuffer;
     for (auto &cmd : this->handler->commands) {
+      cmd.index = this->currentIndex;
+      ++this->currentIndex;
       if (checkFilesExist
           && !doesFileExist(cmd.filePath, cmd.workingDirectory)) {
         continue;
