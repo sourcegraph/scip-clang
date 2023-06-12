@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
+set -eux
 
 ZONE="us-central-1"
 PROJECT="sourcegraph-ci"
 INSTANCE="scip-clang-runner"
 
 # From https://stackoverflow.com/a/65683139/2682729
-function wait_vm() {
+function wait_vm_start() {
   local counter=0
   local maxRetry=20
   while true ; do
