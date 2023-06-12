@@ -1,0 +1,20 @@
+---
+- command:
+    - abc
+  filePath:        a.c
+  directory:       not_skipped
+- command:
+    - abc
+  filePath:        a.cpp
+  directory:       not_skipped
+- command:
+    - abc
+  filePath:        a.cc
+  directory:       not_skipped
+...
+---
+- command:
+    - abc
+  filePath:        a.cxx
+  directory:       not_skipped
+...

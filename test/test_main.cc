@@ -60,6 +60,7 @@ struct CompDbTestCase {
   std::string jsonFilename;
   size_t checkCount;
   std::vector<size_t> refillCountsToTry;
+  compdb::ParseOptions parseOptions;
 };
 
 // Use YAML instead of JSON for easy line-based diffs (a la insta in Rust-land)
@@ -158,7 +159,14 @@ TEST_CASE("COMPDB_PARSING") {
   scip_clang::compdb::ResumableParser parser;
 
   std::vector<CompDbTestCase> testCases{};
-  testCases.push_back(CompDbTestCase{"simple.json", 3, {2, 3, 4}});
+  testCases.push_back(CompDbTestCase{
+      "simple.json", 3, {2, 3, 4}, compdb::ParseOptions(/*isTesting*/ true)});
+  testCases.push_back(
+      CompDbTestCase{"skipping.json",
+                     9,
+                     {4},
+                     compdb::ParseOptions(/*inferResourceDir*/ false,
+                                          /*skipNonMainFileEntries*/ true)});
 
   auto dataDir =
       std::filesystem::current_path().append("test").append("compdb");
@@ -182,7 +190,7 @@ TEST_CASE("COMPDB_PARSING") {
 
     for (auto refillCount : testCase.refillCountsToTry) {
       compdb::ResumableParser parser{};
-      parser.initialize(compdbFile, refillCount, false);
+      parser.initialize(compdbFile, refillCount, testCase.parseOptions);
       std::vector<std::vector<compdb::CommandObject>> commandGroups;
       std::string buffer;
       llvm::raw_string_ostream outStr(buffer);
