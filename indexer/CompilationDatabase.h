@@ -109,15 +109,12 @@ struct ToolchainConfig {
 };
 
 struct ParseOptions {
+  size_t refillCount;
   bool inferResourceDir;
   bool skipNonMainFileEntries;
+  bool checkFilesExist;
 
-  explicit ParseOptions(bool isTesting = false)
-      : inferResourceDir(!isTesting), skipNonMainFileEntries(!isTesting) {}
-
-  ParseOptions(bool inferResourceDir, bool skipNonMainFileEntries)
-      : inferResourceDir(inferResourceDir),
-        skipNonMainFileEntries(skipNonMainFileEntries) {}
+  static ParseOptions create(size_t refillCount, bool forTesting = false);
 };
 
 struct ParseStats {
@@ -156,11 +153,10 @@ public:
   /// If \param inferResourceDir is set, then the parser will automatically
   /// add extra '-resource-dir' '<path>' arguments to the parsed
   /// CompileCommands' CommandLine field.
-  void initialize(compdb::File compdb, size_t refillCount, ParseOptions);
+  void initialize(compdb::File compdb, ParseOptions);
 
-  // Parses at most refillCount elements (passed during initialization)
-  // from the compilation database passed during initialization.
-  void parseMore(std::vector<CommandObject> &out, bool checkFilesExist = true);
+  /// Parses at most \c options.refillCount elements into \param out.
+  void parseMore(std::vector<CommandObject> &out);
 
 private:
   void tryInferResourceDir(const std::string &directoryPath,

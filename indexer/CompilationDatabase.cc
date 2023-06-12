@@ -564,17 +564,24 @@ compdb::File::openAndExitOnErrors(const StdPath &path,
   return compdbFile;
 }
 
-void ResumableParser::initialize(compdb::File compdb, size_t refillCount,
-                                 ParseOptions options) {
+// static
+ParseOptions ParseOptions::create(size_t refillCount, bool forTesting) {
+  ENFORCE(refillCount > 0);
+  return ParseOptions{refillCount, /*inferResourceDir*/ !forTesting,
+                      /*skipNonMainFileTuEntries*/ !forTesting,
+                      /*checkFilesExist*/ !forTesting};
+}
+
+void ResumableParser::initialize(compdb::File compdb, ParseOptions options) {
   auto averageJobSize = compdb.sizeInBytes() / compdb.commandCount();
   // Some customers have averageJobSize = 150KiB.
   // If numWorkers == 300 (very high core count machine),
   // then the computed hint will be ~88MiB. The 128MiB is rounded up from 88MiB.
   // The fudge factor of 2 is to allow for oversized jobs.
-  auto bufferSize =
-      std::min(size_t(128 * 1024 * 1024), averageJobSize * 2 * refillCount);
+  auto bufferSize = std::min(size_t(128 * 1024 * 1024),
+                             averageJobSize * 2 * options.refillCount);
   std::fseek(compdb.file, 0, SEEK_SET);
-  this->handler = CommandObjectHandler(refillCount);
+  this->handler = CommandObjectHandler(options.refillCount);
   this->jsonStreamBuffer.resize(bufferSize);
   this->compDbStream =
       rapidjson::FileReadStream(compdb.file, this->jsonStreamBuffer.data(),
@@ -590,8 +597,7 @@ void ResumableParser::initialize(compdb::File compdb, size_t refillCount,
       llvm::Regex(fmt::format(".+({})$", fmt::join(extensions, "|")));
 }
 
-void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out,
-                                bool checkFilesExist) {
+void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out) {
   if (this->reader.IterativeParseComplete()) {
     if (this->reader.HasParseError()) {
       spdlog::error(
@@ -646,7 +652,7 @@ void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out,
           continue;
         }
       }
-      if (checkFilesExist
+      if (this->options.checkFilesExist
           && !doesFileExist(cmd.filePath, cmd.workingDirectory)) {
         ++this->stats.skippedNonExistentTuFile;
         continue;
