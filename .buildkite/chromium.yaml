@@ -5,3 +5,5 @@ steps:
       queue: bazel
     command: |
       ./.buildkite/chromium.sh
+notify:
+  - slack: "#code-intel-indexing-alerts"
