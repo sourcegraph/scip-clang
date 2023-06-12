@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eux
 
-ZONE="us-central-1"
+ZONE="us-central1-c"
 PROJECT="sourcegraph-ci"
 INSTANCE="scip-clang-runner"
 
