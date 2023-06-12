@@ -9,6 +9,7 @@ INSTANCE="scip-clang-runner"
 function wait_vm_start() {
   local counter=0
   local maxRetry=20
+  ((counter++))
   while true ; do
     if (( counter == maxRetry )) ; then
       echo "Reach the retry upper limit $counter"
