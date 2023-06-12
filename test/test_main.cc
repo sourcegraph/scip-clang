@@ -159,14 +159,12 @@ TEST_CASE("COMPDB_PARSING") {
   scip_clang::compdb::ResumableParser parser;
 
   std::vector<CompDbTestCase> testCases{};
-  testCases.push_back(CompDbTestCase{
-      "simple.json", 3, {2, 3, 4}, compdb::ParseOptions(/*isTesting*/ true)});
-  testCases.push_back(
-      CompDbTestCase{"skipping.json",
-                     9,
-                     {4},
-                     compdb::ParseOptions(/*inferResourceDir*/ false,
-                                          /*skipNonMainFileEntries*/ true)});
+  auto testOptions =
+      compdb::ParseOptions::create(/*refillCount*/ 1, /*forTesting*/ true);
+  testCases.push_back(CompDbTestCase{"simple.json", 3, {2, 3, 4}, testOptions});
+  auto testOptionsSkip = testOptions;
+  testOptionsSkip.skipNonMainFileEntries = true;
+  testCases.push_back(CompDbTestCase{"skipping.json", 9, {4}, testOptionsSkip});
 
   auto dataDir =
       std::filesystem::current_path().append("test").append("compdb");
@@ -190,14 +188,16 @@ TEST_CASE("COMPDB_PARSING") {
 
     for (auto refillCount : testCase.refillCountsToTry) {
       compdb::ResumableParser parser{};
-      parser.initialize(compdbFile, refillCount, testCase.parseOptions);
+      auto parseOptions = testCase.parseOptions;
+      parseOptions.refillCount = refillCount;
+      parser.initialize(compdbFile, parseOptions);
       std::vector<std::vector<compdb::CommandObject>> commandGroups;
       std::string buffer;
       llvm::raw_string_ostream outStr(buffer);
       llvm::yaml::Output yamlOut(outStr);
       while (true) {
         std::vector<compdb::CommandObject> commands;
-        parser.parseMore(commands, /*checkFilesExist*/ false);
+        parser.parseMore(commands);
         if (commands.size() == 0) {
           break;
         }

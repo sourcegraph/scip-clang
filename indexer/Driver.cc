@@ -1209,8 +1209,8 @@ private:
     // FIXME(def: resource-dir-extra): If we're passed in a resource dir
     // as an extra argument, we should not pass it here.
     this->compdbParser.initialize(
-        compdbFile, this->refillCount(),
-        compdb::ParseOptions(this->options.isTesting));
+        compdbFile, compdb::ParseOptions::create(this->refillCount(),
+                                                 this->options.isTesting));
     return FileGuard(compdbFile.file);
   }
 
