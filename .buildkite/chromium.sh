@@ -8,14 +8,14 @@ INSTANCE="scip-clang-runner"
 # From https://stackoverflow.com/a/65683139/2682729
 function wait_vm_start() {
   local counter=0
-  local maxRetry=20
+  local maxRetry=10
   while true ; do
     if (( counter == maxRetry )) ; then
       echo "Reach the retry upper limit $counter"
       exit 1
     fi
 
-    if gcloud compute ssh --quiet --zone "$ZONE" --project "$PROJECT" "$INSTANCE" --tunnel-through-iap --command="true" 2> /dev/null ; then
+    if gcloud compute ssh --quiet --zone "$ZONE" --project "$PROJECT" "$INSTANCE" --tunnel-through-iap --command="true" ; then
       echo "The machine is up!"
       exit 0
     else
