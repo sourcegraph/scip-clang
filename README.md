@@ -63,6 +63,10 @@ to intercept compilation commands and generate a compilation database.
 We're interested in exploring more
 [native Bazel support](https://github.com/sourcegraph/scip-clang/issues/182) in the future.
 
+The use of [pre-compiled headers](https://en.wikipedia.org/wiki/Precompiled_header)
+is not supported, as the format of pre-compiled headers varies
+across compilers and individual compiler versions.
+
 [JSON compilation database]: https://clang.llvm.org/docs/JSONCompilationDatabase.html
 
 ## Quick Start
