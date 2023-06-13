@@ -56,6 +56,10 @@ scip-clang currently supports indexing using a
 [JSON compilation database][].
 CMake, Bazel and Meson support emitting this format
 for compatibility with clang-based tooling.
+Projects which use Make or other build systems may
+be able to use [Bear](https://github.com/rizsotto/Bear)
+to intercept compilation commands and generate a compilation database.
+
 We're interested in exploring more
 [native Bazel support](https://github.com/sourcegraph/scip-clang/issues/182) in the future.
 
@@ -120,6 +124,15 @@ See the [Usage](#usage) section for step-by-step instructions.
 
 - **Meson**: Use the Ninja backend,
   [which generates a compilation database](https://sourcegraph.com/search?q=context:global+repo:%5Egithub%5C.com/mesonbuild/meson%24+compile_commands.json&patternType=standard&sm=1&groupBy=path).
+
+- **Make** or other build systems: Use [Bear](https://github.com/rizsotto/Bear)
+  to wrap the build system invocation which build all the code. For example:
+
+  ```bash
+  bear -- make all
+  ```
+
+  In our testing, Bear works with Boost's B2 build system as well.
 
 ### Building code
 
