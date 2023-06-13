@@ -136,7 +136,15 @@ See the [Usage](#usage) section for step-by-step instructions.
   bear -- make all
   ```
 
-  In our testing, Bear works with Boost's B2 build system as well.
+  In our testing on Linux, Bear works with Boost's B2 build system as well.
+
+  Some other tools which may work include:
+  - [compiledb](https://github.com/nickdiego/compiledb) (Linux, macOS, Windows):
+    For Make-style systems, supposedly faster than Bear as it doesn't require a clean build.
+  - [compile-db-gen](https://github.com/sunlin7/compile-db-gen) (Linux): Uses strace.
+  - [clade](https://github.com/17451k/clade) (Linux, macOS, partial Windows support).
+
+  We have not tested any of these.
 
 The [official Clang docs](https://clang.llvm.org/docs/JSONCompilationDatabase.html#supported-systems)
 may also have additional suggestions for generating a compilation database.
