@@ -134,6 +134,9 @@ See the [Usage](#usage) section for step-by-step instructions.
 
   In our testing, Bear works with Boost's B2 build system as well.
 
+The [official Clang docs](https://clang.llvm.org/docs/JSONCompilationDatabase.html#supported-systems)
+may also have additional suggestions for generating a compilation database.
+
 ### Building code
 
 Large projects typically use various forms of code generation.
