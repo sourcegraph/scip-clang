@@ -157,10 +157,18 @@ Here are the steps for a cross-repo indexing setup.
 First, do a recursive clone of the boost monorepo.
 
 ```bash
+# Use a Clang-based toolchain to avoid any GCC-specific options being
+# accidentally used.
+sudo apt-get install clang
+
 git clone https://github.com/boostorg/boost --recursive
 cd boost
 git checkout boost-1.82.0
-cmake -B build -DENABLE_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+git submodule update
+# This will create a b2 binary which will be used for building
+# the code. Bear will then be used to intercept the compilation
+# commands. Not all of Boost's code is buildable using CMake.
+./bootstrap.sh
 ```
 
 Invoke the indexer for each project with this Python script:
@@ -185,11 +193,32 @@ with open('package-map.json', 'w') as f:
     json.dump(pmap, f)
 
 for d in dirs:
+    # Delete any build artifacts so that bear is able to regenerate the compilation database
+    subprocess.run(["rm -rf bin.v2"], shell=True)
+    # Skip work if the index was uploaded
     if os.path.isfile(d + "/index.scip"):
         continue
+    if not os.path.isfile(d + "/compile_commands.json"):
+        targets = ""
+        if os.path.isfile(d + "/test/Jamfile.v2") or os.path.isfile(d + "/test/Jamfile"):
+            targets += " test"
+        if os.path.isfile(d + "/example/Jamfile.v2") or os.path.isfile(d + "/example/Jamfile"):
+            targets += " example"
+        if targets == "":
+            print("Directory {} doesn't have any targets for b2, skipping".format(d))
+            continue
+        print("Generating compilation database for {}".format(d))
+        # Turn off PCHs as they're used by the math library, but PCHs are not stable
+        # across compiler versions, so we'd need to install the exact matching Clang
+        # and use that to compile Boost for PCHs to be read correctly.
+        #
+        # 'pch=off' doesn't seem to be documented anywhere official except for:
+        # https://github.com/boostorg/math/issues/619#issuecomment-829333938
+        subprocess.run(["bear -- ../../b2 --toolset=clang pch=off" + targets],
+            cwd=d, shell=True, capture_output=True)
     print("Indexing {}".format(d))
-    res = subprocess.run(["scip-clang --package-map-path=../../package-map.json --compdb-path=../../build/compile_commands.json"], cwd=d, shell=True)
+    res = subprocess.run(["scip-clang --package-map-path=../../package-map.json --compdb-path=compile_commands.json"], cwd=d, shell=True)
     if res.returncode != 0:
+        print("Indexing failed for {}; skipping upload".format(d))
         continue
-    subprocess.run(["src code-intel upload"], cwd=d, shell=True, env={"SRC_ACCESS_TOKEN": os.getenv("SRC_ACCESS_TOKEN"), "PATH": os.getenv("PATH")})
 ```
