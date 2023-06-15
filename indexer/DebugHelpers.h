@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/Basic/FileEntry.h"
@@ -41,6 +42,8 @@ std::string formatKind(clang::NestedNameSpecifier::SpecifierKind);
 std::string formatKind(clang::TemplateName::NameKind);
 
 std::string formatKind(clang::TemplateSpecializationKind);
+
+std::string formatKind(clang::FunctionDecl::TemplatedKind);
 
 std::string formatTypeInternals(const clang::QualType &,
                                 const clang::ASTContext &);

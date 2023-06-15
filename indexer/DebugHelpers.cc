@@ -213,6 +213,21 @@ std::string formatKind(clang::TemplateSpecializationKind kind) {
 #undef HANDLE_KIND
 }
 
+std::string formatKind(clang::FunctionDecl::TemplatedKind kind) {
+#define HANDLE_KIND(kind_)                             \
+  case clang::FunctionDecl::TemplatedKind::TK_##kind_: \
+    return #kind_;
+  switch (kind) {
+    HANDLE_KIND(NonTemplate)
+    HANDLE_KIND(FunctionTemplate)
+    HANDLE_KIND(MemberSpecialization)
+    HANDLE_KIND(FunctionTemplateSpecialization)
+    HANDLE_KIND(DependentFunctionTemplateSpecialization)
+    HANDLE_KIND(DependentNonTemplate)
+  }
+#undef HANDLE_KIND
+}
+
 std::string formatTypeInternals(const clang::QualType &qualType,
                                 const clang::ASTContext &astContext) {
   if (qualType.isNull()) {
