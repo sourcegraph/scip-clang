@@ -52,7 +52,7 @@
   typedef struct Ghost {} Ghost;
 //               ^^^^^ definition [..] Ghost#
 //               documentation
-//               | Ominous sounds
+//               | Boo!
 //                        ^^^^^ definition [..] Ghost#
 //                        documentation
-//                        | Ominous sounds
+//                        | Boo!

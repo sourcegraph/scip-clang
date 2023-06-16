@@ -13,6 +13,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/CXXInheritance.h"
+#include "clang/AST/Comment.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
@@ -1165,14 +1166,22 @@ namespace scip_clang {
 
 DocComment TuIndexer::getDocComment(const clang::Decl &decl) const {
   auto &astContext = decl.getASTContext();
-  // FIXME(def: hovers, issue:
-  // https://github.com/sourcegraph/scip-clang/issues/96)
-  if (auto *rawComment = astContext.getRawCommentForAnyRedecl(&decl)) {
+  auto fromRawComment = [&](const clang::RawComment *rawComment) -> DocComment {
     if (::checkIfCommentBelongsToPreviousEnumCase(decl, *rawComment)) {
       return DocComment{};
     }
     return DocComment{rawComment->getFormattedText(
         sourceManager, astContext.getDiagnostics())};
+  };
+  // If a forward declaration precedes the definition,
+  // then getRawCommentForAnyRedecl will return the doc comment
+  // on the forward definition, which is not desirable. So check
+  // the decl first.
+  if (auto *rawComment = astContext.getRawCommentForDeclNoCache(&decl)) {
+    return fromRawComment(rawComment);
+  }
+  if (auto *rawComment = astContext.getRawCommentForAnyRedecl(&decl)) {
+    return fromRawComment(rawComment);
   }
   return DocComment{};
 }
