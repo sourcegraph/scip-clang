@@ -1,5 +1,18 @@
 # scip-clang ChangeLog
 
+## v0.2.2 (beta)
+
+- Fixes a bug where hover docs would be incorrect if a forward
+  declaration with some doc comments preceded the actual definition
+  in lexical order after pre-processing.
+  (https://github.com/sourcegraph/scip-clang/pull/390)
+- Adds automatic skipping for compilation database entries which
+  do not correspond to translation units, such as those for header files.
+  Some compilation database generators like grailbio's generator
+  for Bazel can generate compilation databases where over 80% entries
+  do not correspond to TUs.
+  (https://github.com/sourcegraph/scip-clang/pull/380)
+
 ## v0.2.1 (beta)
 
 - Fixes a bug where the base compiler was not located correctly,
