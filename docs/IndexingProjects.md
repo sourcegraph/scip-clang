@@ -1,5 +1,12 @@
 # Indexing test projects
 
+- [scip-clang](#scip-clang)
+- [LLVM](#llvm)
+- [Chromium](#chromium)
+- [Redpanda](#redpanda)
+- [Postgres](#postgres)
+- [Boost](#boost)
+
 ## scip-clang
 
 For the sake of this example, I'll only describe how
@@ -144,15 +151,6 @@ scip-clang --compdb-path=../postgres-build/compile_commands.json
 ```
 
 ## Boost
-
-Here are the steps for a cross-repo indexing setup.
-
-> CAVEAT: At the time of writing, scip-clang doesn't have explicit support
-> for indexing multiple projects at once (see https://github.com/sourcegraph/scip-clang/issues/360)
-> so the instructions below will end up duplicating a lot of work,
-> since the compilation database is not pruned based on dependencies.
->
-> The overall indexing will take about 96 core hours on a GCP N2 instance.
 
 First, do a recursive clone of the boost monorepo.
 
