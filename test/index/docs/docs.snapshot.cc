@@ -43,3 +43,16 @@
 //  documentation
 //  | Maknae
   };
+  
+  /// Ominous sounds
+  struct Ghost;
+//       ^^^^^ reference [..] Ghost#
+  
+  /// Boo!
+  typedef struct Ghost {} Ghost;
+//               ^^^^^ definition [..] Ghost#
+//               documentation
+//               | Boo!
+//                        ^^^^^ definition [..] Ghost#
+//                        documentation
+//                        | Boo!

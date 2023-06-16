@@ -16,3 +16,9 @@ enum class Apink {
   //! Maknae
   Hayoung,
 };
+
+/// Ominous sounds
+struct Ghost;
+
+/// Boo!
+typedef struct Ghost {} Ghost;
