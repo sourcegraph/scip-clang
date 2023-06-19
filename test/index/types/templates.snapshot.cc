@@ -127,6 +127,7 @@
 //                   ^ definition local 23
   struct M1: M0<T> {
 //       ^^ definition [..] M1#
+//       relation implementation [..] M0#
 //           ^^ reference [..] M0#
 //              ^ reference local 23
     using B = M0<T>;

@@ -317,6 +317,7 @@
 //      | No documentation available.
 //      relation implementation [..] Derived1#
 //      relation implementation [..] Derived2#
+//      relation implementation [..] DiamondBase#
 //                    ^^^^^^^^ reference [..] Derived1#
 //                                     ^^^^^^^^ reference [..] Derived2#
   

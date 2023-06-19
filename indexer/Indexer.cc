@@ -25,6 +25,8 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/MacroInfo.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include "proto/fwd_decls.pb.h"
 #include "scip/scip.pb.h"
@@ -719,8 +721,10 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
   scip::SymbolInformation symbolInfo{};
   this->getDocComment(tagDecl).addTo(symbolInfo);
 
-  llvm::SmallVector<const clang::CXXRecordDecl *, 1> stack;
+  llvm::SmallPtrSet<const clang::CXXRecordDecl *, 1> seen{};
+  llvm::SmallVector<const clang::CXXRecordDecl *, 1> stack{};
   if (auto *cxxRecordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(&tagDecl)) {
+    seen.insert(cxxRecordDecl);
     stack.push_back(cxxRecordDecl);
   }
 
@@ -730,7 +734,7 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
     if (!cxxRecordDecl) {
       continue;
     }
-    if (cxxRecordDecl != &tagDecl) {
+    if (seen.find(cxxRecordDecl) == seen.end()) {
       // See FIXME(ref: template-specialization-support) When we get the decl
       // symbol here, we need to handle different kinds of templates
       // differently. E.g. in the ImplicitInstantiation case, call
@@ -744,6 +748,7 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
         rel.set_is_implementation(true);
         *symbolInfo.add_relationships() = std::move(rel);
       }
+      seen.insert(cxxRecordDecl);
     }
 
     for (const clang::CXXBaseSpecifier &cxxBaseSpecifier :

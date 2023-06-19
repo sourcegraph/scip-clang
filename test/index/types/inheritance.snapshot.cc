@@ -7,6 +7,12 @@
 //       relation implementation [..] MonoBase#
 //                    ^^^^^^^^ reference [..] MonoBase#
   
+  struct MonoDerivedTwice: MonoDerived {};
+//       ^^^^^^^^^^^^^^^^ definition [..] MonoDerivedTwice#
+//       relation implementation [..] MonoBase#
+//       relation implementation [..] MonoDerived#
+//                         ^^^^^^^^^^^ reference [..] MonoDerived#
+  
   template <typename T>
 //                   ^ definition local 0
   struct TemplatedBase {};

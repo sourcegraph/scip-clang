@@ -2,6 +2,8 @@ struct MonoBase {};
 
 struct MonoDerived: MonoBase {};
 
+struct MonoDerivedTwice: MonoDerived {};
+
 template <typename T>
 struct TemplatedBase {};
 
