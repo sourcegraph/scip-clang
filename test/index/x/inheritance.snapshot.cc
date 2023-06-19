@@ -16,6 +16,7 @@
 //                   ^ definition local 1
   struct TemplatedDerived: TemplatedBase<T> {};
 //       ^^^^^^^^^^^^^^^^ definition [..] TemplatedDerived#
+//       relation implementation [..] TemplatedBase#
 //                         ^^^^^^^^^^^^^ reference [..] TemplatedBase#
 //                                       ^ reference local 1
   
@@ -38,6 +39,7 @@
 //                   ^ definition local 3
   struct SpecializedDerived: SpecializedBase<T> {};
 //       ^^^^^^^^^^^^^^^^^^ definition [..] SpecializedDerived#
+//       relation implementation [..] SpecializedBase#
 //                           ^^^^^^^^^^^^^^^ reference [..] SpecializedBase#
 //                                           ^ reference local 3
   
@@ -63,6 +65,7 @@
 //                   ^ definition local 5
   struct CrtpDerivedTemplated: CrtpBase<CrtpDerivedTemplated<T>> {};
 //       ^^^^^^^^^^^^^^^^^^^^ definition [..] CrtpDerivedTemplated#
+//       relation implementation [..] CrtpBase#
 //                             ^^^^^^^^ reference [..] CrtpBase#
 //                                      ^^^^^^^^^^^^^^^^^^^^ reference [..] CrtpDerivedTemplated#
 //                                                           ^ reference local 5
