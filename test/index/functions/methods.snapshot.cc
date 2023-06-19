@@ -48,6 +48,7 @@
   
   struct S2 final: S1_0, S1_1 {
 //       ^^ definition [..] S2#
+//       relation implementation [..] S0#
 //       relation implementation [..] S1_0#
 //       relation implementation [..] S1_1#
 //                 ^^^^ reference [..] S1_0#

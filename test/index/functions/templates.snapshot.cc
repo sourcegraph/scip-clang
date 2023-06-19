@@ -18,6 +18,7 @@
 //                   ^ definition local 2
   struct T1: T0<T> {
 //       ^^ definition [..] T1#
+//       relation implementation [..] T0#
 //           ^^ reference [..] T0#
 //              ^ reference local 2
     void f1(T t) {
@@ -107,6 +108,7 @@
 //                   ^ definition local 12
   struct Q1: Q0<T> {
 //       ^^ definition [..] Q1#
+//       relation implementation [..] Q0#
 //           ^^ reference [..] Q0#
 //              ^ reference local 12
     using Base1 = Q0<T>;
@@ -124,6 +126,8 @@
 //                   ^ definition local 13
   struct Q2: Q1<T> {
 //       ^^ definition [..] Q2#
+//       relation implementation [..] Q0#
+//       relation implementation [..] Q1#
 //           ^^ reference [..] Q1#
 //              ^ reference local 13
     using Base2 = Q1<T>;
