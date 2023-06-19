@@ -25,6 +25,8 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/MacroInfo.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include "proto/fwd_decls.pb.h"
 #include "scip/scip.pb.h"
@@ -662,7 +664,8 @@ void TuIndexer::saveNestedNameSpecifierLoc(
     case Kind::Global:
     case Kind::Super:
     case Kind::TypeSpecWithTemplate:
-      // NOTE: Adding support for TypeSpecWithTemplate needs extra care
+      // FIXME(def: template-specialization-support)
+      // Adding support for TypeSpecWithTemplate needs extra care
       // for (partial) template specializations. Example code:
       //
       //   template <typename T0>
@@ -718,23 +721,58 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
   scip::SymbolInformation symbolInfo{};
   this->getDocComment(tagDecl).addTo(symbolInfo);
 
+  llvm::SmallPtrSet<const clang::CXXRecordDecl *, 1> seen{};
+  llvm::SmallVector<const clang::CXXRecordDecl *, 1> stack{};
   if (auto *cxxRecordDecl = llvm::dyn_cast<clang::CXXRecordDecl>(&tagDecl)) {
-    for (const clang::CXXBaseSpecifier &cxxBaseSpecifier :
-         cxxRecordDecl->bases()) {
-      if (auto *tagDecl = cxxBaseSpecifier.getType()->getAsTagDecl()) {
-        auto optRelatedSymbol = this->symbolFormatter.getTagSymbol(*tagDecl);
-        if (!optRelatedSymbol.has_value()) {
-          continue;
-        }
+    seen.insert(cxxRecordDecl);
+    stack.push_back(cxxRecordDecl);
+  }
+
+  while (!stack.empty()) {
+    auto *cxxRecordDecl = stack.back();
+    stack.pop_back();
+    if (!cxxRecordDecl) {
+      continue;
+    }
+    if (seen.find(cxxRecordDecl) == seen.end()) {
+      // See FIXME(ref: template-specialization-support) When we get the decl
+      // symbol here, we need to handle different kinds of templates
+      // differently. E.g. in the ImplicitInstantiation case, call
+      // getTemplateInstantiationPattern and use that rather than using the
+      // instantiated decl.
+      if (auto optRelatedSymbol =
+              this->symbolFormatter.getNamedDeclSymbol(*cxxRecordDecl)) {
         scip::Relationship rel{};
         auto symbol = optRelatedSymbol->value;
         rel.set_symbol(symbol.data(), symbol.size());
         rel.set_is_implementation(true);
         *symbolInfo.add_relationships() = std::move(rel);
       }
+      seen.insert(cxxRecordDecl);
+    }
+
+    for (const clang::CXXBaseSpecifier &cxxBaseSpecifier :
+         cxxRecordDecl->bases()) {
+      auto baseType = cxxBaseSpecifier.getType().getCanonicalType();
+      if (auto *baseRecordType = baseType->getAs<clang::RecordType>()) {
+        if (auto *baseCxxRecordDecl =
+                llvm::dyn_cast_or_null<clang::CXXRecordDecl>(
+                    baseRecordType->getDecl())) {
+          stack.push_back(baseCxxRecordDecl);
+        }
+      } else if (auto *baseTemplateSpecType =
+                     baseType->getAs<clang::TemplateSpecializationType>()) {
+        if (auto *templateDecl =
+                baseTemplateSpecType->getTemplateName().getAsTemplateDecl()) {
+          if (auto *baseCxxRecordDecl =
+                  llvm::dyn_cast_or_null<clang::CXXRecordDecl>(
+                      templateDecl->getTemplatedDecl())) {
+            stack.push_back(baseCxxRecordDecl);
+          }
+        }
+      }
     }
   }
-
   this->saveDefinition(symbol, tagDecl.getLocation(), std::move(symbolInfo));
 }
 

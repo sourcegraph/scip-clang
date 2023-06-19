@@ -14,7 +14,6 @@
 
 #include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
-#include "llvm/ADT/SmallVector.h"
 
 #include "indexer/ApproximateNameResolver.h"
 #include "indexer/ClangAstMacros.h"

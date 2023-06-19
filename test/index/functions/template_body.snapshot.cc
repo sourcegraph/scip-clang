@@ -70,6 +70,7 @@
 //                   ^ definition local 5
   struct ZZ : Z<T> {
 //       ^^ definition [..] ZZ#
+//       relation implementation [..] Z#
 //            ^ reference [..] Z#
 //              ^ reference local 5
     void ff0() {
