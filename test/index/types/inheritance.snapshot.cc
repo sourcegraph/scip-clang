@@ -1,5 +1,7 @@
+  // extra-args: -std=c++17
+//^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/inheritance.cc`/
+  
   struct MonoBase {};
-//^^^^^^ definition [..] `<file>/inheritance.cc`/
 //       ^^^^^^^^ definition [..] MonoBase#
   
   struct MonoDerived: MonoBase {};
@@ -87,3 +89,21 @@
   struct DerivedFromTemplateTemplateParam: H<int> {};
 //       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] DerivedFromTemplateTemplateParam#
 //                                         ^ reference local 7
+  
+  template <bool, class T> struct BaseWithOnlySpecializations;
+//                      ^ definition local 8
+//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^ reference [..] BaseWithOnlySpecializations#
+  
+  template <class T>
+//                ^ definition local 9
+  struct BaseWithOnlySpecializations<false, T> {};
+//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] BaseWithOnlySpecializations#
+//                                          ^ reference local 9
+  
+  template <class T>
+//                ^ definition local 10
+  struct DerivedFromBasedWithOnlySpecialization: public BaseWithOnlySpecializations<false, T> {};
+//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] DerivedFromBasedWithOnlySpecialization#
+//       relation implementation [..] BaseWithOnlySpecializations#
+//                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ reference [..] BaseWithOnlySpecializations#
+//                                                                                         ^ reference local 10

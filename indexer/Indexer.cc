@@ -735,7 +735,7 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
       continue;
     }
     if (seen.find(cxxRecordDecl) == seen.end()) {
-      // See FIXME(ref: template-specialization-support) When we get the decl
+      // FIXME(def: template-specialization-support) When we get the decl
       // symbol here, we need to handle different kinds of templates
       // differently. E.g. in the ImplicitInstantiation case, call
       // getTemplateInstantiationPattern and use that rather than using the
@@ -750,7 +750,12 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
       }
       seen.insert(cxxRecordDecl);
     }
-
+    if (!cxxRecordDecl->hasDefinition()) {
+      // FIXME(def: template-specialization-support) This case
+      // can be hit when inheriting from an explicit specialization
+      // for which the unspecialized record lacks a definition.
+      continue;
+    }
     for (const clang::CXXBaseSpecifier &cxxBaseSpecifier :
          cxxRecordDecl->bases()) {
       auto baseType = cxxBaseSpecifier.getType().getCanonicalType();

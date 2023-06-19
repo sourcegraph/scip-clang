@@ -1,3 +1,5 @@
+// extra-args: -std=c++17
+
 struct MonoBase {};
 
 struct MonoDerived: MonoBase {};
@@ -36,3 +38,11 @@ struct DerivedFromTemplateParam: T {};
 
 template <template <typename> typename H>
 struct DerivedFromTemplateTemplateParam: H<int> {};
+
+template <bool, class T> struct BaseWithOnlySpecializations;
+
+template <class T>
+struct BaseWithOnlySpecializations<false, T> {};
+
+template <class T>
+struct DerivedFromBasedWithOnlySpecialization: public BaseWithOnlySpecializations<false, T> {};
