@@ -13,6 +13,7 @@ For the sake of this example, I'll only describe how
 to index scip-clang with cross-repo code navigation support
 for [Abseil](https://github.com/abseil/abseil-cpp/).
 See [tools/package-map.json](/tools/package-map.json) for more entries
+(the absolute path in it is obtained via `bazel info output_base`)
 
 > Aside: For a full index, one also needs to run `sed -e 's|$(STACK_FRAME_UNLIMITED)||'` on
 > the compilation database due to the unexpanded Make variable used
@@ -63,7 +64,8 @@ Other notes:
 
 Tested environments: Ubuntu 18.04, Ubuntu 22.04, macOS 13.
 
-Dependencies: `cmake`, `ninja`, a host toolchain.
+Dependencies: `cmake`, `ninja`, a host toolchain with Clang and LLD.
+(ld on Linux hits OOM even with 64GB RAM.)
 
 ```bash
 git clone https://github.com/llvm/llvm-project --depth=1
@@ -72,7 +74,9 @@ cd llvm-project/llvm
 # The LLDB related flags prevent a build error on macOS
 cmake -B ../build -G Ninja \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-g0" -DCMAKE_CXX_FLAGS="-g0" \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+  -DCMAKE_C_FLAGS="-g0 -fuse-ld=lld" -DCMAKE_CXX_FLAGS="-g0 -fuse-ld=lld" \
   -DLLDB_INCLUDE_TESTS=OFF -DLLDB_USE_SYSTEM_DEBUGSERVER=ON \
   -DLLVM_ENABLE_PROJECTS="all" 
 ninja -C ../build
