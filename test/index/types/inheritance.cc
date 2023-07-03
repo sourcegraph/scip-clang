@@ -46,3 +46,14 @@ struct BaseWithOnlySpecializations<false, T> {};
 
 template <class T>
 struct DerivedFromBasedWithOnlySpecialization: public BaseWithOnlySpecializations<false, T> {};
+
+template <typename T>
+struct DerivedFromSelf: DerivedFromSelf<T *> {};
+
+template <>
+struct DerivedFromSelf<int *> {};
+
+void useDerivedFromSelf() {
+    DerivedFromSelf<int> x;
+    (void)x;
+}
