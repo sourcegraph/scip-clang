@@ -107,3 +107,24 @@
 //       relation implementation [..] BaseWithOnlySpecializations#
 //                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ reference [..] BaseWithOnlySpecializations#
 //                                                                                         ^ reference local 10
+  
+  template <typename T>
+//                   ^ definition local 11
+  struct DerivedFromSelf: DerivedFromSelf<T *> {};
+//       ^^^^^^^^^^^^^^^ definition [..] DerivedFromSelf#
+//                        ^^^^^^^^^^^^^^^ reference [..] DerivedFromSelf#
+//                                        ^ reference local 11
+  
+  template <>
+  struct DerivedFromSelf<int *> {};
+//       ^^^^^^^^^^^^^^^ reference [..] DerivedFromSelf#
+//       ^^^^^^^^^^^^^^^ definition [..] DerivedFromSelf#
+  
+  void useDerivedFromSelf() {
+//     ^^^^^^^^^^^^^^^^^^ definition [..] useDerivedFromSelf(49f6e7a06ebc5aa8).
+      DerivedFromSelf<int> x;
+//    ^^^^^^^^^^^^^^^ reference [..] DerivedFromSelf#
+//                         ^ definition local 12
+      (void)x;
+//          ^ reference local 12
+  }
