@@ -11,6 +11,7 @@ class ProgressReporter {
   size_t totalCount;
   size_t countWidth;
   bool active;
+  bool isTty;
 
 public:
   ProgressReporter(bool active, std::string_view msg, size_t totalCount);
