@@ -58,6 +58,7 @@ struct WorkerOptions {
 
   StdPath packageMapPath;
   bool showCompilerDiagnostics;
+  bool showProgress;
 
   spdlog::level::level_enum logLevel;
   bool deterministic;

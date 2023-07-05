@@ -32,6 +32,7 @@ struct CliOptions {
   std::string statsFilePath;
   std::string packageMapPath;
   bool showCompilerDiagnostics;
+  bool showProgress;
 
   size_t ipcSizeHintBytes;
   std::chrono::seconds receiveTimeout;

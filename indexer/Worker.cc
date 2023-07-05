@@ -119,6 +119,7 @@ WorkerOptions WorkerOptions::fromCliOptions(const CliOptions &cliOptions) {
                        statsFilePath,
                        cliOptions.packageMapPath,
                        cliOptions.showCompilerDiagnostics,
+                       cliOptions.showProgress,
                        cliOptions.logLevel,
                        cliOptions.deterministic,
                        cliOptions.measureStatistics,

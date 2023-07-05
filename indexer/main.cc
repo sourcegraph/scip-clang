@@ -40,6 +40,10 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "Path to write the SCIP index to",
     cxxopts::value<std::string>(cliOptions.indexOutputPath)->default_value("index.scip"));
   parser.add_options(defaultGroup)(
+    "package-map-path",
+    "Path to use for path->package mappings in JSON format.",
+    cxxopts::value<std::string>(cliOptions.packageMapPath));
+  parser.add_options(defaultGroup)(
     "j,jobs",
     fmt::format(
       "Upper bound for number of indexing processes to run in parallel (default: NCPUs = {})",
@@ -50,9 +54,9 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     "One of 'debug', 'info', 'warning' or 'error'",
     cxxopts::value<std::string>()->default_value("info"));
   parser.add_options(defaultGroup)(
-    "package-map-path",
-    "Path to use for path->package mappings in JSON format.",
-    cxxopts::value<std::string>(cliOptions.packageMapPath));
+    "no-progress-report",
+    "Suppress progress information reported after a TU is indexed",
+    cxxopts::value<bool>());
   parser.add_options(defaultGroup)(
     "show-compiler-diagnostics",
     "Show Clang diagnostics triggered when running semantic analysis."
@@ -171,6 +175,8 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
     fmt::print(stderr, "{}\n", parser.help());
     std::exit(EXIT_FAILURE);
   }
+
+  cliOptions.showProgress = result.count("no-progress-report") == 0;
 
   auto level = result["log-level"].as<std::string>();
   if (level == "debug") {

@@ -51,6 +51,7 @@
 #include "indexer/LlvmAdapter.h"
 #include "indexer/Logging.h"
 #include "indexer/Path.h"
+#include "indexer/ProgressReporter.h"
 #include "indexer/RAII.h"
 #include "indexer/ScipExtras.h"
 #include "indexer/Statistics.h"
@@ -210,6 +211,7 @@ struct DriverOptions {
   AbsolutePath statsFilePath;
   AbsolutePath packageMapPath;
   bool showCompilerDiagnostics;
+  bool showProgress;
   DriverIpcOptions ipcOptions;
   size_t numWorkers;
   bool deterministic;
@@ -229,7 +231,8 @@ struct DriverOptions {
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
         indexOutputPath(), statsFilePath(), packageMapPath(),
         showCompilerDiagnostics(cliOpts.showCompilerDiagnostics),
-        ipcOptions{cliOpts.ipcSizeHintBytes, cliOpts.receiveTimeout},
+        showProgress(cliOpts.showProgress), ipcOptions{cliOpts.ipcSizeHintBytes,
+                                                       cliOpts.receiveTimeout},
         numWorkers(cliOpts.numWorkers), deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
@@ -335,6 +338,9 @@ struct DriverOptions {
     }
     if (this->showCompilerDiagnostics) {
       args.push_back("--show-compiler-diagnostics");
+    }
+    if (!this->showProgress) {
+      args.push_back("--no-progress-report");
     }
     if (!this->preprocessorRecordHistoryFilterRegex.empty()) {
       args.push_back(fmt::format("--preprocessor-record-history-filter={}",
@@ -812,6 +818,13 @@ public:
     return this->maybeErroredJobs.size();
   }
 
+  std::string_view getTuPath(JobId jobId) const {
+    auto it = this->allJobList.find(jobId);
+    ENFORCE(it != this->allJobList.end());
+    ENFORCE(it->second.job.kind == IndexJob::Kind::SemanticAnalysis);
+    return std::string_view(it->second.job.semanticAnalysis.command.filePath);
+  }
+
 private:
   ToBeScheduledWorkerId claimIdleWorker() {
     ENFORCE(!this->idleWorkers.empty());
@@ -883,6 +896,7 @@ class Driver {
 
   /// Total number of commands in the compilation database.
   size_t compdbCommandCount = 0;
+  TusIndexedCount indexedSoFar;
   compdb::ResumableParser compdbParser;
 
 public:
@@ -1079,23 +1093,37 @@ private:
     llvm::UniqueStringSaver stringSaver{allocator};
     scip::SymbolNameInterner interner{stringSaver};
     scip::IndexBuilder builder{interner};
-    // TODO: Measure how much time this is taking and parallelize if too slow.
-    for (auto &paths : this->shardPaths) {
-      scip::Index indexShard;
-      if (!readIndexShard(paths.docsAndExternals, indexShard)) {
-        continue;
-      }
-      for (auto &doc : *indexShard.mutable_documents()) {
-        bool isMultiplyIndexed = this->isMultiplyIndexedApproximate(
-            doc.relative_path(), paths.docsAndExternals.asRef(), badJobIds);
-        builder.addDocument(std::move(doc), isMultiplyIndexed);
-      }
-      // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
-      // deterministic mode, indexes should be the same, and iterated over in
-      // sorted order. So if external symbol emission in each part is
-      // deterministic, addExternalSymbol will be called in deterministic order.
-      for (auto &extSym : *indexShard.mutable_external_symbols()) {
-        builder.addExternalSymbol(std::move(extSym));
+    {
+      ProgressReporter progressReporter(this->options.showProgress,
+                                        "Merged partial index for",
+                                        this->shardPaths.size());
+      size_t count = 1;
+      for (auto &paths : this->shardPaths) {
+        scip::Index indexShard;
+        if (!readIndexShard(paths.docsAndExternals, indexShard)) {
+          continue;
+        }
+        for (auto &doc : *indexShard.mutable_documents()) {
+          bool isMultiplyIndexed = this->isMultiplyIndexedApproximate(
+              doc.relative_path(), paths.docsAndExternals.asRef(), badJobIds);
+          builder.addDocument(std::move(doc), isMultiplyIndexed);
+        }
+        // See NOTE(ref: precondition-deterministic-ext-symbol-docs); in
+        // deterministic mode, indexes should be the same, and iterated over in
+        // sorted order. So if external symbol emission in each part is
+        // deterministic, addExternalSymbol will be called in deterministic
+        // order.
+        for (auto &extSym : *indexShard.mutable_external_symbols()) {
+          builder.addExternalSymbol(std::move(extSym));
+        }
+        if (auto optFileName = paths.docsAndExternals.asRef().fileName()) {
+          if (auto optJobId = ShardPaths::tryParseJobId(optFileName.value())) {
+            progressReporter.report(
+                count,
+                this->scheduler.getTuPath(JobId::newTask(optJobId.value())));
+          }
+        }
+        count++;
       }
     }
 
@@ -1178,11 +1206,12 @@ private:
 
   /// Returns the number of TUs processed
   std::pair<TusIndexedCount, size_t> runJobsTillCompletionAndShutdownWorkers() {
-    TusIndexedCount tusIndexedCount{};
+    ProgressReporter progressReporter(this->options.showProgress, "Indexed",
+                                      this->compdbCommandCount);
     this->scheduler.runJobsTillCompletionAndShutdownWorkers(
         Scheduler::RunCallbacks{
-            [this, &tusIndexedCount]() -> void {
-              tusIndexedCount += this->processOneOrMoreJobResults();
+            [this, &progressReporter]() -> void {
+              this->processOneOrMoreJobResults(progressReporter);
             },
             [this]() -> size_t { return this->refillJobs(); },
             [this](ToBeScheduledWorkerId &&workerId, JobId jobId) -> bool {
@@ -1190,7 +1219,7 @@ private:
             },
             [this](WorkerId workerId) { this->shutdownWorker(workerId); }});
     this->scheduler.waitForAllWorkers();
-    return {tusIndexedCount, this->scheduler.numErroredJobs()};
+    return {this->indexedSoFar, this->scheduler.numErroredJobs()};
   }
 
   FileGuard openCompilationDatabase() {
@@ -1241,17 +1270,17 @@ private:
         });
   }
 
-  TusIndexedCount processWorkerResponse(IndexJobResponse &&response) {
+  void processWorkerResponse(IndexJobResponse &&response,
+                             const ProgressReporter &progressReporter) {
     TRACE_EVENT(tracing::indexing, "Driver::processWorkerResponse",
                 perfetto::TerminatingFlow::Global(response.jobId.traceId()));
-    TusIndexedCount tusIndexedCount{};
     auto optLatestIdleWorkerId = this->scheduler.markCompleted(
         response.workerId, response.jobId, response.result.kind);
     if (!optLatestIdleWorkerId.has_value()) {
       spdlog::debug("worker {} was terminated before job {}'s result "
                     "was processed, so can't send an emit index job",
                     response.workerId, response.jobId);
-      return tusIndexedCount;
+      return;
     }
     auto latestIdleWorkerId = *optLatestIdleWorkerId;
     switch (response.result.kind) {
@@ -1299,7 +1328,7 @@ private:
               oldHandle.terminate();
               return this->spawnWorker(workerId);
             });
-        return tusIndexedCount;
+        return;
       }
       break;
     }
@@ -1310,17 +1339,21 @@ private:
                                          std::move(result.statistics));
       }
       this->shardPaths.emplace_back(std::move(result.shardPaths));
-      tusIndexedCount.value += 1;
+      this->indexedSoFar.value += 1;
+      if (this->options.showProgress) {
+        auto semaJobId = JobId::newTask(response.jobId.taskId());
+        progressReporter.report(this->indexedSoFar.value,
+                                this->scheduler.getTuPath(semaJobId));
+      }
       break;
     }
     }
-    return tusIndexedCount;
+    return;
   }
 
-  TusIndexedCount processOneOrMoreJobResults() {
+  void processOneOrMoreJobResults(const ProgressReporter &progressReporter) {
     using namespace std::chrono_literals;
     auto workerTimeout = this->receiveTimeout();
-    TusIndexedCount tusIndexedCount{};
     IndexJobResponse response;
     TRACE_EVENT_BEGIN(tracing::ipc, "driver.waitForResponse");
     auto recvError =
@@ -1337,9 +1370,9 @@ private:
     } else {
       spdlog::debug("received response for {} from worker {}", response.jobId,
                     response.workerId);
-      tusIndexedCount = this->processWorkerResponse(std::move(response));
+      this->processWorkerResponse(std::move(response), progressReporter);
       while (this->queues.workerToDriver.tryReceiveInstant(response)) {
-        tusIndexedCount += this->processWorkerResponse(std::move(response));
+        this->processWorkerResponse(std::move(response), progressReporter);
       }
     }
     // NOTE(def: mail-from-the-dead)
@@ -1360,7 +1393,7 @@ private:
     // was actually submitted by a worker which was terminated.
     auto now = std::chrono::steady_clock::now();
     this->terminateLongRunningWorkersAndRespawn(now - workerTimeout);
-    return tusIndexedCount;
+    return;
   }
 
   // Assign a job to a specific worker. When this method is called,

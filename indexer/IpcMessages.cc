@@ -184,7 +184,6 @@ std::optional<uint32_t> ShardPaths::tryParseJobId(std::string_view fileName) {
     return taskId;
   }
   return {};
-  // return fmt::format("job-{}-worker-{}", taskId, workerId);
 }
 
 } // namespace scip_clang
