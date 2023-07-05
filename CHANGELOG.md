@@ -8,7 +8,8 @@
   https://github.com/sourcegraph/scip-clang/pull/401)
 - Adds progress reporting to show information about how many
   translation units have been indexed.
-  (https://github.com/sourcegraph/scip-clang/pull/402)
+  (https://github.com/sourcegraph/scip-clang/pull/402,
+  https://github.com/sourcegraph/scip-clang/pull/405)
 
 ## v0.2.2 (beta)
 
