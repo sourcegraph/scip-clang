@@ -1,5 +1,15 @@
 # scip-clang ChangeLog
 
+## v0.2.3 (beta)
+
+- Adds support for Find implementations for classes.
+  (https://github.com/sourcegraph/scip-clang/pull/393,
+  https://github.com/sourcegraph/scip-clang/pull/394,
+  https://github.com/sourcegraph/scip-clang/pull/401)
+- Adds progress reporting to show information about how many
+  translation units have been indexed.
+  (https://github.com/sourcegraph/scip-clang/pull/402)
+
 ## v0.2.2 (beta)
 
 - Fixes a bug where hover docs would be incorrect if a forward
