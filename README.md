@@ -130,7 +130,7 @@ See the [Usage](#usage) section for step-by-step instructions.
   [which generates a compilation database](https://sourcegraph.com/search?q=context:global+repo:%5Egithub%5C.com/mesonbuild/meson%24+compile_commands.json&patternType=standard&sm=1&groupBy=path).
 
 - **Make** or other build systems: Use [Bear](https://github.com/rizsotto/Bear)
-  to wrap the build system invocation which build all the code. For example:
+  to wrap the build system invocation which can build all the code. For example:
 
   ```bash
   bear -- make all
