@@ -454,6 +454,7 @@ TEST_CASE("INDEX") {
         args.push_back(fmt::format("--driver-id=index-{}",
                                    test::globalCliOptions.testName));
         args.push_back("--deterministic");
+        args.push_back("--no-progress-report");
         auto packageMapPath =
             StdPath(rootInSourceDir.asStringRef()) / "package-map.json";
         if (std::filesystem::exists(packageMapPath)) {
