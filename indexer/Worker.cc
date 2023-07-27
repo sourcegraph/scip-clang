@@ -144,7 +144,8 @@ Worker::Worker(WorkerOptions &&options)
   case WorkerMode::Compdb: {
     auto compdbFile = compdb::File::openAndExitOnErrors(
         this->options.compdbPath,
-        compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = true});
+        compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = true,
+                                  .tryDetectOutOfProjectRoot = true});
     compdb::ResumableParser parser{};
     parser.initialize(compdbFile,
                       compdb::ParseOptions::create(
