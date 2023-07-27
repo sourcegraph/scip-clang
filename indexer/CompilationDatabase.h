@@ -29,6 +29,7 @@ namespace compdb {
 
 struct ValidationOptions {
   bool checkDirectoryPathsAreAbsolute;
+  bool tryDetectOutOfProjectRoot;
 };
 
 class File {

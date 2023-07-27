@@ -175,7 +175,8 @@ TEST_CASE("COMPDB_PARSING") {
 
     auto compdbFile = compdb::File::openAndExitOnErrors(
         jsonFilePath,
-        compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = false});
+        compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute = false,
+                                  .tryDetectOutOfProjectRoot = false});
     if (!compdbFile.file) {
       spdlog::error("missing JSON file at path {}", jsonFilePath.c_str());
       REQUIRE(compdbFile.file);

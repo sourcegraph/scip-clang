@@ -535,6 +535,28 @@ compdb::File compdb::File::open(const StdPath &path,
   if (fileSizeError) {
     return compdbFile;
   }
+  if (validationOptions.tryDetectOutOfProjectRoot) {
+    auto dirPath = path.lexically_normal();
+    while (dirPath.has_parent_path() && dirPath.parent_path() != dirPath) {
+      dirPath = dirPath.parent_path();
+      auto maybeGitDirPath = dirPath / ".git";
+      std::error_code error;
+      auto status = std::filesystem::status(maybeGitDirPath, error);
+      if (!error && status.type() == std::filesystem::file_type::directory) {
+        auto cwd = std::filesystem::current_path();
+        if (cwd != dirPath) {
+          spdlog::warn(
+              "found .git directory in {} but current working directory is {};"
+              " did you invoke scip-clang from the project root?",
+              dirPath.string(), cwd.string());
+          spdlog::info(
+              "invoking scip-clang from a directory other than the project root"
+              " may lead to incorrect indexing results");
+          break;
+        }
+      }
+    }
+  }
   compdbFile._sizeInBytes = size;
   compdbFile._commandCount = validateAndCountJobs(
       compdbFile._sizeInBytes, compdbFile.file, validationOptions);

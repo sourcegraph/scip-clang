@@ -1227,8 +1227,9 @@ private:
     StdPath compdbStdPath{this->compdbPath().asStringRef()};
     auto compdbFile = compdb::File::openAndExitOnErrors(
         compdbStdPath,
-        compdb::ValidationOptions{.checkDirectoryPathsAreAbsolute =
-                                      !this->options.isTesting});
+        compdb::ValidationOptions{
+            .checkDirectoryPathsAreAbsolute = !this->options.isTesting,
+            .tryDetectOutOfProjectRoot = !this->options.isTesting});
     this->compdbCommandCount = compdbFile.commandCount();
     this->options.numWorkers =
         std::min(this->compdbCommandCount, this->numWorkers());
