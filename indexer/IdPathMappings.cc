@@ -11,6 +11,7 @@
 #include "indexer/FileMetadata.h"
 #include "indexer/Hash.h"
 #include "indexer/IdPathMappings.h"
+#include "indexer/LlvmAdapter.h"
 #include "indexer/Path.h"
 
 namespace scip_clang {
@@ -127,14 +128,43 @@ bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
     // projectRoot / relativePath exists, but is actually a symlink to
     // inside the build root, rather than an in-project file. So check that
     // that real_path is the same.
-    if (!error && realPath.str() == originalFileSourcePath.asStringRef()) {
-      return insertRelPath(RootRelativePathRef(buildRootRelPath->asStringView(),
-                                               RootKind::Project),
-                           /*isInProject*/ true);
+    if (!error) {
+      if (realPath.str() == originalFileSourcePath.asStringRef()) {
+        return insertRelPath(
+            RootRelativePathRef(buildRootRelPath->asStringView(),
+                                RootKind::Project),
+            /*isInProject*/ true);
+      } else {
+        spdlog::trace("projectRoot.join(relativePath (= '{}'/'{}')) exists but "
+                      "the real path is '{}",
+                      this->projectRootPath.asRef().asStringView(),
+                      buildRootRelPath->asStringView(),
+                      llvm_ext::toStringView(realPath.str()));
+      }
+    } else if (error == std::errc::no_such_file_or_directory) {
+      spdlog::trace(
+          "failed to find file in project at '{}' (root: '{}', rel: '{}')",
+          originalFileSourcePath.asStringRef(),
+          this->projectRootPath.asRef().asStringView(),
+          buildRootRelPath->asStringView());
+    } else {
+      spdlog::trace("hit error: {} when getting real path for {}",
+                    error.message(), originalFileSourcePath.asStringRef());
     }
   } else if (auto optProjectRootRelPath =
                  this->projectRootPath.tryMakeRelative(absPathRef)) {
     return insertRelPath(optProjectRootRelPath.value(), /*isInProject*/ true);
+  } else {
+    if ((spdlog::default_logger_raw()->level() <= spdlog::level::trace)
+        && (absPathRef.asStringView().find("usr/include") == std::string::npos)
+        && (absPathRef.asStringView().find("usr/lib/clang")
+            == std::string::npos)) {
+      spdlog::trace(
+          "path {} is neither inside project root {} nor inside build root {}",
+          absPathRef.asStringView(),
+          this->projectRootPath.asRef().asStringView(),
+          this->buildRootPath.asRef().asStringView());
+    }
   }
 
   auto optFileName = absPathRef.fileName();

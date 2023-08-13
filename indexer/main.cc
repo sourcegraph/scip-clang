@@ -179,7 +179,9 @@ static scip_clang::CliOptions parseArguments(int argc, char *argv[]) {
   cliOptions.showProgress = result.count("no-progress-report") == 0;
 
   auto level = result["log-level"].as<std::string>();
-  if (level == "debug") {
+  if (level == "trace") {
+    cliOptions.logLevel = spdlog::level::level_enum::trace;
+  } else if (level == "debug") {
     cliOptions.logLevel = spdlog::level::level_enum::debug;
   } else if (level == "info") {
     cliOptions.logLevel = spdlog::level::level_enum::info;
