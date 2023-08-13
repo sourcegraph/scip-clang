@@ -1,5 +1,11 @@
 # scip-clang ChangeLog
 
+## v0.2.4 (beta)
+
+- Adds temporary support for better debugging issues
+  where seemingly in-project files are treated as out-of-project.
+  (https://github.com/sourcegraph/scip-clang/pull/409)
+
 ## v0.2.3 (beta)
 
 - Adds support for Find implementations for classes.
