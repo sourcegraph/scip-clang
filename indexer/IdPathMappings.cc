@@ -100,7 +100,10 @@ bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
     return this->map.insert({{fileId}, std::move(metadata)}).second;
   };
 
+  bool checkInProjectPath = true;
+
   if (optPackageMetadata.has_value()) {
+    checkInProjectPath = false;
     if (auto optStrView =
             optPackageMetadata->rootPath.makeRelative(absPathRef)) {
       return insertRelPath(RootRelativePathRef(*optStrView, RootKind::External),
@@ -135,35 +138,51 @@ bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
                                 RootKind::Project),
             /*isInProject*/ true);
       } else {
-        spdlog::trace("projectRoot.join(relativePath (= '{}'/'{}')) exists but "
-                      "the real path is '{}",
-                      this->projectRootPath.asRef().asStringView(),
-                      buildRootRelPath->asStringView(),
-                      llvm_ext::toStringView(realPath.str()));
+        checkInProjectPath = false;
+        spdlog::warn("projectRoot.join(relativePath (= '{}'/'{}')) exists but "
+                     "the real path is '{}",
+                     this->projectRootPath.asRef().asStringView(),
+                     buildRootRelPath->asStringView(),
+                     llvm_ext::toStringView(realPath.str()));
       }
     } else if (error == std::errc::no_such_file_or_directory) {
-      spdlog::trace(
+      spdlog::warn(
           "failed to find file in project at '{}' (root: '{}', rel: '{}')",
           originalFileSourcePath.asStringRef(),
           this->projectRootPath.asRef().asStringView(),
           buildRootRelPath->asStringView());
     } else {
-      spdlog::trace("hit error: {} when getting real path for {}",
-                    error.message(), originalFileSourcePath.asStringRef());
+      spdlog::warn("hit error: {} when getting real path for {}",
+                   error.message(), originalFileSourcePath.asStringRef());
     }
-  } else if (auto optProjectRootRelPath =
-                 this->projectRootPath.tryMakeRelative(absPathRef)) {
-    return insertRelPath(optProjectRootRelPath.value(), /*isInProject*/ true);
-  } else {
-    if ((spdlog::default_logger_raw()->level() <= spdlog::level::trace)
-        && (absPathRef.asStringView().find("usr/include") == std::string::npos)
-        && (absPathRef.asStringView().find("usr/lib/clang")
-            == std::string::npos)) {
-      spdlog::trace(
-          "path {} is neither inside project root {} nor inside build root {}",
-          absPathRef.asStringView(),
-          this->projectRootPath.asRef().asStringView(),
-          this->buildRootPath.asRef().asStringView());
+  }
+
+  // For certain CMake projects, the "directory" key changes from TU to TU.
+  // Consider the layout:
+  //   root/
+  //     \--- subdir/
+  //            \--- file.cpp
+  // In this case, if the buildRootPath is root/subdir, then the first check
+  // for the project file at root/file.cpp will fail. So we need to still
+  // just check directory at root/subdir/file.cpp
+  // TODO: We should simplify this logic to initially check if buildRootPath
+  // is a subdir of project path or not, and write down all the possible cases.
+  if (checkInProjectPath) {
+    if (auto optProjectRootRelPath =
+            this->projectRootPath.tryMakeRelative(absPathRef)) {
+      return insertRelPath(optProjectRootRelPath.value(), /*isInProject*/ true);
+    } else {
+      if ((spdlog::default_logger_raw()->level() <= spdlog::level::trace)
+          && (absPathRef.asStringView().find("usr/include")
+              == std::string::npos)
+          && (absPathRef.asStringView().find("usr/lib/clang")
+              == std::string::npos)) {
+        spdlog::trace("path {} is neither inside project root {} nor inside "
+                      "build root {}",
+                      absPathRef.asStringView(),
+                      this->projectRootPath.asRef().asStringView(),
+                      this->buildRootPath.asRef().asStringView());
+      }
     }
   }
 
