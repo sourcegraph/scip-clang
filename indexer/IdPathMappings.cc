@@ -139,21 +139,21 @@ bool FileMetadataMap::insert(clang::FileID fileId, AbsolutePathRef absPathRef) {
             /*isInProject*/ true);
       } else {
         checkInProjectPath = false;
-        spdlog::warn("projectRoot.join(relativePath (= '{}'/'{}')) exists but "
-                     "the real path is '{}",
-                     this->projectRootPath.asRef().asStringView(),
-                     buildRootRelPath->asStringView(),
-                     llvm_ext::toStringView(realPath.str()));
+        spdlog::trace("projectRoot.join(relativePath (= '{}'/'{}')) exists but "
+                      "the real path is '{}",
+                      this->projectRootPath.asRef().asStringView(),
+                      buildRootRelPath->asStringView(),
+                      llvm_ext::toStringView(realPath.str()));
       }
     } else if (error == std::errc::no_such_file_or_directory) {
-      spdlog::warn(
+      spdlog::trace(
           "failed to find file in project at '{}' (root: '{}', rel: '{}')",
           originalFileSourcePath.asStringRef(),
           this->projectRootPath.asRef().asStringView(),
           buildRootRelPath->asStringView());
     } else {
-      spdlog::warn("hit error: {} when getting real path for {}",
-                   error.message(), originalFileSourcePath.asStringRef());
+      spdlog::trace("hit error: {} when getting real path for {}",
+                    error.message(), originalFileSourcePath.asStringRef());
     }
   }
 
