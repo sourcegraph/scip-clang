@@ -1,5 +1,10 @@
 # scip-clang ChangeLog
 
+## v0.2.6 (beta)
+
+- The previous release incorrectly changed the log level of
+  a 'trace' log line to 'warn'. This release reverts that.
+
 ## v0.2.5 (beta)
 
 - Fixes a bug where for in-tree CMake builds (i.e. no `-B` flag),
