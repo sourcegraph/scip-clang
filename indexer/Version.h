@@ -15,7 +15,7 @@ constexpr bool debugMode = true;
 constexpr bool debugMode = false;
 #endif
 
-#define VERSION "0.2.5"
+#define VERSION "0.2.6"
 #define LLVM_COMMIT \
   "e0f3110b854a476c16cce7b44472cd7838d344e9" // Keep synced with fetch_deps.bzl
 
