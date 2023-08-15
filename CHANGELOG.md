@@ -1,5 +1,13 @@
 # scip-clang ChangeLog
 
+## v0.2.5 (beta)
+
+- Fixes a bug where for in-tree CMake builds (i.e. no `-B` flag),
+  with varying `"directory"` keys pointing to project subfolders,
+  no SCIP Documents would be emitted in the index (and hence
+  precise code navigation wouldn't work).
+  (https://github.com/sourcegraph/scip-clang/pull/411)
+
 ## v0.2.4 (beta)
 
 - Adds temporary support for better debugging issues
