@@ -3,6 +3,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Type.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include "indexer/ApproximateNameResolver.h"
@@ -39,19 +40,26 @@ ApproximateNameResolver::tryResolveMember(
   };
 
   llvm::SmallVector<const clang::Type *, 2> typesToLookup;
+  llvm::SmallPtrSet<const clang::Type *, 2> seen;
   typesToLookup.push_back(type);
 
   size_t iterations = 0;
   while (!typesToLookup.empty()) {
     iterations++;
     if (iterations > 10'000) {
-      spdlog::warn("exceeded 10000 iterations in member lookup for '{}' in type '{}'",
-        declNameInfo.getAsString(),
-        clang::QualType(type, 0).getAsString());
+      spdlog::warn(
+          "exceeded 10000 iterations in member lookup for '{}' in type '{}'",
+          declNameInfo.getAsString(), clang::QualType(type, 0).getAsString());
+      spdlog::info("this is likely a scip-clang bug; please report it at "
+                   "https://github.com/sourcegraph/scip-clang/issues");
       break;
     }
     auto *type = typesToLookup.back();
     typesToLookup.pop_back();
+    if (seen.find(type) != seen.end()) {
+      continue;
+    }
+    seen.insert(type);
     auto *cxxRecordDecl = Self::tryFindDeclForType(type);
     if (!cxxRecordDecl || !cxxRecordDecl->hasDefinition()) {
       continue;

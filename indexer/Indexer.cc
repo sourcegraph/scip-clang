@@ -733,9 +733,13 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
   while (!stack.empty()) {
     iterations++;
     if (iterations > 10'000) {
-      spdlog::warn("exceeded 10000 iterations when saving inheritance hierarchy for type '{}' at '{}'",
-        startDecl->getQualifiedNameAsString(),
-        debug::formatLoc(this->sourceManager, startDecl->getLocation()));
+      spdlog::warn(
+          "visited over 10000 types in inheritance hierarchy for type '{}' at "
+          "'{}'",
+          startDecl->getQualifiedNameAsString(),
+          debug::formatLoc(this->sourceManager, startDecl->getLocation()));
+      spdlog::info("this is likely a scip-clang bug; please report it at "
+                   "https://github.com/sourcegraph/scip-clang/issues");
       break;
     }
     auto *cxxRecordDecl = stack.back();
