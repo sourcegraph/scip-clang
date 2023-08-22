@@ -729,7 +729,15 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
     stack.push_back(cxxRecordDecl);
   }
 
+  size_t iterations = 0;
   while (!stack.empty()) {
+    iterations++;
+    if (iterations > 10'000) {
+      spdlog::warn("exceeded 10000 iterations when saving inheritance hierarchy for type '{}' at '{}'",
+        startDecl->getQualifiedNameAsString(),
+        debug::formatLoc(this->sourceManager, startDecl->getLocation()));
+      break;
+    }
     auto *cxxRecordDecl = stack.back();
     stack.pop_back();
     if (!cxxRecordDecl || seen.contains(cxxRecordDecl)) {

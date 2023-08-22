@@ -41,7 +41,15 @@ ApproximateNameResolver::tryResolveMember(
   llvm::SmallVector<const clang::Type *, 2> typesToLookup;
   typesToLookup.push_back(type);
 
+  size_t iterations = 0;
   while (!typesToLookup.empty()) {
+    iterations++;
+    if (iterations > 10'000) {
+      spdlog::warn("exceeded 10000 iterations in member lookup for '{}' in type '{}'",
+        declNameInfo.getAsString(),
+        clang::QualType(type, 0).getAsString());
+      break;
+    }
     auto *type = typesToLookup.back();
     typesToLookup.pop_back();
     auto *cxxRecordDecl = Self::tryFindDeclForType(type);
