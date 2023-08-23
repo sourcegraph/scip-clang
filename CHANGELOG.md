@@ -1,5 +1,12 @@
 # scip-clang ChangeLog
 
+## v0.2.7 (beta)
+
+- Adds a visited set to to avoid performing member lookup in the same
+  class repeatedly. Also hard-codes iteration limits to 10k for
+  potentially infinite loops to avoid timeouts.
+  (https://github.com/sourcegraph/scip-clang/pull/416)
+
 ## v0.2.6 (beta)
 
 - The previous release incorrectly changed the log level of
