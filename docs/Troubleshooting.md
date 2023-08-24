@@ -9,6 +9,116 @@ The most common problems are timeouts, crashes,
 and lack of sufficient space for [IPC][] (in Docker),
 which are discussed below.
 
+## Missing code intel
+
+In certain cases, precise code intel may be entirely missing despite
+creating and uploading an index successfully.
+There are two common failure modes for this.
+
+### Possibility 1: Missing documents in SCIP index
+
+A SCIP index stores documents containing definition and reference
+information for each file on disk.
+
+[SCIP CLI]: https://github.com/sourcegraph/scip/releases
+
+You can inspect the documents using the [SCIP CLI][]:
+
+```bash
+scip print --json index.scip | jq .documents
+```
+
+If this prints a non-empty array, see the [troubleshooting steps for possibility 2](#possibility-2-incorrect-document-paths-in-scip-index).
+
+If this prints `null` or an empty array, it's likely
+that the indexer was invoked from a directory other than the project root.
+You can double-check this using:
+
+```bash
+scip print --json index.scip | jq .metadata.projectRoot
+```
+
+If this points to a subdirectory and not the project root,
+then the scip-clang invocation was incorrect.
+
+Here is an example of a common project structure:
+
+```
+/home/me/myproject
++--- .git/
++--- README.md
++--- src/
+|     |
+|     +--- A.cc
+|     +--- subdir/
+|            +--- B.cc
++--- build/ (.gitignored directory)
+```
+
+In this case, `scip-clang` **must** be invoked from `/home/me/myproject`,
+regardless of the contents of the compilation database file (`compile_commands.json`).
+
+If you want to only index a subset of files (say under `src/subdir`),
+then reduce the size of the compilation database by selecting only specific files.
+
+For example, if the compilation database looks like the following:
+
+```json
+[
+  {
+    "directory": "/home/me/myproject/build",
+    "file": "/home/me/myproject/src/A.cc",
+    "command": "some stuff here"
+  },
+  {
+    "directory": "/home/me/myproject/build",
+    "file": "/home/me/myproject/src/subdir/B.cc",
+    "command": "some stuff here"
+  }
+]
+```
+
+And if you only want to index the files inside `src/subdir`, then run:
+
+```bash
+cat compile_commands.json | jq '.[] | select(.file | contains("src/subdir/"))' > minimal.json
+scip-clang --compdb-path=minimal.json <other args>
+```
+
+### Possibility 2: Incorrect document paths in SCIP index
+
+If the output of the following command using the [SCIP CLI][]
+
+```bash
+scip print --json index.scip | jq .documents
+```
+
+is a non-empty array, and you're still not seeing precise code intel
+in the Sourcegraph UI, it's possible the document paths stored in the index
+do not match the actual paths on disk.
+
+Double-check that the various `relativePath` keys in the `documents`
+array correspond to actual files on disk relative to the `projectRoot` path.
+
+- If the `relativePath` values are incorrect, then double-check if there
+  are any symlinks present in the project layout which may potentially
+  be causing incorrect path determination.
+- If the `relativePath` values are correct, but you still don't see any
+  precise code intel for that file, check that `occurrences` arrays for
+  various documents are non-empty.
+  - If the `occurrences` arrays are empty, then report it as an
+    indexer bug.
+  - If the `occurrences` arrays are non-empty, then you can double-check
+    the precise code intel using the debug view in the Sourcegraph UI.
+
+    Click on the 🧠 icon near the top-right of the file contents view
+    for the commit for which the index was uploaded,
+    and click on 'Display debug information'.
+    ![Debug information for a SCIP index](https://github.com/sourcegraph/scip-clang/assets/93103176/58becf36-5524-40f6-87b9-a72bc00b1e04).
+
+    Then try hovering over entities which have `^^^` markers below them;
+    you should see precise code intel.
+
 ## Timeouts
 
 scip-clang sets a timeout for indexing an individual translation unit,

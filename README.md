@@ -79,6 +79,11 @@ from the project root like so:
 scip-clang --compdb-path=path/to/compile_commands.json
 ```
 
+> **WARNING:** You must invoke scip-clang from the project root,
+> not from a subdirectory, even when you only want to index a subdirectory.
+> If you only want to index a subdirectory, filter out unnecessary
+> entries in the compilation database.
+
 If you see any errors, see the
 [Troubleshooting](#troubleshooting) section.
 
@@ -165,8 +170,14 @@ For example:
 ```bash
 # Using jq (https://github.com/stedolan/jq)
 jq '.[0:5]' build/compile_commands.json > build/small_compdb.json
+# Invoke scip-clang from the project root
 scip-clang --compdb-path=build/small_compdb.json --show-compiler-diagnostics
 ```
+
+> **WARNING:** You must invoke scip-clang from the project root,
+> not from a subdirectory, even when you only want to index a subdirectory.
+> If you only want to index a subdirectory, filter out unnecessary
+> entries in the compilation database.
 
 If there are errors about missing system or SDK headers,
 install the relevant system dependencies.
