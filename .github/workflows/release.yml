@@ -135,7 +135,7 @@ jobs:
     name: 'Create release'
     if: github.event_name != 'workflow_dispatch' || inputs.create_release
     needs: build-and-upload-artifacts
-    runs-on: 'ubuntu-20.04'
+    runs-on: 'ubuntu-22.04'
     steps:
       - uses: actions/checkout@v3
       - name: '📝 Create Release'
