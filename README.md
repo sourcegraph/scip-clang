@@ -134,6 +134,10 @@ See the [Usage](#usage) section for step-by-step instructions.
 - **Meson**: Use the Ninja backend,
   [which generates a compilation database](https://sourcegraph.com/search?q=context:global+repo:%5Egithub%5C.com/mesonbuild/meson%24+compile_commands.json&patternType=standard&sm=1&groupBy=path).
 
+- **Nix + Make**: When using Make under Nix, in our testing, the compilation
+  database by Bear (recommended below) omits some flags needed to find headers
+  from libc and libstdc++/libc++. Using [mini_compile_commands](https://github.com/danielbarter/mini_compile_commands) instead avoids that.
+
 - **Make** or other build systems: Use [Bear](https://github.com/rizsotto/Bear)
   to wrap the build system invocation which can build all the code. For example:
 
