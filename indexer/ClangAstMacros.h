@@ -27,6 +27,7 @@
   F(TemplateTypeParm)
 
 #define FOR_EACH_EXPR_TO_BE_INDEXED(F) \
+  F(CUDAKernelCall)                    \
   F(CXXConstruct)                      \
   F(CXXDependentScopeMember)           \
   F(DeclRef)                           \

@@ -54,6 +54,8 @@ scip_clang_test_suite(
     index_data = glob([
         "index/**/*.c",
         "index/**/*.cc",
+        "index/**/*.cu",
+        "index/**/*.cuh",
         "index/**/*.h",
         "index/**/package-map.json",
     ]),
