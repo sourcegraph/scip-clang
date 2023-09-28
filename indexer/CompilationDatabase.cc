@@ -738,9 +738,11 @@ void ResumableParser::initialize(compdb::File compdb, ParseOptions options) {
   this->reader.IterativeParseInit();
   this->options = options;
   std::vector<std::string> extensions;
+  // clang-format off
   // Via https://stackoverflow.com/a/3223792/2682729 (for C and C++)
   // For CUDA, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#basics-cdp1
   // and https://github.com/github-linguist/linguist/blob/master/lib/linguist/languages.yml#L1342-L1346
+  // clang-format on
   for (auto ext : {"c", "C", "cc", "cpp", "CPP", "cxx", "c++", "cu"}) {
     extensions.emplace_back(llvm::Regex::escape(fmt::format(".{}", ext)));
   };
