@@ -25,6 +25,9 @@ struct CompileCommand;
 } // namespace clang::tooling
 
 namespace scip_clang {
+
+class AbsolutePath;
+
 namespace compdb {
 
 struct ValidationOptions {
@@ -102,16 +105,44 @@ public:
   bool reachedLimit() const;
 };
 
-struct ToolchainConfig {
-  std::string compilerDriverPath;
-  /// The vector may be empty if we failed to determine
-  /// the correct arguments.
-  std::vector<std::string> extraArgs;
+enum class CompilerKind {
+  Gcc,
+  Clang,
 };
 
+struct ToolchainInfo {
+  /// Purely for debugging.
+  virtual CompilerKind kind() const = 0;
+
+  /// Potentially logs some error messages and/or warnings.
+  /// The method should return true iff some errors are logged.
+  virtual bool isWellFormed() const = 0;
+
+  virtual void
+  adjustCommandLine(std::vector<std::string> &commandLine) const = 0;
+
+  virtual ~ToolchainInfo() = default;
+
+  /// Attempt to determine the toolchain information based on the path
+  /// to a compiler or a compiler wrapper (e.g. from Bazel or when using
+  /// ccache).
+  ///
+  /// Returns nullptr if we failed to create a well-formed toolchain object.
+  static std::unique_ptr<ToolchainInfo>
+  infer(const scip_clang::AbsolutePath &compilerPath);
+};
+
+/// The settings used to customize the parsed results generated from
+/// the compilation database.
+///
+/// Ideally, most of the options here would live in an extra 'semantic'
+/// layer that sat on top of a parser. However, since the database is
+/// parsed in a streaming fashion, chaining the two layers would be
+/// a bit more fiddly from the caller side, so we keep the filtering
+/// options in the parser itself.
 struct ParseOptions {
   size_t refillCount;
-  bool inferResourceDir;
+  bool adjustCommandLine;
   bool skipNonMainFileEntries;
   bool checkFilesExist;
 
@@ -135,14 +166,19 @@ class ResumableParser {
 
   llvm::Regex fileExtensionRegex;
 
-  /// Mapping from compiler/wrapper path to extra information needed
-  /// to tweak the command object before invoking the driver.
+  /// Mapping from compiler/wrapper path (the first element of argv
+  /// as in the compilation database) to information about the toolchain
+  /// needed to tweak the command object before invoking the Clang driver.
   ///
   /// For example, Bazel uses a compiler wrapper, but scip-clang needs
   /// to use the full path to the compiler driver when running semantic
   /// analysis, so that include directories are picked up correctly
   /// relative to the driver's location.
-  absl::flat_hash_map<std::string, ToolchainConfig> toolchainConfigMap;
+  ///
+  /// In case there is a failure to determine the toolchain information,
+  /// a null value is stored for the unique_ptr.
+  absl::flat_hash_map<std::string, std::unique_ptr<ToolchainInfo>>
+      toolchainInfoMap;
 
 public:
   ParseStats stats;
@@ -151,18 +187,15 @@ public:
   ResumableParser(const ResumableParser &) = delete;
   ResumableParser &operator=(const ResumableParser &) = delete;
 
-  /// If \param inferResourceDir is set, then the parser will automatically
-  /// add extra '-resource-dir' '<path>' arguments to the parsed
-  /// CompileCommands' CommandLine field.
   void initialize(compdb::File compdb, ParseOptions);
 
   /// Parses at most \c options.refillCount elements into \param out.
   void parseMore(std::vector<CommandObject> &out);
 
 private:
-  void tryInferResourceDir(const std::string &directoryPath,
-                           std::vector<std::string> &commandLine);
-  void emitResourceDirError(std::string &&error);
+  void adjustCommandLine(const std::string &directoryPath,
+                         std::vector<std::string> &commandLine);
+  void emitError(std::string &&error);
 };
 
 } // namespace compdb

@@ -87,7 +87,6 @@ public:
     return PathPrefixIterator<AbsolutePathRef>{std::nullopt};
   }
 
-  // Generally this should be avoided in favor
   std::optional<AbsolutePathRef> prefix() const;
 };
 
@@ -217,6 +216,8 @@ public:
   AbsolutePath makeAbsolute(RootRelativePathRef) const;
   AbsolutePath makeAbsoluteAllowKindMismatch(RootRelativePathRef) const;
 };
+
+std::string joinPath(std::string_view s1, std::string_view s2);
 
 } // namespace scip_clang
 

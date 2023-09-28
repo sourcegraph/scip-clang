@@ -25,10 +25,6 @@
 #include "indexer/LlvmCommandLineParsing.h"
 
 namespace {
-enum class CompilerKind {
-  Gcc,
-  Clang,
-};
 
 struct CompletedProcess {
   int exitCode;
@@ -41,12 +37,87 @@ struct CompletedProcess {
   }
 };
 
-struct ToolchainPathsResult {
+using ToolchainInfo = scip_clang::compdb::ToolchainInfo;
+using CompilerKind = scip_clang::compdb::CompilerKind;
+
+struct ClangToolchainInfo : ToolchainInfo {
   std::string resourceDir;
-  std::vector<std::string> cliInvocation;
-  CompilerKind compilerKind;
-  std::string compilerDriverPath; // non-null for Clang
+  std::vector<std::string> findResourceDirInvocation;
+  std::string compilerDriverPath;
+  std::vector<std::string> findDriverInvocation;
+
+  // All strings and vectors above should be non-empty for
+  // a valid toolchain.
+
+  ClangToolchainInfo(std::string resourceDir,
+                     std::vector<std::string> findResourceDirInvocation,
+                     std::string compilerDriverPath,
+                     std::vector<std::string> findDriverInvocation)
+      : ToolchainInfo(), resourceDir(resourceDir),
+        findResourceDirInvocation(findResourceDirInvocation),
+        compilerDriverPath(compilerDriverPath),
+        findDriverInvocation(findDriverInvocation){};
+
+  virtual CompilerKind kind() const override {
+    return CompilerKind::Clang;
+  }
+
+  virtual bool isWellFormed() const override {
+    if (!std::filesystem::exists(this->resourceDir)) {
+      spdlog::error(
+          "clang resource directory '{}' does not exist (obtained via {})",
+          this->resourceDir, fmt::join(this->findResourceDirInvocation, " "));
+      return false;
+    }
+    if (!std::filesystem::exists(this->compilerDriverPath)) {
+      spdlog::error("compiler driver at '{}' does not exist (obtained via {})",
+                    this->compilerDriverPath,
+                    fmt::join(this->findDriverInvocation, " "));
+      return false;
+    }
+    return true;
+  }
+
+  virtual void
+  adjustCommandLine(std::vector<std::string> &commandLine) const override {
+    commandLine[0] = this->compilerDriverPath;
+    commandLine.push_back("-resource-dir");
+    commandLine.push_back(this->resourceDir);
+  }
 };
+
+struct GccToolchainInfo : ToolchainInfo {
+  std::string installDir;
+  std::vector<std::string> findInstallDirInvocation;
+
+  GccToolchainInfo(std::string installDir,
+                   std::vector<std::string> findInstallDirInvocation)
+      : ToolchainInfo(), installDir(installDir),
+        findInstallDirInvocation(findInstallDirInvocation) {}
+
+  virtual CompilerKind kind() const override {
+    return CompilerKind::Gcc;
+  }
+
+  virtual bool isWellFormed() const override {
+    if (!std::filesystem::exists(this->installDir)) {
+      spdlog::error(
+          "GCC install directory '{}' does not exist (obtained via {})",
+          this->installDir, fmt::join(this->findInstallDirInvocation, " "));
+      return false;
+    }
+    return true;
+  }
+
+  virtual void
+  adjustCommandLine(std::vector<std::string> &commandLine) const override {
+    commandLine.push_back("-resource-dir");
+    commandLine.push_back(this->installDir);
+    // gcc-7 adds headers like limits.h and syslimits.h in include-fixed
+    commandLine.push_back(fmt::format("-I{}/include-fixed", this->installDir));
+  }
+};
+
 } // namespace
 
 static CompletedProcess runProcess(std::vector<std::string> &args,
@@ -78,13 +149,8 @@ static CompletedProcess runProcess(std::vector<std::string> &args,
   return out;
 }
 
-/// Returns an empty path if we failed to determine the resource dir
-ToolchainPathsResult static determineToolchainPaths(
-    const scip_clang::AbsolutePath &compilerPath) {
-  ToolchainPathsResult out{"",
-                           {compilerPath.asStringRef(), "-print-resource-dir"},
-                           CompilerKind::Clang,
-                           ""};
+/*static*/ std::unique_ptr<ToolchainInfo>
+ToolchainInfo::infer(const scip_clang::AbsolutePath &compilerPath) {
 
   auto noteStdlib = []() {
     spdlog::warn("may be unable to locate standard library headers");
@@ -92,67 +158,83 @@ ToolchainPathsResult static determineToolchainPaths(
                  "turned on using --show-compiler-diagnostics");
   };
 
-  auto printResourceDirResult =
-      ::runProcess(out.cliInvocation, "attempting to find resource dir");
+  std::vector<std::string> findResourceDirInvocation = {
+      compilerPath.asStringRef(), "-print-resource-dir"};
+  auto failure = std::unique_ptr<ToolchainInfo>(nullptr);
+
+  auto printResourceDirResult = ::runProcess(findResourceDirInvocation,
+                                             "attempting to find resource dir");
   if (printResourceDirResult.isSuccess()) {
     if (printResourceDirResult.stdoutLines.empty()) {
-      spdlog::warn(
-          "-print-resource-dir succeeded but returned an empty result");
-      return out;
+      spdlog::warn("{} succeeded but returned an empty result",
+                   fmt::join(findResourceDirInvocation, " "));
+      return failure;
     }
-    out.resourceDir = std::string(
+    auto resourceDir = std::string(
         absl::StripAsciiWhitespace(printResourceDirResult.stdoutLines.front()));
-    out.cliInvocation = {compilerPath.asStringRef(), "-###"};
+    spdlog::debug("got resource dir {} from {}", resourceDir,
+                  compilerPath.asStringRef());
+
+    std::vector<std::string> findDriverInvocation = {compilerPath.asStringRef(),
+                                                     "-###"};
     auto hashHashHashResult = ::runProcess(
-        out.cliInvocation, "attempting to find installed directory");
+        findDriverInvocation, "attempting to find installed directory");
+    std::string compilerDriverPath = "";
     if (hashHashHashResult.isSuccess()) {
       for (auto &line : hashHashHashResult.stderrLines) {
         auto clangDriverDir = absl::StripPrefix(line, "InstalledDir: ");
         if (clangDriverDir.length() != line.length()) {
-          out.compilerDriverPath = absl::StripAsciiWhitespace(clangDriverDir);
-          out.compilerDriverPath.push_back(
-              std::filesystem::path::preferred_separator);
-          out.compilerDriverPath.append("clang");
+          compilerDriverPath = scip_clang::joinPath(
+              absl::StripAsciiWhitespace(clangDriverDir), "clang");
+          spdlog::debug("found compiler driver at {}", compilerDriverPath);
           break;
         }
       }
     }
-    if (out.compilerDriverPath.empty()) {
+    if (compilerDriverPath.empty()) {
       spdlog::warn(
           "failed to determine compiler path using -### for compiler at '{}'",
           compilerPath.asStringRef());
       noteStdlib();
+      return failure;
     }
-    return out;
+
+    return std::make_unique<ClangToolchainInfo>(
+        resourceDir, findResourceDirInvocation, compilerDriverPath,
+        findDriverInvocation);
   }
-  out.compilerKind = CompilerKind::Gcc;
-  out.cliInvocation = {compilerPath.asStringRef(), "-print-search-dirs"};
+
+  std::vector<std::string> findSearchDirsInvocation = {
+      compilerPath.asStringRef(), "-print-search-dirs"};
   auto printSearchDirsResult =
-      ::runProcess(out.cliInvocation, "attempting to find search dirs");
-  if (!printSearchDirsResult.isSuccess()) {
-    spdlog::warn(
-        "both -print-resource-dir and -print-search-dirs failed for {}",
-        compilerPath.asStringRef());
-    noteStdlib();
-    return out;
+      ::runProcess(findSearchDirsInvocation, "attempting to find search dirs");
+  if (printSearchDirsResult.isSuccess()) {
+    std::string installDir;
+    absl::c_any_of(printSearchDirsResult.stdoutLines,
+                   [&](const std::string &line) -> bool {
+                     if (line.starts_with("install:")) {
+                       installDir = absl::StripAsciiWhitespace(
+                           absl::StripPrefix(line, "install:"));
+                       return true;
+                     }
+                     return false;
+                   });
+    if (installDir.empty()) {
+      spdlog::warn(
+          "missing 'install:' line in -print-search-dirs from GCC(-like?) {}",
+          compilerPath.asStringRef());
+      noteStdlib();
+      return failure;
+    }
+    spdlog::debug("found gcc install directory at {}", installDir);
+    return std::make_unique<GccToolchainInfo>(installDir,
+                                              findSearchDirsInvocation);
   }
-  absl::c_any_of(
-      printSearchDirsResult.stdoutLines, [&](const std::string &line) -> bool {
-        if (line.starts_with("install:")) {
-          out.resourceDir =
-              absl::StripAsciiWhitespace(absl::StripPrefix(line, "install:"));
-          return true;
-        }
-        return false;
-      });
-  if (out.resourceDir.empty()) {
-    spdlog::warn(
-        "missing 'install:' line in -print-search-dirs from GCC(-like?) {}",
-        compilerPath.asStringRef());
-    noteStdlib();
-    return out;
-  }
-  return out;
+
+  spdlog::warn("compiler at '{}' is not one of clang/clang++/gcc/g++",
+               compilerPath.asStringRef());
+  noteStdlib();
+  return failure;
 }
 
 namespace scip_clang {
@@ -589,7 +671,7 @@ compdb::File::openAndExitOnErrors(const StdPath &path,
 // static
 ParseOptions ParseOptions::create(size_t refillCount, bool forTesting) {
   ENFORCE(refillCount > 0);
-  return ParseOptions{refillCount, /*inferResourceDir*/ !forTesting,
+  return ParseOptions{refillCount, /*adjustCommandLine*/ !forTesting,
                       /*skipNonMainFileTuEntries*/ !forTesting,
                       /*checkFilesExist*/ !forTesting};
 }
@@ -684,43 +766,39 @@ void ResumableParser::parseMore(std::vector<compdb::CommandObject> &out) {
     this->handler->commands.clear();
   }
 
-  if (this->options.inferResourceDir) {
+  if (this->options.adjustCommandLine) {
     for (auto &cmd : out) {
       if (cmd.arguments.empty()) {
         continue;
       }
-      this->tryInferResourceDir(cmd.workingDirectory, cmd.arguments);
+      this->adjustCommandLine(cmd.workingDirectory, cmd.arguments);
     }
   }
 }
 
-void ResumableParser::tryInferResourceDir(
-    const std::string &directoryPath, std::vector<std::string> &commandLine) {
+void ResumableParser::adjustCommandLine(const std::string &directoryPath,
+                                        std::vector<std::string> &commandLine) {
   auto &compilerOrWrapperPath = commandLine.front();
-  auto adjustCommandLine = [](auto &commandLine, auto it) {
-    if (!it->second.compilerDriverPath.empty()) {
-      commandLine[0] = it->second.compilerDriverPath;
+  auto it = this->toolchainInfoMap.find(compilerOrWrapperPath);
+  if (it != this->toolchainInfoMap.end()) {
+    auto &toolchain = it->second;
+    if (toolchain) {
+      toolchain->adjustCommandLine(commandLine);
     }
-    for (auto &extraArg : it->second.extraArgs) {
-      commandLine.push_back(extraArg);
-    }
-  };
-  auto it = this->toolchainConfigMap.find(compilerOrWrapperPath);
-  if (it != this->toolchainConfigMap.end()) {
-    adjustCommandLine(commandLine, it);
     return;
   }
-  AbsolutePath compilerInvocationPath;
+
   auto fail = [&]() {
-    this->toolchainConfigMap.insert(
-        {compilerOrWrapperPath, ToolchainConfig{"", {}}});
+    this->toolchainInfoMap.insert(
+        {compilerOrWrapperPath, std::unique_ptr<ToolchainInfo>(nullptr)});
   };
 
+  AbsolutePath compilerInvocationPath;
   if (compilerOrWrapperPath.find(std::filesystem::path::preferred_separator)
       == std::string::npos) {
     auto absPath = boost::process::search_path(compilerOrWrapperPath).native();
     if (absPath.empty()) {
-      this->emitResourceDirError(fmt::format(
+      this->emitError(fmt::format(
           "scip-clang needs to be invoke '{0}' (found via the compilation"
           " database) to determine the resource directory, but couldn't find"
           " '{0}' on PATH. Hint: Use a modified PATH to invoke scip-clang,"
@@ -733,9 +811,8 @@ void ResumableParser::tryInferResourceDir(
         AbsolutePath(std::string(absPath.data(), absPath.size()));
   } else if (llvm::sys::path::is_relative(compilerOrWrapperPath)) {
     if (llvm::sys::path::is_absolute(directoryPath)) {
-      compilerInvocationPath = AbsolutePath(fmt::format(
-          "{}{}{}", directoryPath, std::filesystem::path::preferred_separator,
-          compilerOrWrapperPath));
+      compilerInvocationPath = AbsolutePath(
+          scip_clang::joinPath(directoryPath, compilerOrWrapperPath));
     } else {
       spdlog::warn(
           R"("directory": "{}" key in compilation database is not an absolute path)"
@@ -746,35 +823,22 @@ void ResumableParser::tryInferResourceDir(
     ENFORCE(llvm::sys::path::is_absolute(compilerOrWrapperPath));
     compilerInvocationPath = AbsolutePath(std::string(compilerOrWrapperPath));
   }
+
   if (compilerInvocationPath.asStringRef().empty()) {
     return fail();
   }
-  auto toolchainPathsResult = ::determineToolchainPaths(compilerInvocationPath);
-  if (toolchainPathsResult.resourceDir.empty()) {
+  auto optToolchainInfo = ToolchainInfo::infer(compilerInvocationPath);
+  if (!optToolchainInfo || !optToolchainInfo->isWellFormed()) {
     return fail();
   }
-  auto &resourceDir = toolchainPathsResult.resourceDir;
-  std::vector<std::string> extraArgs{"-resource-dir", resourceDir};
-  if (toolchainPathsResult.compilerKind == CompilerKind::Gcc) {
-    // gcc-7 adds headers like limits.h and syslimits.h in include-fixed
-    extraArgs.push_back(fmt::format("-I{}/include-fixed", resourceDir));
-  }
-  spdlog::debug("got resource dir '{}'", resourceDir);
-  if (!std::filesystem::exists(resourceDir)) {
-    this->emitResourceDirError(fmt::format(
-        "'{}' returned '{}' but the directory does not exist",
-        fmt::join(toolchainPathsResult.cliInvocation, " "), resourceDir));
-    return fail();
-  }
-  auto [newIt, inserted] = this->toolchainConfigMap.emplace(
-      compilerOrWrapperPath,
-      ToolchainConfig{toolchainPathsResult.compilerDriverPath,
-                      std::move(extraArgs)});
+
+  auto [newIt, inserted] = this->toolchainInfoMap.emplace(
+      compilerOrWrapperPath, std::move(optToolchainInfo));
   ENFORCE(inserted);
-  adjustCommandLine(commandLine, newIt);
+  newIt->second->adjustCommandLine(commandLine);
 }
 
-void ResumableParser::emitResourceDirError(std::string &&error) {
+void ResumableParser::emitError(std::string &&error) {
   auto [it, inserted] = this->emittedErrors.emplace(std::move(error));
   if (inserted) {
     spdlog::error("{}", *it);

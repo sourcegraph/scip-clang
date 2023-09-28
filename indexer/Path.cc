@@ -178,14 +178,16 @@ AbsolutePath RootPath::makeAbsolute(RootRelativePathRef relativePathRef) const {
 
 AbsolutePath RootPath::makeAbsoluteAllowKindMismatch(
     RootRelativePathRef relativePathRef) const {
-  std::string buf{};
-  auto &absPath = this->value.asStringRef();
-  auto relPath = relativePathRef.asStringView();
+  return AbsolutePath(scip_clang::joinPath(this->value.asStringRef(),
+                                           relativePathRef.asStringView()));
+}
+
+std::string joinPath(std::string_view s1, std::string_view s2) {
   auto nativeSeparator = std::filesystem::path::preferred_separator;
-  if (absPath.ends_with(nativeSeparator)) {
-    return AbsolutePath(fmt::format("{}{}", absPath, relPath));
+  if (s1.ends_with(nativeSeparator)) {
+    return fmt::format("{}{}", s1, s2);
   }
-  return AbsolutePath(fmt::format("{}{}{}", absPath, nativeSeparator, relPath));
+  return fmt::format("{}{}{}", s1, nativeSeparator, s2);
 }
 
 } // namespace scip_clang

@@ -270,8 +270,8 @@ AbsolutePath deriveRootInSourceDir(RootRelativePathRef testDir,
   auto testRelativeRoot = rootInSandbox.asRef().asStringView().substr(startIdx);
   // testRelativeRoot = test/kind/case
 
-  return AbsolutePath{
-      fmt::format("{}{}/", scipClangRoot, testRelativeRoot, "/")};
+  return AbsolutePath{scip_clang::joinPath(scipClangRoot, testRelativeRoot)
+                      + "/"};
 }
 
 struct TempFile {
