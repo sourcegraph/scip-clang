@@ -118,6 +118,38 @@ struct GccToolchainInfo : ToolchainInfo {
   }
 };
 
+struct NvccToolchainInfo : ToolchainInfo {
+  scip_clang::AbsolutePath cudaDir;
+
+  NvccToolchainInfo(scip_clang::AbsolutePath cudaDir)
+      : ToolchainInfo(), cudaDir(cudaDir) {}
+
+  virtual CompilerKind kind() const override {
+    return CompilerKind::Nvcc;
+  }
+
+  virtual bool isWellFormed() const override {
+    auto path = scip_clang::joinPath(cudaDir.asStringRef(), "include");
+    if (!std::filesystem::exists(path)) {
+      spdlog::error(
+          "directory '{}' does not exist; expected to find CUDA SDK headers"
+          " there because nvcc was found at {}",
+          path,
+          scip_clang::joinPath(cudaDir.asStringRef(),
+                               scip_clang::joinPath("bin", "nvcc")));
+      return false;
+    }
+    return true;
+  }
+
+  virtual void
+  adjustCommandLine(std::vector<std::string> &commandLine) const override {
+    commandLine.push_back(
+        fmt::format("-isystem{}{}include", this->cudaDir.asStringRef(),
+                    std::filesystem::path::preferred_separator));
+  }
+};
+
 } // namespace
 
 static CompletedProcess runProcess(std::vector<std::string> &args,
@@ -231,7 +263,20 @@ ToolchainInfo::infer(const scip_clang::AbsolutePath &compilerPath) {
                                               findSearchDirsInvocation);
   }
 
-  spdlog::warn("compiler at '{}' is not one of clang/clang++/gcc/g++",
+  std::vector<std::string> argv = {compilerPath.asStringRef(), "--version"};
+  auto compilerVersionResult = ::runProcess(argv, "checking for NVCC");
+  if (compilerVersionResult.isSuccess()
+      && !compilerVersionResult.stdoutLines.empty()
+      && absl::StrContains(compilerVersionResult.stdoutLines[0], "NVIDIA")) {
+    if (auto binDir = compilerPath.asRef().prefix()) {
+      if (auto cudaDir = binDir->prefix()) {
+        return std::make_unique<NvccToolchainInfo>(
+            scip_clang::AbsolutePath(*cudaDir));
+      }
+    }
+  }
+
+  spdlog::warn("compiler at '{}' is not one of clang/clang++/gcc/g++/nvcc",
                compilerPath.asStringRef());
   noteStdlib();
   return failure;
