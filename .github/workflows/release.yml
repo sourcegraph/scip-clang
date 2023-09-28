@@ -87,7 +87,6 @@ jobs:
           fi
           {
             echo "startup --host_jvm_args=-Xmx$BAZEL_MEM"
-            echo "build --remote_cache=$CI_BAZEL_REMOTE_CACHE --google_default_credentials"
           } > ci.bazelrc
           # Comment out the 'upload log' bit below for debugging
           SUFFIX=""
@@ -104,7 +103,6 @@ jobs:
           fi
         env:
           CONFIG: ${{ matrix.config }}
-          CI_BAZEL_REMOTE_CACHE: 'https://storage.googleapis.com/sourcegraph_bazel_cache'
       - name: '🔎 Identify OS'
         run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       # - name: '🪵 Upload log'
