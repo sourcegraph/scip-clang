@@ -11,6 +11,7 @@
   - [Stacktraces](#stacktraces)
   - [Attaching a debugger](#attaching-a-debugger)
   - [Debugging on Linux](#debugging-on-linux)
+    - [Testing CUDA/NVCC support](#testing-cudanvcc-support)
   - [Inspecting Clang ASTs](#inspecting-clang-asts)
   - [Automated test case reduction](#automated-test-case-reduction)
   - [Debugging preprocessor issues](#debugging-preprocessor-issues)
@@ -161,6 +162,14 @@ If you have not used LLDB before, check out this
 There is a [VM setup script](/tools/vm-setup.sh) available
 to configure a GCP VM for building scip-clang.
 We recommend using Ubuntu 20.04+ with 16 cores or more.
+
+#### Testing CUDA/NVCC support
+
+There is a [CUDA-specific VM setup script](/tools/vm-setup-cuda.sh)
+which installs the CUDA SDK. Use it in a GCP VM
+which has a GPU attached.
+
+You may need to restart your shell for changes to take effect.
 
 ### Inspecting Clang ASTs
 

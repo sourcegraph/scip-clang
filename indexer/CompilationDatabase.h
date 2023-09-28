@@ -108,6 +108,7 @@ public:
 enum class CompilerKind {
   Gcc,
   Clang,
+  Nvcc,
 };
 
 struct ToolchainInfo {
