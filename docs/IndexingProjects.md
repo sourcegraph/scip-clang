@@ -6,6 +6,7 @@
 - [Redpanda](#redpanda)
 - [Postgres](#postgres)
 - [Boost](#boost)
+- [Apache MXNet](#apache-mxnet)
 
 ## scip-clang
 
@@ -223,4 +224,26 @@ for d in dirs:
     if res.returncode != 0:
         print("Indexing failed for {}; skipping upload".format(d))
         continue
+```
+
+## Apache MXNet
+
+Apache MXNet is an interesting project to test because
+it has over 100 CUDA files.
+
+The indexing steps below are based on the [official instructions](https://mxnet.apache.org/versions/1.9.1/get_started/build_from_source.html).
+
+```
+git clone --recursive https://github.com/apache/mxnet
+cd mxnet
+sudo apt-get update
+sudo apt-get install -y build-essential git ninja-build ccache libopenblas-dev libopencv-dev cmake gfortran clang++-14 clang libomp-dev
+```
+
+```
+cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_CUDA=ON
+
+cat build/compile_commands.json | jq --arg rdir "$(clang -print-resource-dir)" 'map(if .command | contains("nvcc") then .command += " -resource-dir " + $rdir else . end)' > build/modified.json
+
+scip-clang --compdb-path build/modified.json
 ```
