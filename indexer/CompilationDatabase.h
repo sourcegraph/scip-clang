@@ -129,8 +129,11 @@ struct ToolchainInfo {
   /// ccache).
   ///
   /// Returns nullptr if we failed to create a well-formed toolchain object.
-  static std::unique_ptr<ToolchainInfo>
-  infer(const scip_clang::AbsolutePath &compilerPath);
+  static std::unique_ptr<ToolchainInfo> infer(const AbsolutePath &compilerPath);
+
+  static void logStdlibWarning();
+
+  static void logDiagnosticsHint();
 };
 
 /// The settings used to customize the parsed results generated from
