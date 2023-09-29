@@ -946,11 +946,13 @@ void TuIndexer::saveVarTemplateDecl(const clang::VarTemplateDecl &) {
   // Skip emitting a definition here, as we'll emit one for the inner VarDecl.
 }
 
-void TuIndexer::saveCUDAKernelCallExpr(const clang::CUDAKernelCallExpr &cudaKernelCallExpr) {
+void TuIndexer::saveCUDAKernelCallExpr(
+    const clang::CUDAKernelCallExpr &cudaKernelCallExpr) {
   if (auto *cudaConfig = cudaKernelCallExpr.getConfig()) {
     if (auto *calleeDecl = cudaConfig->getCalleeDecl()) {
       if (auto *namedDecl = llvm::dyn_cast<clang::NamedDecl>(calleeDecl)) {
-        if (auto optSymbolName = this->symbolFormatter.getNamedDeclSymbol(*namedDecl)) {
+        if (auto optSymbolName =
+                this->symbolFormatter.getNamedDeclSymbol(*namedDecl)) {
           auto symbolName = optSymbolName.value();
           this->saveReference(symbolName, cudaConfig->getExprLoc());
         }

@@ -116,7 +116,8 @@ bool isTuMainFilePath(std::string_view p) {
     return false;
   }
   auto ext = p.substr(dotIndex);
-  return ext == ".cc" || ext == ".cpp" || ext == ".cxx" || ext == ".c" || ext == ".cu";
+  return ext == ".cc" || ext == ".cpp" || ext == ".cxx" || ext == ".c"
+         || ext == ".cu";
 }
 
 // static
