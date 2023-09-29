@@ -37,10 +37,44 @@ struct CompletedProcess {
   }
 };
 
+} // namespace
+
+static CompletedProcess runProcess(std::vector<std::string> &args,
+                                   const char *logContext) {
+  CompletedProcess out{.exitCode = EXIT_FAILURE,
+                       .error = std::nullopt,
+                       .stdoutLines = {},
+                       .stderrLines = {}};
+  boost::process::ipstream stdoutStream, stderrStream;
+  BOOST_TRY {
+    spdlog::debug("{}{}invoking '{}'", logContext ? logContext : "",
+                  logContext ? " by " : "", fmt::join(args, " "));
+    boost::process::child worker(args, boost::process::std_out > stdoutStream,
+                                 boost::process::std_err > stderrStream);
+    worker.wait();
+    out.exitCode = worker.exit_code();
+  }
+  BOOST_CATCH(boost::process::process_error & ex) {
+    out.error = ex;
+  }
+  BOOST_CATCH_END
+  std::string line;
+  while (std::getline(stdoutStream, line) && !line.empty()) {
+    out.stdoutLines.push_back(line);
+  }
+  while (std::getline(stderrStream, line) && !line.empty()) {
+    out.stderrLines.push_back(line);
+  }
+  return out;
+}
+
+namespace {
+
+using AbsolutePath = scip_clang::AbsolutePath;
 using ToolchainInfo = scip_clang::compdb::ToolchainInfo;
 using CompilerKind = scip_clang::compdb::CompilerKind;
 
-struct ClangToolchainInfo : ToolchainInfo {
+struct ClangToolchainInfo : public ToolchainInfo {
   std::string resourceDir;
   std::vector<std::string> findResourceDirInvocation;
   std::string compilerDriverPath;
@@ -84,9 +118,57 @@ struct ClangToolchainInfo : ToolchainInfo {
     commandLine.push_back("-resource-dir");
     commandLine.push_back(this->resourceDir);
   }
+
+  static std::unique_ptr<ClangToolchainInfo>
+  tryInfer(const AbsolutePath &compilerPath) {
+    std::vector<std::string> findResourceDirInvocation = {
+        compilerPath.asStringRef(), "-print-resource-dir"};
+    auto printResourceDirResult = ::runProcess(
+        findResourceDirInvocation, "attempting to find resource dir");
+    if (!printResourceDirResult.isSuccess()) {
+      return nullptr;
+    }
+    if (printResourceDirResult.stdoutLines.empty()) {
+      spdlog::warn("{} succeeded but returned an empty result",
+                   fmt::join(findResourceDirInvocation, " "));
+      return nullptr;
+    }
+    auto resourceDir = std::string(
+        absl::StripAsciiWhitespace(printResourceDirResult.stdoutLines.front()));
+    spdlog::debug("got resource dir {} from {}", resourceDir,
+                  compilerPath.asStringRef());
+
+    std::vector<std::string> findDriverInvocation = {compilerPath.asStringRef(),
+                                                     "-###"};
+    auto hashHashHashResult = ::runProcess(
+        findDriverInvocation, "attempting to find installed directory");
+    std::string compilerDriverPath = "";
+    if (hashHashHashResult.isSuccess()) {
+      for (auto &line : hashHashHashResult.stderrLines) {
+        auto clangDriverDir = absl::StripPrefix(line, "InstalledDir: ");
+        if (clangDriverDir.length() != line.length()) {
+          compilerDriverPath = scip_clang::joinPath(
+              absl::StripAsciiWhitespace(clangDriverDir), "clang");
+          spdlog::debug("found compiler driver at {}", compilerDriverPath);
+          break;
+        }
+      }
+    }
+    if (compilerDriverPath.empty()) {
+      spdlog::warn(
+          "failed to determine compiler path using -### for compiler at '{}'",
+          compilerPath.asStringRef());
+      ToolchainInfo::logStdlibWarning();
+      return nullptr;
+    }
+
+    return std::make_unique<ClangToolchainInfo>(
+        resourceDir, findResourceDirInvocation, compilerDriverPath,
+        findDriverInvocation);
+  }
 };
 
-struct GccToolchainInfo : ToolchainInfo {
+struct GccToolchainInfo : public ToolchainInfo {
   std::string installDir;
   std::vector<std::string> findInstallDirInvocation;
 
@@ -116,13 +198,68 @@ struct GccToolchainInfo : ToolchainInfo {
     // gcc-7 adds headers like limits.h and syslimits.h in include-fixed
     commandLine.push_back(fmt::format("-I{}/include-fixed", this->installDir));
   }
+
+  static std::unique_ptr<GccToolchainInfo>
+  tryInfer(const AbsolutePath &compilerPath) {
+    std::vector<std::string> findSearchDirsInvocation = {
+        compilerPath.asStringRef(), "-print-search-dirs"};
+    auto printSearchDirsResult = ::runProcess(findSearchDirsInvocation,
+                                              "attempting to find search dirs");
+    if (!printSearchDirsResult.isSuccess()) {
+      return nullptr;
+    }
+    std::string installDir;
+    absl::c_any_of(printSearchDirsResult.stdoutLines,
+                   [&](const std::string &line) -> bool {
+                     if (line.starts_with("install:")) {
+                       installDir = absl::StripAsciiWhitespace(
+                           absl::StripPrefix(line, "install:"));
+                       return true;
+                     }
+                     return false;
+                   });
+    if (installDir.empty()) {
+      spdlog::warn(
+          "missing 'install:' line in -print-search-dirs from GCC(-like?) {}",
+          compilerPath.asStringRef());
+      ToolchainInfo::logStdlibWarning();
+      return nullptr;
+    }
+    spdlog::debug("found gcc install directory at {}", installDir);
+    return std::make_unique<GccToolchainInfo>(installDir,
+                                              findSearchDirsInvocation);
+  }
 };
 
-struct NvccToolchainInfo : ToolchainInfo {
-  scip_clang::AbsolutePath cudaDir;
+struct NvccToolchainInfo : public ToolchainInfo {
+  AbsolutePath cudaDir;
 
-  NvccToolchainInfo(scip_clang::AbsolutePath cudaDir)
-      : ToolchainInfo(), cudaDir(cudaDir) {}
+  /// Identify where the clang toolchain is based on PATH, if possible.
+  /// Without the appropriate Clang headers, it seems like the frontend
+  /// doesn't even construct the appropriate CUDAKernelCallExpr values.
+  std::unique_ptr<ClangToolchainInfo> clangInfo;
+
+  NvccToolchainInfo(AbsolutePath cudaDir)
+      : ToolchainInfo(), cudaDir(cudaDir), clangInfo(nullptr) {
+    // TODO: In principle, we could pick up Clang from -ccbin but that
+    // requires more plumbing; it would require using the -ccbin arg
+    // as part of the hash map key for toolchainInfoMap. So instead,
+    // for now, just require that the same Clang be available on PATH.
+    auto clangPath = boost::process::search_path("clang").native();
+    if (!clangPath.empty()) {
+      auto clangAbsPath =
+          AbsolutePath(std::string(clangPath.data(), clangPath.size()));
+      this->clangInfo = ClangToolchainInfo::tryInfer(clangAbsPath);
+    }
+    if (clangInfo) {
+      return;
+    }
+    spdlog::error("clang not found on PATH; may be unable to locate headers "
+                  "like __clang_cuda_runtime_wrapper.h");
+    spdlog::warn("code navigation for kernel call expressions may not work in "
+                 "the absence of Clang CUDA headers");
+    ToolchainInfo::logStdlibWarning();
+  }
 
   virtual CompilerKind kind() const override {
     return CompilerKind::Nvcc;
@@ -147,139 +284,58 @@ struct NvccToolchainInfo : ToolchainInfo {
     commandLine.push_back(
         fmt::format("-isystem{}{}include", this->cudaDir.asStringRef(),
                     std::filesystem::path::preferred_separator));
+    if (this->clangInfo) {
+      this->clangInfo->adjustCommandLine(commandLine);
+    }
+  }
+
+  static std::unique_ptr<NvccToolchainInfo>
+  tryInfer(const AbsolutePath &compilerPath) {
+    std::vector<std::string> argv = {compilerPath.asStringRef(), "--version"};
+    auto compilerVersionResult = ::runProcess(argv, "checking for NVCC");
+    if (compilerVersionResult.isSuccess()
+        && !compilerVersionResult.stdoutLines.empty()
+        && absl::StrContains(compilerVersionResult.stdoutLines[0], "NVIDIA")) {
+      if (auto binDir = compilerPath.asRef().prefix()) {
+        if (auto cudaDir = binDir->prefix()) {
+          return std::make_unique<NvccToolchainInfo>(AbsolutePath(*cudaDir));
+        }
+      }
+    }
+    return nullptr;
   }
 };
 
 } // namespace
 
-static CompletedProcess runProcess(std::vector<std::string> &args,
-                                   const char *logContext) {
-  CompletedProcess out{.exitCode = EXIT_FAILURE,
-                       .error = std::nullopt,
-                       .stdoutLines = {},
-                       .stderrLines = {}};
-  boost::process::ipstream stdoutStream, stderrStream;
-  BOOST_TRY {
-    spdlog::debug("{}{}invoking '{}'", logContext ? logContext : "",
-                  logContext ? " by " : "", fmt::join(args, " "));
-    boost::process::child worker(args, boost::process::std_out > stdoutStream,
-                                 boost::process::std_err > stderrStream);
-    worker.wait();
-    out.exitCode = worker.exit_code();
-  }
-  BOOST_CATCH(boost::process::process_error & ex) {
-    out.error = ex;
-  }
-  BOOST_CATCH_END
-  std::string line;
-  while (std::getline(stdoutStream, line) && !line.empty()) {
-    out.stdoutLines.push_back(line);
-  }
-  while (std::getline(stderrStream, line) && !line.empty()) {
-    out.stderrLines.push_back(line);
-  }
-  return out;
+/*static*/ void ToolchainInfo::logDiagnosticsHint() {
+  spdlog::info("compilation errors are suppressed by default, but can be "
+               "turned on using --show-compiler-diagnostics");
+}
+
+/*static*/ void ToolchainInfo::logStdlibWarning() {
+  spdlog::warn("may be unable to locate standard library headers");
+  ToolchainInfo::logDiagnosticsHint();
 }
 
 /*static*/ std::unique_ptr<ToolchainInfo>
-ToolchainInfo::infer(const scip_clang::AbsolutePath &compilerPath) {
-
-  auto noteStdlib = []() {
-    spdlog::warn("may be unable to locate standard library headers");
-    spdlog::info("compilation errors are suppressed by default, but can be "
-                 "turned on using --show-compiler-diagnostics");
-  };
-
-  std::vector<std::string> findResourceDirInvocation = {
-      compilerPath.asStringRef(), "-print-resource-dir"};
-  auto failure = std::unique_ptr<ToolchainInfo>(nullptr);
-
-  auto printResourceDirResult = ::runProcess(findResourceDirInvocation,
-                                             "attempting to find resource dir");
-  if (printResourceDirResult.isSuccess()) {
-    if (printResourceDirResult.stdoutLines.empty()) {
-      spdlog::warn("{} succeeded but returned an empty result",
-                   fmt::join(findResourceDirInvocation, " "));
-      return failure;
-    }
-    auto resourceDir = std::string(
-        absl::StripAsciiWhitespace(printResourceDirResult.stdoutLines.front()));
-    spdlog::debug("got resource dir {} from {}", resourceDir,
-                  compilerPath.asStringRef());
-
-    std::vector<std::string> findDriverInvocation = {compilerPath.asStringRef(),
-                                                     "-###"};
-    auto hashHashHashResult = ::runProcess(
-        findDriverInvocation, "attempting to find installed directory");
-    std::string compilerDriverPath = "";
-    if (hashHashHashResult.isSuccess()) {
-      for (auto &line : hashHashHashResult.stderrLines) {
-        auto clangDriverDir = absl::StripPrefix(line, "InstalledDir: ");
-        if (clangDriverDir.length() != line.length()) {
-          compilerDriverPath = scip_clang::joinPath(
-              absl::StripAsciiWhitespace(clangDriverDir), "clang");
-          spdlog::debug("found compiler driver at {}", compilerDriverPath);
-          break;
-        }
-      }
-    }
-    if (compilerDriverPath.empty()) {
-      spdlog::warn(
-          "failed to determine compiler path using -### for compiler at '{}'",
-          compilerPath.asStringRef());
-      noteStdlib();
-      return failure;
-    }
-
-    return std::make_unique<ClangToolchainInfo>(
-        resourceDir, findResourceDirInvocation, compilerDriverPath,
-        findDriverInvocation);
+ToolchainInfo::infer(const AbsolutePath &compilerPath) {
+  if (auto clangInfo = ClangToolchainInfo::tryInfer(compilerPath)) {
+    return clangInfo;
   }
 
-  std::vector<std::string> findSearchDirsInvocation = {
-      compilerPath.asStringRef(), "-print-search-dirs"};
-  auto printSearchDirsResult =
-      ::runProcess(findSearchDirsInvocation, "attempting to find search dirs");
-  if (printSearchDirsResult.isSuccess()) {
-    std::string installDir;
-    absl::c_any_of(printSearchDirsResult.stdoutLines,
-                   [&](const std::string &line) -> bool {
-                     if (line.starts_with("install:")) {
-                       installDir = absl::StripAsciiWhitespace(
-                           absl::StripPrefix(line, "install:"));
-                       return true;
-                     }
-                     return false;
-                   });
-    if (installDir.empty()) {
-      spdlog::warn(
-          "missing 'install:' line in -print-search-dirs from GCC(-like?) {}",
-          compilerPath.asStringRef());
-      noteStdlib();
-      return failure;
-    }
-    spdlog::debug("found gcc install directory at {}", installDir);
-    return std::make_unique<GccToolchainInfo>(installDir,
-                                              findSearchDirsInvocation);
+  if (auto gccInfo = GccToolchainInfo::tryInfer(compilerPath)) {
+    return gccInfo;
   }
 
-  std::vector<std::string> argv = {compilerPath.asStringRef(), "--version"};
-  auto compilerVersionResult = ::runProcess(argv, "checking for NVCC");
-  if (compilerVersionResult.isSuccess()
-      && !compilerVersionResult.stdoutLines.empty()
-      && absl::StrContains(compilerVersionResult.stdoutLines[0], "NVIDIA")) {
-    if (auto binDir = compilerPath.asRef().prefix()) {
-      if (auto cudaDir = binDir->prefix()) {
-        return std::make_unique<NvccToolchainInfo>(
-            scip_clang::AbsolutePath(*cudaDir));
-      }
-    }
+  if (auto nvccInfo = NvccToolchainInfo::tryInfer(compilerPath)) {
+    return nvccInfo;
   }
 
   spdlog::warn("compiler at '{}' is not one of clang/clang++/gcc/g++/nvcc",
                compilerPath.asStringRef());
-  noteStdlib();
-  return failure;
+  ToolchainInfo::logStdlibWarning();
+  return nullptr;
 }
 
 namespace scip_clang {
