@@ -105,28 +105,28 @@
   #endif
   
   // Host- and device-side placement new overloads.
-  void *operator new(__SIZE_TYPE__, void *p) { return p; }
-//      ^^^^^^^^ definition [..] `operator new`(7cf5f2fc6057a0cc).
-//                   ^^^^^^^^^^^^^ reference [..] `<built-in>:499:9`!
-//                                        ^ definition local 17
-//                                                    ^ reference local 17
-  void *operator new[](__SIZE_TYPE__, void *p) { return p; }
-//      ^^^^^^^^ definition [..] `operator new[]`(7cf5f2fc6057a0cc).
-//                     ^^^^^^^^^^^^^ reference [..] `<built-in>:499:9`!
-//                                          ^ definition local 18
-//                                                      ^ reference local 18
-  __device__ void *operator new(__SIZE_TYPE__, void *p) { return p; }
+  void *operator new(size_t, void *p) { return p; }
+//      ^^^^^^^^ definition [..] `operator new`(ecd71fefd6822377).
+//                   ^^^^^^ reference [..] size_t#
+//                                 ^ definition local 17
+//                                             ^ reference local 17
+  void *operator new[](size_t, void *p) { return p; }
+//      ^^^^^^^^ definition [..] `operator new[]`(ecd71fefd6822377).
+//                     ^^^^^^ reference [..] size_t#
+//                                   ^ definition local 18
+//                                               ^ reference local 18
+  __device__ void *operator new(size_t, void *p) { return p; }
 //^^^^^^^^^^ reference [..] `cuda_stub.h:11:9`!
-//                 ^^^^^^^^ definition [..] `operator new`(7cf5f2fc6057a0cc).
-//                              ^^^^^^^^^^^^^ reference [..] `<built-in>:499:9`!
-//                                                   ^ definition local 19
-//                                                               ^ reference local 19
-  __device__ void *operator new[](__SIZE_TYPE__, void *p) { return p; }
+//                 ^^^^^^^^ definition [..] `operator new`(ecd71fefd6822377).
+//                              ^^^^^^ reference [..] size_t#
+//                                            ^ definition local 19
+//                                                        ^ reference local 19
+  __device__ void *operator new[](size_t, void *p) { return p; }
 //^^^^^^^^^^ reference [..] `cuda_stub.h:11:9`!
-//                 ^^^^^^^^ definition [..] `operator new[]`(7cf5f2fc6057a0cc).
-//                                ^^^^^^^^^^^^^ reference [..] `<built-in>:499:9`!
-//                                                     ^ definition local 20
-//                                                                 ^ reference local 20
+//                 ^^^^^^^^ definition [..] `operator new[]`(ecd71fefd6822377).
+//                                ^^^^^^ reference [..] size_t#
+//                                              ^ definition local 20
+//                                                          ^ reference local 20
   
   #endif // !__NVCC__
   

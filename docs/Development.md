@@ -182,6 +182,12 @@ clang -Xclang -ast-dump=json file.c
 
 Another option is to use clang-query ([tutorial](https://devblogs.microsoft.com/cppblog/exploring-clang-tooling-part-2-examining-the-clang-ast-with-clang-query/)).
 
+**NOTE:** If running the above on CUDA code
+leads to a Clang error suggesting that CUDA could not be found,
+it's likely that the code is ill-formed. Adding flags like
+`-nocudainc` or `-nocudalib` (sometimes suggested by Clang) will
+lead to `CUDAKernelCallExpr` values not being parsed properly.
+
 ### Automated test case reduction
 
 In case of a crash, it may be possible to automatically reduce

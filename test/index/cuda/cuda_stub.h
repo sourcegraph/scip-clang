@@ -48,10 +48,10 @@ extern "C" cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim,
 #endif
 
 // Host- and device-side placement new overloads.
-void *operator new(__SIZE_TYPE__, void *p) { return p; }
-void *operator new[](__SIZE_TYPE__, void *p) { return p; }
-__device__ void *operator new(__SIZE_TYPE__, void *p) { return p; }
-__device__ void *operator new[](__SIZE_TYPE__, void *p) { return p; }
+void *operator new(size_t, void *p) { return p; }
+void *operator new[](size_t, void *p) { return p; }
+__device__ void *operator new(size_t, void *p) { return p; }
+__device__ void *operator new[](size_t, void *p) { return p; }
 
 #endif // !__NVCC__
 
