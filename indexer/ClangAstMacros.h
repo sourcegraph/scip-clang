@@ -32,6 +32,7 @@
   F(CXXDependentScopeMember)           \
   F(DeclRef)                           \
   F(Member)                            \
+  F(UnresolvedLookup)                  \
   F(UnresolvedMember)
 
 #define FOR_EACH_TYPE_TO_BE_INDEXED(F) \
