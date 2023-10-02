@@ -35,6 +35,7 @@
 //       ^ reference [..] dim3#dim3(6df00707c193238d).
 //          ^ reference [..] dim3#dim3(6df00707c193238d).
     g1(42); // expected-error {{call to global function 'g1' not configured}}
+//  ^^ reference [..] g1(d4f767463ce0a6b3).
     g1<<<1>>>(42); // expected-error {{too few execution configuration arguments to kernel function call}}
     g1<<<1, 1, 0, 0, 0>>>(42); // expected-error {{too many execution configuration arguments to kernel function call}}
   
@@ -103,6 +104,7 @@
 //                          ^^^ reference local 10
       a1::Call<<<0,0>>>(arg);
 //    ^^ reference [..] a1#
+//        ^^^^ reference [..] a1#Call(9b289cee16747614).
 //               ^ reference [..] dim3#dim3(6df00707c193238d).
 //                 ^ reference [..] dim3#dim3(6df00707c193238d).
 //                      ^^^ reference local 10
@@ -113,6 +115,8 @@
 //                         ^^^ reference local 10
       a3::Call<<<0, 0>>>(arg);
 //    ^^ reference [..] a3#
+//        ^^^^ reference [..] a3#Call(5d22bdacc48458e8).
+//        ^^^^ reference [..] a3#Call(d4f767463ce0a6b3).
 //               ^ reference [..] dim3#dim3(6df00707c193238d).
 //                  ^ reference [..] dim3#dim3(6df00707c193238d).
 //                       ^^^ reference local 10
@@ -176,6 +180,7 @@
     x::y::mykernel<DType, layout><<<0, 0>>>(0, nullptr, nullptr);
 //  ^ reference [..] x/
 //     ^ reference [..] x/y/
+//        ^^^^^^^^ reference [..] x/y/mykernel(36fc24b3817d5bcc).
 //                 ^^^^^ reference local 17
 //                        ^^^^^^ reference local 18
 //                                  ^ reference [..] dim3#dim3(6df00707c193238d).

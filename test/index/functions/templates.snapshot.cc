@@ -55,6 +55,7 @@
 //     ^^ definition [..] h1(9b289cee16747614).
 //        ^ reference local 7
 //          ^ definition local 8
+//               ^^ reference [..] h0(9b289cee16747614).
 //                  ^ reference local 7
 //                     ^ reference local 8
   
