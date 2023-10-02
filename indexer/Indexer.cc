@@ -1022,17 +1022,17 @@ void TuIndexer::saveMemberExpr(const clang::MemberExpr &memberExpr) {
   this->saveReference(optSymbol.value(), memberExpr.getMemberLoc(), namedDecl);
 }
 
-void TuIndexer::saveUnresolvedLookupExpr(const clang::UnresolvedLookupExpr &unresolvedLookupExpr) {
+void TuIndexer::saveUnresolvedLookupExpr(
+    const clang::UnresolvedLookupExpr &unresolvedLookupExpr) {
   // The number 32 has been chosen somewhat arbitrarily.
-  // C++ has 20 fundamental types (see https://stackoverflow.com/a/51777680/2682729)
-  // so 32 should cover situations where overloads for all
-  // fundamental types are present, and then some.
-  // Set a limit here to reduce risk of blowing up index sizes
-  // and indexing time in case there are a LOT of unresolved
-  // lookup expressions.
+  // C++ has 20 fundamental types (see
+  // https://stackoverflow.com/a/51777680/2682729) so 32 should cover situations
+  // where overloads for all fundamental types are present, and then some. Set a
+  // limit here to reduce risk of blowing up index sizes and indexing time in
+  // case there are a LOT of unresolved lookup expressions.
   size_t MAX_UNRESOLVED_DECL_LIMIT = 16;
   size_t count = 0;
-  for (auto *namedDecl: unresolvedLookupExpr.decls()) {
+  for (auto *namedDecl : unresolvedLookupExpr.decls()) {
     if (!namedDecl) {
       continue;
     }
