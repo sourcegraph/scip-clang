@@ -58,3 +58,15 @@ struct b {
   }
   void e() { d0(1); }
 };
+
+namespace x {
+  namespace y {
+    template <typename DType, int layout>
+    __global__ void mykernel(const int nthreads, const DType *in_data, DType *out_data) {}
+  }
+}
+
+template <typename DType, int layout>
+void call_mykernel2() {
+  x::y::mykernel<DType, layout><<<0, 0>>>(0, nullptr, nullptr);
+}

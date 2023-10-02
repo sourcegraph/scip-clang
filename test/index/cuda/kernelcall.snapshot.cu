@@ -149,3 +149,35 @@
 //       ^ definition [..] b#e(49f6e7a06ebc5aa8).
 //             ^^ reference [..] b#d0(d4f767463ce0a6b3).
   };
+  
+  namespace x {
+//          ^ definition [..] x/
+    namespace y {
+//            ^ definition [..] x/y/
+      template <typename DType, int layout>
+//                       ^^^^^ definition local 12
+//                                  ^^^^^^ definition local 13
+      __global__ void mykernel(const int nthreads, const DType *in_data, DType *out_data) {}
+//    ^^^^^^^^^^ reference [..] `cuda_stub.h:12:9`!
+//                    ^^^^^^^^ definition [..] x/y/mykernel(36fc24b3817d5bcc).
+//                                       ^^^^^^^^ definition local 14
+//                                                       ^^^^^ reference local 12
+//                                                              ^^^^^^^ definition local 15
+//                                                                       ^^^^^ reference local 12
+//                                                                              ^^^^^^^^ definition local 16
+    }
+  }
+  
+  template <typename DType, int layout>
+//                   ^^^^^ definition local 17
+//                              ^^^^^^ definition local 18
+  void call_mykernel2() {
+//     ^^^^^^^^^^^^^^ definition [..] call_mykernel2(49f6e7a06ebc5aa8).
+    x::y::mykernel<DType, layout><<<0, 0>>>(0, nullptr, nullptr);
+//  ^ reference [..] x/
+//     ^ reference [..] x/y/
+//                 ^^^^^ reference local 17
+//                        ^^^^^^ reference local 18
+//                                  ^ reference [..] dim3#dim3(6df00707c193238d).
+//                                     ^ reference [..] dim3#dim3(6df00707c193238d).
+  }
