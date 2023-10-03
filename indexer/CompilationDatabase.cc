@@ -291,6 +291,9 @@ constexpr const char* skipOptionsNoArgs[] = {
   "--Wno-deprecated-gpu-targets", "-Wno-deprecated-gpu-targets",
   "--resource-usage", "-res-usage",
   "--extensible-whole-program", "-ewp",
+  // --compress-all is undocumented, but assuming it is similar to
+  // --no-compress
+  "--compress-all", "-compress-all",
   "--no-compress", "-no-compress",
   "--qpp-config", "-qpp-config",
   "--compile-as-tools-patch", "-astoolspatch",
@@ -312,6 +315,12 @@ constexpr const char* skipOptionsWithArgs[] = {
   "--threads", "-t",
   "--split-compile", "-split-compile",
   "--keep-dir", "-keep-dir",
+  // TODO: Strictly speaking, these could be inlined
+  // and/or recursively processed, but ignore them for now.
+  "--compiler-options", "-Xcompiler", "--options-file",
+  // --fatbin-options is undocumented but I'm assuming it
+  // behaves similar to the other *-options
+  "--fatbin-options", "-Xfatbin",
   "--linker-options",
   "--archive-options", "-Xarchive",
   "--ptxas-options", "-Xptxas",
@@ -435,8 +444,6 @@ struct NvccToolchainInfo : public ToolchainInfo {
   }
 
   void removeUnknownArguments(std::vector<std::string> &commandLine) const {
-    // TODO: Add special handling for --compiler-options, -Xcompiler
-    // and --options-file.
     absl::flat_hash_set<size_t> drop{};
     for (size_t i = 0; i < commandLine.size(); ++i) {
       switch (this->handleArgument(commandLine[i])) {
