@@ -9,6 +9,7 @@
 #include "indexer/Path.h"
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/strip.h"
@@ -231,6 +232,127 @@ struct GccToolchainInfo : public ToolchainInfo {
   }
 };
 
+enum class NvccOptionType {
+  NoArgument,
+  OneArgument,
+};
+
+// Based on nvcc --help from nvcc version V12.2.140
+// Build cuda_12.2.r12.2/compiler.33191640_0
+
+// clang-format off
+constexpr const char* skipOptionsNoArgs[] = {
+  "--cuda", "-cuda",
+  "--cubin", "-cubin",
+  "--fatbin", "-fatbin",
+  "--ptx", "-ptx",
+  "--optix-ir", "-optix-ir",
+  "--generate-dependencies", // clang uses --dependencies,
+  "--compile",
+  "--device-c", "-dc",
+  "--device-w", "-dw",
+  "--device-link", "-dlink",
+  "--link", "-link",
+  "--lib", "-lib",
+  "--run", "-run",
+  "--output-file", // clang uses --output
+  "--compiler-bindir", "-ccbin",
+  "--allow-unsupported-compiler",
+  "--archiver-binary", "-arbin",
+  "--use-local-env", "-use-local-env",
+  "--profile", "-pg",
+  "--debug",
+  "--device-debug", "-G",
+  "--generate-line-info",
+  "--dlink-time-opt", "-dlto",
+  "--gen-opt-lto", "-gen-opt-lto",
+  "--no-host-device-initializer-list", "-nohdinitlist",
+  "--no-host-device-move-forward", "-nohdmvforward",
+  "--expt-relaxed-constexpr", "-expt-relaxed-constexpr",
+  "--extended-lambda", "-extended-lambda",
+  "--expt-extended-lambda", "-expt-extended-lambda",
+  "--m64", "-m64",
+  "--forward-unknown-to-host-compiler", "-forward-unknown-to-host-compiler",
+  "--forward-unknown-opts", "-forward-unknown-opts",
+  "--keep", "-keep",
+  "--save-temps", "-save-temps",
+  "--no-align-double", "-no-align-double",
+  "--no-device-link", "-nodlink",
+  "--extra-device-vectorization", "-extra-device-vectorization",
+  "--disable-warnings", "-w",
+  "--keep-device-functions", "-keep-device-functions",
+  "--source-in-ptx", "-src-in-ptx",
+  "--restrict", "-restrict",
+  "--Wreorder", "-Wreorder",
+  "--Wdefault-stream-launch", "-Wdefault-stream-launch",
+  "--Wmissing-launch-bounds", "-Wmissing-launch-bounds",
+  "--Wext-lambda-captures-this", "-Wext-lambda-captures-this",
+  "--Wno-deprecated-declarations", "-Wno-deprecated-declarations",
+  "--Wno-deprecated-gpu-targets", "-Wno-deprecated-gpu-targets",
+  "--resource-usage", "-res-usage",
+  "--extensible-whole-program", "-ewp",
+  // --compress-all is undocumented, but assuming it is similar to
+  // --no-compress
+  "--compress-all", "-compress-all",
+  "--no-compress", "-no-compress",
+  "--qpp-config", "-qpp-config",
+  "--compile-as-tools-patch", "-astoolspatch",
+  "--display-error-number", "-err-no",
+  "--no-display-error-number", "-no-err-no",
+  "--augment-host-linker-script", "-aug-hls",
+  "--host-relocatable-link", "-r"
+};
+
+constexpr const char* skipOptionsWithArgs[] = {
+  "--cudart", "-cudart",
+  "--cudadevrt", "-cudadevrt",
+  "--libdevice-directory", "-ldir",
+  "--target-directory", "-target-dir",
+  "--optimization-info",
+  "--optimize",
+  "--dopt", "-dopt",
+  "--machine", "-m",
+  "--threads", "-t",
+  "--split-compile", "-split-compile",
+  "--keep-dir", "-keep-dir",
+  // TODO: Strictly speaking, these could be inlined
+  // and/or recursively processed, but ignore them for now.
+  "--compiler-options", "-Xcompiler", "--options-file",
+  // --fatbin-options is undocumented but I'm assuming it
+  // behaves similar to the other *-options
+  "--fatbin-options", "-Xfatbin",
+  "--linker-options",
+  "--archive-options", "-Xarchive",
+  "--ptxas-options", "-Xptxas",
+  "--nvlink-options", "-Xnvlink",
+  "--time", "-time",
+  "--run-args", "-run-args",
+  "--input-drive-prefix", "-idp",
+  "--dependency-drive-prefix", "-ddp",
+  "--drive-prefix", "-dp",
+  "-dependency-target-name",
+  "--gpu-architecture",
+  "--gpu-code", "-code",
+  "--generate-code", "-gencode",
+  "--relocatable-device-code", "-rdc",
+  "--entries", "-e",
+  "--maxrregcount", "-maxrregcount",
+  "--use_fast_math", "-use_fast_math",
+  "--ftz", "-ftz",
+  "--prec-div", "-prec-div",
+  "--prec-sqrt", "-prec-sqrt",
+  "--fmad", "-fmad",
+  "--default-stream", "-default-stream",
+  "--Werror", "-Werror",
+  "--diag-error", "-diag-error",
+  "--diag-suppress", "-diag-suppress",
+  "--diag-warn", "-diag-warn",
+  "--host-linker-script", "-hls",
+  "--brief-diagnostics", "-brief-diag"
+};
+
+// clang-format on
+
 struct NvccToolchainInfo : public ToolchainInfo {
   AbsolutePath cudaDir;
 
@@ -239,8 +361,19 @@ struct NvccToolchainInfo : public ToolchainInfo {
   /// doesn't even construct the appropriate CUDAKernelCallExpr values.
   std::unique_ptr<ClangToolchainInfo> clangInfo;
 
+  absl::flat_hash_map<std::string_view, NvccOptionType> toBeSkipped;
+
   NvccToolchainInfo(AbsolutePath cudaDir)
       : ToolchainInfo(), cudaDir(cudaDir), clangInfo(nullptr) {
+    for (auto s : skipOptionsNoArgs) {
+      this->toBeSkipped.emplace(std::string_view(s),
+                                NvccOptionType::NoArgument);
+    }
+    for (auto s : skipOptionsWithArgs) {
+      this->toBeSkipped.emplace(std::string_view(s),
+                                NvccOptionType::OneArgument);
+    }
+
     // TODO: In principle, we could pick up Clang from -ccbin but that
     // requires more plumbing; it would require using the -ccbin arg
     // as part of the hash map key for toolchainInfoMap. So instead,
@@ -279,8 +412,66 @@ struct NvccToolchainInfo : public ToolchainInfo {
     return true;
   }
 
+  enum class ArgumentProcessing {
+    Keep,
+    DropCurrent,
+    DropCurrentAndNextIffBothPresent,
+  };
+
+  ArgumentProcessing handleArgument(const std::string &arg) const {
+    if (!arg.starts_with('-')) {
+      return ArgumentProcessing::Keep;
+    }
+    std::string_view substr = arg;
+    auto eqIndex = arg.find('=');
+    if (eqIndex != std::string::npos) {
+      substr = std::string_view(arg.data(), eqIndex);
+    }
+    auto it = this->toBeSkipped.find(substr);
+    if (it == this->toBeSkipped.end()) {
+      return ArgumentProcessing::Keep;
+    }
+    switch (it->second) {
+    case NvccOptionType::NoArgument:
+      return ArgumentProcessing::DropCurrent;
+    case NvccOptionType::OneArgument:
+      if (substr.size() == arg.size()) {
+        return ArgumentProcessing::DropCurrentAndNextIffBothPresent;
+      }
+      return ArgumentProcessing::DropCurrent;
+    }
+    ENFORCE(false, "should've exited earlier");
+  }
+
+  void removeUnknownArguments(std::vector<std::string> &commandLine) const {
+    absl::flat_hash_set<size_t> drop{};
+    for (size_t i = 0; i < commandLine.size(); ++i) {
+      switch (this->handleArgument(commandLine[i])) {
+      case ArgumentProcessing::Keep:
+        continue;
+      case ArgumentProcessing::DropCurrent:
+        drop.insert(i);
+        continue;
+      case ArgumentProcessing::DropCurrentAndNextIffBothPresent:
+        if (i + 1 < commandLine.size()) {
+          drop.insert(i);
+          drop.insert(i + 1);
+        }
+      }
+    }
+    std::vector<std::string> tmp;
+    tmp.reserve(commandLine.size() - drop.size());
+    for (size_t i = 0; i < commandLine.size(); ++i) {
+      if (!drop.contains(i)) {
+        tmp.push_back(std::move(commandLine[i]));
+      }
+    }
+    std::swap(tmp, commandLine);
+  }
+
   virtual void
   adjustCommandLine(std::vector<std::string> &commandLine) const override {
+    this->removeUnknownArguments(commandLine);
     commandLine.push_back(
         fmt::format("-isystem{}{}include", this->cudaDir.asStringRef(),
                     std::filesystem::path::preferred_separator));
