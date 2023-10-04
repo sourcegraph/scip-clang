@@ -1,7 +1,7 @@
 # scip-clang: SCIP indexer for C and C++ ![(Status: Beta)](https://img.shields.io/badge/status-beta-yellow?style=flat)
 
 scip-clang is a precise code indexer based on Clang 16,
-which supports cross-repository code navigation for C and C++
+which supports cross-repository code navigation for C, C++ and CUDA
 in Sourcegraph.
 
 Here are some code navigation examples:
@@ -11,6 +11,7 @@ Here are some code navigation examples:
   - [Find references for #include](https://sourcegraph.com/github.com/llvm/llvm-project@97a03eb2eb5acf269db6253fe540626b52950f97/-/blob/llvm/include/llvm/ADT/SmallSet.h?L1:1-1:81#tab=references)
   - [Find references for macros](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/llvm/include/llvm/Support/Debug.h?L101:9-101:19#tab=references)
   - [Find references for types](https://sourcegraph.com/github.com/llvm/llvm-project@daad48d6b236d74c6b29daebba46289b98104241/-/blob/clang/include/clang/AST/ASTContext.h?L1472:34-1472:45#tab=references)
+- [Find references for a CUDA kernel in apache/mxnet](https://sourcegraph.com/github.com/apache/mxnet@b84609d/-/blob/src/operator/nn/softmax-inl.h?L693:7-693:28#tab=references)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/sourcegraph/scip-clang/assets/93103176/08b3aa95-c3ee-4c56-9920-20dfa4a7070d">
@@ -51,6 +52,19 @@ are both supported. For codebases exclusively built using GCC,
 compatibility should be as good as Clang's compatibility
 (i.e. most features should work, with graceful degradation
 for features that don't).
+
+<details>
+<summary>Extra requirements for indexing CUDA</summary>
+
+When indexing CUDA code, an installation of Clang is required
+(using your OS package manager or otherwise),
+and the `clang` executable must be available on `PATH`,
+so that Clang's CUDA-related headers can be found.
+We recommend Clang 16 or newer, but in our testing, headers
+from Clang 14 also work.
+
+The CUDA SDK must also be installed.
+</details>
 
 scip-clang currently supports indexing using a
 [JSON compilation database][].
@@ -182,6 +196,23 @@ scip-clang --compdb-path=build/small_compdb.json --show-compiler-diagnostics
 > not from a subdirectory, even when you only want to index a subdirectory.
 > If you only want to index a subdirectory, filter out unnecessary
 > entries in the compilation database.
+
+<details>
+<summary>Known diagnostics when indexing CUDA</summary>
+
+1. If you see an error related to the `texture` template, that is likely
+   because of the Clang version not being Clang 16 or newer.
+   See https://github.com/llvm/llvm-project/issues/61340
+2. If you see any errors related to GCC headers, that's a
+   [known issue](https://github.com/sourcegraph/scip-clang/issues/440).
+   It shouldn't affect indexer correctness.
+3. If you see an error related to an unknown flag,
+   you can generally ignore it.
+   scip-clang [skips all known NVCC-specific flags](https://sourcegraph.com/github.com/sourcegraph/scip-clang@2efb686d14e92c587e10d452a168d32ccdbb6032/-/blob/indexer/CompilationDatabase.cc?L244-352)
+   as they generally don't affect the semantics of code navigation.
+   We can easily add more flags to skip here if needed.
+
+</details>
 
 If there are errors about missing system or SDK headers,
 install the relevant system dependencies.
