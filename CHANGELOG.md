@@ -1,5 +1,11 @@
 # scip-clang ChangeLog
 
+## v0.3.0 (beta)
+
+- Adds initial support for indexing CUDA code, including
+  code navigation support for CUDA kernels.
+  (https://github.com/sourcegraph/scip-clang/issues/428)
+
 ## v0.2.7 (beta)
 
 - Adds a visited set to to avoid performing member lookup in the same
