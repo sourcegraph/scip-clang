@@ -243,7 +243,5 @@ sudo apt-get install -y build-essential git ninja-build ccache libopenblas-dev l
 ```
 cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_CUDA=ON
 
-cat build/compile_commands.json | jq --arg rdir "$(clang -print-resource-dir)" 'map(if .command | contains("nvcc") then .command += " -resource-dir " + $rdir else . end)' > build/modified.json
-
-scip-clang --compdb-path build/modified.json
+scip-clang --compdb-path build/compile_commands.json
 ```
