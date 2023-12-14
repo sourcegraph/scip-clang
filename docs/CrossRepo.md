@@ -30,6 +30,10 @@ As an example, you can see [scip-clang's own package map file](/tools/package-ma
    (which must be the project root). For example:
    - For projects using Bazel, these paths will generally look like:
      `./bazel-myproject/external/com_company_libcool`.
+     However, if the `bazel-myproject` symlink is not present, you can
+     instead use absolute paths of the form `$(bazel info output_base)/external/com_company_libcool`
+     after expanding `$(bazel info output_base)`
+     (`scip-clang` itself will not invoke Bazel).
 2. The `package` key consists of a `name` followed by an `@` separator and a `version`.
    - The name and version must only contain characters belonging to `[a-zA-Z0-9_\-\.]`.
    - The version should be chosen based on release information.
@@ -52,6 +56,31 @@ is assigned based on the longest match. For example, if you're
 using git submodules, then packages in subdirectories will be
 recognized correctly if there is a package map entry
 pointing to the subdirectory.
+
+<details>
+<summary>Optional: Locally verify that the cross-repo information in the SCIP index is correct</summary>
+
+To double-check that the generated SCIP index has the correct cross-repo information,
+you can use the [`scip` CLI](https://github.com/sourcegraph/scip/releases/tag/v0.3.2)'s
+`snapshot` subcommand like so:
+
+```bash
+# Run from project root
+scip snapshot --from index.scip --to out
+```
+
+The `out` directory will contain a copy of your project
+annotated with SCIP data in a visual format.
+For example, references to types from `package1` may be marked
+as follows:
+
+```cpp
+    package1::Server server;
+//  ^^^^^^^^ reference cxx . . $ package1/
+//            ^^^^^^ reference cxx . package1 v1$ package1/Server#
+```
+
+</details>
 
 For cross-repository navigation to work,
 `package1` must also be indexed with the same version information:
