@@ -138,7 +138,7 @@ See the [Usage](#usage) section for step-by-step instructions.
   ```
 
 - **Bazel**: Use either
-  [hedronvision/bazel-compile-commands-extractor](bazel-compile-commands-extractor)
+  [hedronvision/bazel-compile-commands-extractor](https://github.com/hedronvision/bazel-compile-commands-extractor)
   or [grailbio/bazel-compilation-database](https://github.com/grailbio/bazel-compilation-database).
   Caveat: The grailbio generator sometimes accidentally adds
   unexpanded Make variables in compilation commands,
