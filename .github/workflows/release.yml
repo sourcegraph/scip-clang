@@ -152,7 +152,7 @@ jobs:
       # Download everything to avoid spelling out the different
       # platforms here.
       - name: '📥 Download all artifacts'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       - name: '📤 Upload artifacts for release'
         run: gh release upload "${GITHUB_REF/refs\/tags\//}" ./*-release-artifacts/*
         env:
