@@ -124,7 +124,7 @@ jobs:
           OS: ${{ env.OS }}
           CONFIG: ${{ matrix.config }}
       - name: ${{ format('📦 Store binary ({0})', matrix.config) }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-${{ matrix.config }}-release-artifacts
           path: ${{ env.outBinaryPath }}
