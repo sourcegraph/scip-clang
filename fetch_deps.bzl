@@ -12,7 +12,7 @@ _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
 _SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
 _PROTOBUF_VERSION = "3.21.12"
 _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
-_UTFCPP_VERSION = "v4.0.5"
+_UTFCPP_VERSION = "4.0.5"
 # ^ When bumping this version, check if any new fields are introduced
 # in the types for which we implement hashing and comparison in
 # indexer/ScipExtras.{h,cc}

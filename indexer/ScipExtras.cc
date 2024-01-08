@@ -9,6 +9,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/functional/function_ref.h"
 #include "perfetto/perfetto.h"
+#include "utfcpp/utf8.h"
 
 #include "llvm/Support/Path.h"
 #include "llvm/Support/StringSaver.h"
