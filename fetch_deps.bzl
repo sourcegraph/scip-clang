@@ -12,6 +12,7 @@ _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
 _SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
 _PROTOBUF_VERSION = "3.21.12"
 _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
+_UTFCPP_VERSION = "v4.0.5"
 # ^ When bumping this version, check if any new fields are introduced
 # in the types for which we implement hashing and comparison in
 # indexer/ScipExtras.{h,cc}
@@ -233,4 +234,12 @@ def fetch_direct_dependencies():
         sha256 = "29a801171f7ca190c543406f9894abf2d483c206e14d6acbd695623662320097",
         strip_prefix = "rules_python-%s" % _RULES_PYTHON_VERSION,
         url = "https://github.com/bazelbuild/rules_python/releases/download/{0}/rules_python-{0}.tar.gz".format(_RULES_PYTHON_VERSION),
+    )
+
+    http_archive(
+        name = "utfcpp",
+        sha256 = "ffc668a310e77607d393f3c18b32715f223da1eac4c4d6e0579a11df8e6b59cf",
+        build_file = "@scip_clang//third_party:utfcpp.BUILD",
+        strip_prefix = "utfcpp-%s" % _UTFCPP_VERSION,
+        url = "https://github.com/nemtrif/utfcpp/archive/refs/tags/{0}.tar.gz".format(_UTFCPP_VERSION),
     )
