@@ -1,5 +1,11 @@
 # scip-clang ChangeLog
 
+## v0.3.1 (beta)
+
+- Fixes an issue where invalid UTF-8 in documentation
+  comments could lead to a crash during indexing.
+  (https://github.com/sourcegraph/scip-clang/pull/453)
+
 ## v0.3.0 (beta)
 
 - Adds initial support for indexing CUDA code, including
