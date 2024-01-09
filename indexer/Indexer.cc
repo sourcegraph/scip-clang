@@ -10,6 +10,7 @@
 #include "absl/strings/strip.h"
 #include "perfetto/perfetto.h"
 #include "spdlog/fmt/fmt.h"
+#include "utfcpp/utf8.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/CXXInheritance.h"
@@ -313,6 +314,13 @@ void DocComment::replaceIfEmpty(DocComment &&other) {
 void DocComment::addTo(std::string &slot) {
   auto stripped = absl::StripAsciiWhitespace(this->contents);
   if (stripped.empty()) {
+    return;
+  }
+  if (!utf8::is_valid(stripped)) {
+    slot.clear();
+    utf8::replace_invalid(stripped.begin(), stripped.end(),
+                          std::back_inserter(slot));
+    this->contents.clear();
     return;
   }
   if (stripped.size() == this->contents.size()) {
