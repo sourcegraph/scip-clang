@@ -37,6 +37,7 @@ cc_library(
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
         "@scip",
+        "@utfcpp",
     ],
 )
 
