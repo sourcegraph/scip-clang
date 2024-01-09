@@ -241,5 +241,5 @@ def fetch_direct_dependencies():
         sha256 = "ffc668a310e77607d393f3c18b32715f223da1eac4c4d6e0579a11df8e6b59cf",
         build_file = "@scip_clang//third_party:utfcpp.BUILD",
         strip_prefix = "utfcpp-%s" % _UTFCPP_VERSION,
-        url = "https://github.com/nemtrif/utfcpp/archive/refs/tags/{0}.tar.gz".format(_UTFCPP_VERSION),
+        url = "https://github.com/nemtrif/utfcpp/archive/refs/tags/v{0}.tar.gz".format(_UTFCPP_VERSION),
     )
