@@ -16,6 +16,11 @@ common --enable_platform_specific_config
 # https://sourcegraph.com/github.com/grailbio/bazel-toolchain@d52ce5d96915428a5ee6f7079078df706c5fddab/-/blob/toolchain/cc_toolchain_config.bzl?L154:11
 build:linux --linkopt="-fuse-ld=lld"
 
+# Based on release notes from since we're on Bazel < 7
+# https://github.com/bazel-contrib/toolchains_llvm/releases/tag/0.10.3
+build:darwin --features=-supports_dynamic_linker
+build:darwin --features=-libtool
+
 # Not sure why setting all of these is necessary, but just setting cxxopt
 # Leads to usage of old C++ version when compiling LLVM, which needs C++14 or newer.
 build --cxxopt="-std=c++20" --host_cxxopt="-std=c++20" --client_env=BAZEL_CXXOPTS="-std=c++20"

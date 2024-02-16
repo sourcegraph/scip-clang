@@ -14,7 +14,7 @@ load("//:fetch_deps.bzl", "fetch_direct_dependencies")
 fetch_direct_dependencies()
 
 # Setup the toolchain before setting up other dependencies
-load("@com_grail_bazel_toolchain//toolchain:deps.bzl", "bazel_toolchain_dependencies")
+load("@toolchains_llvm//toolchain:deps.bzl", "bazel_toolchain_dependencies")
 
 bazel_toolchain_dependencies()
 
