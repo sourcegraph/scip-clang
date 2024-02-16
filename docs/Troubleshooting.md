@@ -189,3 +189,48 @@ There are 3 possible fixes for this:
    scip-clang will automatically use fewer workers if possible,
    but will print a warning when it does so.
    This warning can be suppressed by explicitly passing `--jobs N`.
+
+## Skipped compilation database entries
+
+After completing indexing, scip-clang will print output like the following:
+
+```
+Finished indexing 100 translation units in 40.2s (indexing: 38.0s, merging: 2.2s, num errored TUs: 0).
+Skipped: 30 compilation database entries (non main file extension: 30, not found on disk: 0).
+```
+
+Here, some entries are skipped because
+scip-clang only looks at compilation database entries corresponding to
+translation units (i.e. C, C++ or CUDA implementation files).
+If a compilation database contains other entries,
+for example, related to some code generation step or header files,
+those are skipped.
+
+Generally, this should not be a cause for concern,
+as some compilation database generation tools
+generate superfluous entries in the compilation database
+which are not useful from an indexing perspective.
+
+For example, here is the list of file extensions with counts
+for scip-clang's own compilation database.
+
+```
+$ jq '.[].file' compile_commands.json | awk -F'/' '{print $(NF)}' | sed -E 's/"//g' | sed -E 's/.+\./\./g' | sort | uniq -c
+  27 .c
+ 225 .cc
+1956 .cpp
+   6 .def
+3375 .h
+6081 .hpp
+ 175 .inc
+ 104 .ipp
+   2 .pl
+```
+
+Out of these, scip-clang will only create indexing jobs
+for the entries for `.c`, `.cc` and `.cpp` files.
+For header files, it is OK
+to skip processing the corresponding compilation database entries
+as the header file will be indexed
+when they are included by a translation unit
+(either directly or via some other header file).
