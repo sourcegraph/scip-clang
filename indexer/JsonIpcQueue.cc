@@ -79,9 +79,13 @@ JsonIpcQueue::sendValue(const llvm::json::Value &jsonValue) {
                     buffer.substr(0, 25),
                     buffer.substr(buffer.size() - 25, 25));
       if (buffer.size() < 10 * 1024 * 1024) {
+        // Multiply by 1.5 for breathing room.
+        // Multiply by 2 because there are 2 buffers for each worker, and
+        // --ipc-size-hint-bytes controls the space per worker, so the buffer
+        // size must be half of whatever was provided by --ipc-size-hint-bytes.
         spdlog::info(
             "try passing --ipc-size-hint-bytes {} when invoking scip-clang",
-            size_t(double(buffer.size()) * 1.5));
+            size_t(double(buffer.size()) * 1.5 * 2));
       }
     }
     return ex;
