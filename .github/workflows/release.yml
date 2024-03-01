@@ -120,7 +120,7 @@ jobs:
           OS: ${{ env.OS }}
           CONFIG: ${{ matrix.config }}
       - name: ${{ format('📦 Store binary ({0})', matrix.config) }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-${{ matrix.config }}-release-artifacts
           path: ${{ env.outBinaryPath }}
@@ -148,7 +148,7 @@ jobs:
       # Download everything to avoid spelling out the different
       # platforms here.
       - name: '📥 Download all artifacts'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
       - name: '📤 Upload artifacts for release'
         run: gh release upload "${GITHUB_REF/refs\/tags\//}" ./*-release-artifacts/*
         env:
