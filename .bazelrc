@@ -18,8 +18,8 @@ build:linux --linkopt="-fuse-ld=lld"
 
 # Based on release notes from since we're on Bazel < 7
 # https://github.com/bazel-contrib/toolchains_llvm/releases/tag/0.10.3
-build:darwin --features=-supports_dynamic_linker
-build:darwin --features=-libtool
+build --features=-supports_dynamic_linker
+build --features=-libtool
 
 # Not sure why setting all of these is necessary, but just setting cxxopt
 # Leads to usage of old C++ version when compiling LLVM, which needs C++14 or newer.
