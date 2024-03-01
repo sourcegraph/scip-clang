@@ -17,7 +17,7 @@ constexpr bool debugMode = false;
 
 #define VERSION "0.3.1"
 #define LLVM_COMMIT \
-  "e0f3110b854a476c16cce7b44472cd7838d344e9" // Keep synced with fetch_deps.bzl
+  "a344db793aca6881379c7c83f5112d2870dbf958" // Keep synced with fetch_deps.bzl
 
 // TODO: Add scip-clang Git SHA + dirty bit.
 

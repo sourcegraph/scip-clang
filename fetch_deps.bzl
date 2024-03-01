@@ -4,7 +4,7 @@ _BAZEL_SKYLIB_VERSION = "1.3.0"
 _PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
 _BAZEL_TOOLCHAIN_VERSION = "0.10.3"
 _RULES_BOOST_COMMIT = "00b9b9ecb9b43564de44ea0b10e22b29dcf84d79"
-_LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
+_LLVM_COMMIT = "a344db793aca6881379c7c83f5112d2870dbf958"  # Keep in sync with Version.h
 _ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
@@ -79,6 +79,17 @@ def fetch_direct_dependencies():
     # Keep the name 'zlib' so that Protobuf doesn't pull in another copy.
     #
     # https://sourcegraph.com/github.com/protocolbuffers/protobuf/-/blob/protobuf_deps.bzl?L48-58
+    #
+    # Yes, LLVM pulls in zlib-ng, but I can't figure out how to unify the two.
+    # I tried adding this to the llvm_zlib http_archive call:
+    #
+    #     repo_mapping = {"@zlib": "@llvm_zlib"}
+    #
+    # but that resulted in a build error.
+    #     Compiling src/google/protobuf/io/gzip_stream.cc failed: undeclared inclusion(s) in rule '@com_google_protobuf//:protobuf':
+    #     this rule is missing dependency declarations for the following files included by 'src/google/protobuf/io/gzip_stream.cc':
+    #     'external/zlib/zlib.h'
+    #     'external/zlib/zconf.h'
     http_archive(
         name = "zlib",
         build_file = "@scip_clang//third_party:zlib.BUILD",
@@ -87,6 +98,16 @@ def fetch_direct_dependencies():
         urls = [
             "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
             "https://zlib.net/zlib-1.2.11.tar.gz",
+        ],
+    )
+
+    http_archive(
+        name = "llvm_zlib",
+        build_file = "@llvm-raw//utils/bazel/third_party_build:zlib-ng.BUILD",
+        sha256 = "e36bb346c00472a1f9ff2a0a4643e590a254be6379da7cddd9daeb9a7f296731",
+        strip_prefix = "zlib-ng-2.0.7",
+        urls = [
+            "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.7.zip",
         ],
     )
 
@@ -102,7 +123,7 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "llvm-raw",
-        sha256 = "04b76a5be88331f71a4e4fe96bccfebec302ddd0dbd9418fd5c186a7361c54fb",
+        sha256 = "9b9c46e9fd3b62cc588bf4a622924b0227624b5741cbc6b909a5d315ec1b79b0",
         strip_prefix = "llvm-project-%s" % _LLVM_COMMIT,
         build_file_content = "# empty",
         urls = ["https://github.com/llvm/llvm-project/archive/%s.tar.gz" % _LLVM_COMMIT],
