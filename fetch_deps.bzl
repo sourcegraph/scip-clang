@@ -3,7 +3,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file"
 _BAZEL_SKYLIB_VERSION = "1.3.0"
 _PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
 _BAZEL_TOOLCHAIN_VERSION = "0.10.3"
-_RULES_BOOST_COMMIT = "ed40cc3c6fb76fe46f40150ebb81ef6a625b6e36"
+_RULES_BOOST_COMMIT = "00b9b9ecb9b43564de44ea0b10e22b29dcf84d79"
 _LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
 _ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
 _CXXOPTS_VERSION = "3.0.0"
@@ -52,7 +52,7 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "com_github_nelhage_rules_boost",
-        sha256 = "2f3120bb4dd42ad58ff5677d4fa6ecbab34a93d94a8ad66f9b07951bff59cdbf",
+        sha256 = "a8499f581899ae7356e40e2aab6e985dd2da9c894c91197341aace9a0a6157fe",
         strip_prefix = "rules_boost-%s" % _RULES_BOOST_COMMIT,
         urls = [
             "https://github.com/nelhage/rules_boost/archive/%s.tar.gz" % _RULES_BOOST_COMMIT,
