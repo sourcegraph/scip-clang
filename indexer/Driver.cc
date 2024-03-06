@@ -231,8 +231,8 @@ struct DriverOptions {
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
         indexOutputPath(), statsFilePath(), packageMapPath(),
         showCompilerDiagnostics(cliOpts.showCompilerDiagnostics),
-        showProgress(cliOpts.showProgress), ipcOptions{cliOpts.ipcSizeHintBytes,
-                                                       cliOpts.receiveTimeout},
+        showProgress(cliOpts.showProgress),
+        ipcOptions{cliOpts.ipcSizeHintBytes, cliOpts.receiveTimeout},
         numWorkers(cliOpts.numWorkers), deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
