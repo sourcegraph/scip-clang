@@ -93,10 +93,10 @@ def fetch_direct_dependencies():
     http_archive(
         name = "llvm_zstd",
         build_file = "@llvm-raw//utils/bazel/third_party_build:zstd.BUILD",
-        sha256 = "7c42d56fac126929a6a85dbc73ff1db2411d04f104fae9bdea51305663a83fd0",
-        strip_prefix = "zstd-1.5.2",
+        sha256 = "8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1",
+        strip_prefix = "zstd-1.5.6",
         urls = [
-            "https://github.com/facebook/zstd/releases/download/v1.5.2/zstd-1.5.2.tar.gz",
+            "https://github.com/facebook/zstd/releases/download/v1.5.6/zstd-1.5.6.tar.gz",
         ],
     )
 
