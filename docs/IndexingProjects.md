@@ -3,6 +3,7 @@
 - [scip-clang](#scip-clang)
 - [LLVM](#llvm)
 - [Chromium](#chromium)
+- [Linux](#linux)
 - [Redpanda](#redpanda)
 - [Postgres](#postgres)
 - [Boost](#boost)
@@ -68,6 +69,8 @@ Tested environments: Ubuntu 18.04, Ubuntu 22.04, macOS 13.
 Dependencies: `cmake`, `ninja`, a host toolchain with Clang and LLD.
 (ld on Linux hits OOM even with 64GB RAM.)
 
+Approximate index size: 1.8 GB uncompressed, 195 MB compressed
+
 ```bash
 git clone https://github.com/llvm/llvm-project --depth=1
 cd llvm-project/llvm
@@ -77,9 +80,9 @@ cmake -B ../build -G Ninja \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-  -DCMAKE_C_FLAGS="-g0 -fuse-ld=lld" -DCMAKE_CXX_FLAGS="-g0 -fuse-ld=lld" \
+  -DCMAKE_C_FLAGS="-g0 -fuse-ld=lld -Wno-unused-command-line-argument" -DCMAKE_CXX_FLAGS="-g0 -fuse-ld=lld -Wno-unused-command-line-argument" \
   -DLLDB_INCLUDE_TESTS=OFF -DLLDB_USE_SYSTEM_DEBUGSERVER=ON \
-  -DLLVM_ENABLE_PROJECTS="all" 
+  -DLLVM_ENABLE_PROJECTS="all"
 ninja -C ../build
 scip-clang --compdb-path=build/compile_commands.json
 ```
@@ -118,6 +121,30 @@ gclient runhooks
 gn gen out/X --args='symbol_level=0'
 ./tools/clang/scripts/generate_compdb.py -p out/X > compile_commands.json
 ninja -C out/X
+```
+
+## Linux
+
+Tested environments: Ubuntu 22.04
+
+Approximate index size: 375 MB uncompressed, 53 MB compressed.
+
+Dependencies:
+
+```bash
+sudo apt install libncurses-dev gawk flex bison openssl libssl-dev dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf llvm -y
+```
+
+Build and index:
+
+```bash
+git clone https://github.com/torvalds/linux.git --depth=10
+cd linux
+make defconfig
+make -j $(nproc)
+# The below only works on kernels newer than v5.10
+./scripts/clang-tools/gen_compile_commands.py
+scip-clang --compdb-path=compile_commands.json
 ```
 
 ## Redpanda
