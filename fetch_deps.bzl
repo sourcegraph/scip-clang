@@ -217,8 +217,8 @@ def fetch_direct_dependencies():
     http_archive(
         name = "actionlint_linux_amd64",
         build_file = "@scip_clang//third_party:actionlint.BUILD",
-        sha256 = "5c9b6e5418f688b7f7c7e3d40c13d9e41b1ca45fb6a2c35788b0580e34b7300f",
-        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.6.27/actionlint_1.6.27_linux_amd64.tar.gz"],
+        sha256 = "37252b4d440b56374b0fc1726e05fd7452d30d6d774f6e9b52e65bb64475f9db",
+        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.3/actionlint_1.7.3_linux_amd64.tar.gz"],
     )
 
     http_archive(
