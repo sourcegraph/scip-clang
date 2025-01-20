@@ -20,10 +20,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - platform: 'ubuntu-22.04'
+          - platform: 'ubuntu-24.04
             container: 'gcc:9.5.0-buster'
             config: 'dev'
-          - platform: 'ubuntu-22.04'
+          - platform: 'ubuntu-24.04
             container: 'gcc:9.5.0-buster'
             config: 'release'
           # macOS 14 => arm64
@@ -129,7 +129,7 @@ jobs:
     name: 'Create release'
     if: github.event_name != 'workflow_dispatch' || inputs.create_release
     needs: build-and-upload-artifacts
-    runs-on: 'ubuntu-20.04'
+    runs-on: 'ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - name: '📝 Create Release'
