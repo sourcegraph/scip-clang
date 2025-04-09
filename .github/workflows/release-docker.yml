@@ -13,9 +13,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: "ubuntu-20.04-16core-graph-team"
+          - os: ubuntu-20.04-16core-graph-team
             platform: linux/amd64
-          - os: ubuntu-22.04-arm'
+          - os: ubuntu-22.04-arm
             platform: linux/arm64
     runs-on: ${{ matrix.os }}
     steps:
