@@ -100,7 +100,7 @@ jobs:
           name: ${{ matrix.binary_name }}
           path: /tmp/binary
 
-      - run: cp /tmp/binary/${{ matrix.binary_name }}/scip-clang ./scip-clang
+      - run: cp /tmp/binary/scip-clang ./scip-clang
 
       - name: Build and push by digest
         id: build
