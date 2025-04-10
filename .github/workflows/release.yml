@@ -2,47 +2,47 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       revision:
-        description: 'Tag or revision to build binaries for'
+        description: "Tag or revision to build binaries for"
         type: string
         required: true
       create_release:
-        description: 'Should publish the binary or not'
+        description: "Should publish the binary or not"
         required: true
-        default: 'false'
+        default: "false"
 
 jobs:
   build-and-upload-artifacts:
-    name: 'Build and upload artifacts'
+    name: "Build and upload artifacts"
     strategy:
       matrix:
         include:
-          - platform: 'ubuntu-22.04'
-            container: 'gcc:9.5.0-buster'
-            config: 'dev'
-          - platform: 'ubuntu-22.04'
-            container: 'gcc:9.5.0-buster'
-            config: 'release'
+          - platform: "ubuntu-22.04"
+            container: "gcc:9.5.0-buster"
+            config: "dev"
+          - platform: "ubuntu-22.04"
+            container: "gcc:9.5.0-buster"
+            config: "release"
           # macOS 14 => arm64
-          - platform: 'macos-14'
-            container: ''
-            config: 'release'
+          - platform: "macos-14"
+            container: ""
+            config: "release"
     runs-on: ${{ matrix.platform }}
     container: ${{ matrix.container }}
     env:
       TAG: ${{ github.event.ref }}
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: "read"
+      id-token: "write"
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v3
-      - name: '📝 Check version'
+      - uses: actions/checkout@v4
+      - name: "📝 Check version"
         run: |
           set -euo pipefail
           if [[ "${TAG:-}" == v* ]]; then
@@ -51,7 +51,7 @@ jobs:
             TAG_LIKE="$(grep '## v' CHANGELOG.md | head -n 1 | cut -d ' ' -f 2)"
           fi
           NEW_VERSION="${TAG_LIKE/v/}" ./tools/version_check.sh
-      - name: '🐍 Install Bazelisk'
+      - name: "🐍 Install Bazelisk"
         run: |
           if ! command -v bazelisk; then
             if [ "$RUNNER_OS" == "Windows" ]; then
@@ -64,13 +64,13 @@ jobs:
             fi
           fi
       - id: auth
-        name: '🔓 Authenticate to Google Cloud'
-        uses: 'google-github-actions/auth@v1'
+        name: "🔓 Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v2"
         with:
           workload_identity_provider: ${{ secrets.GCP_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           create_credentials_file: true
-      - name: '🚧 Build scip-clang'
+      - name: "🚧 Build scip-clang"
         run: |
           # Stop Windows from converting the // to /
           # https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842
@@ -99,7 +99,7 @@ jobs:
           fi
         env:
           CONFIG: ${{ matrix.config }}
-      - name: '🔎 Identify OS'
+      - name: "🔎 Identify OS"
         run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
       # - name: '🪵 Upload log'
       #   uses: actions/upload-artifact@v3
@@ -120,19 +120,19 @@ jobs:
           OS: ${{ env.OS }}
           CONFIG: ${{ matrix.config }}
       - name: ${{ format('📦 Store binary ({0})', matrix.config) }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-${{ matrix.config }}-release-artifacts
           path: ${{ env.outBinaryPath }}
 
   create-release:
-    name: 'Create release'
+    name: "Create release"
     if: github.event_name != 'workflow_dispatch' || inputs.create_release
     needs: build-and-upload-artifacts
-    runs-on: 'ubuntu-20.04'
+    runs-on: "ubuntu-20.04"
     steps:
-      - uses: actions/checkout@v3
-      - name: '📝 Create Release'
+      - uses: actions/checkout@v4
+      - name: "📝 Create Release"
         run: |
           REV="$INPUT_REVISION"
           if [ "$TRIGGER" != "workflow_dispatch" ]; then
@@ -147,9 +147,9 @@ jobs:
           INPUT_REVISION: ${{ inputs.revision }}
       # Download everything to avoid spelling out the different
       # platforms here.
-      - name: '📥 Download all artifacts'
-        uses: actions/download-artifact@v3
-      - name: '📤 Upload artifacts for release'
+      - name: "📥 Download all artifacts"
+        uses: actions/download-artifact@v4
+      - name: "📤 Upload artifacts for release"
         run: gh release upload "${GITHUB_REF/refs\/tags\//}" ./*-release-artifacts/*
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
