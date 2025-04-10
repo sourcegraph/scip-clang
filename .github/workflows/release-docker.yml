@@ -1,4 +1,4 @@
-name: ci
+name: "Release Docker images"
 
 on:
   push:
