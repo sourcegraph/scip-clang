@@ -3,6 +3,18 @@ name: ci
 on:
   push:
     branches: ["docker-build"]
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Tag or revision to build binaries for"
+        type: string
+        required: true
+      create_release:
+        description: "Should publish the binary or not"
+        required: true
+        default: "false"
 
 env:
   REGISTRY_IMAGE: sourcegraph/scip-clang
@@ -15,8 +27,40 @@ jobs:
         include:
           - os: ubuntu-22.04-32core-graph-team-amd64
             platform: linux/amd64
+            binary_name: scip-clang-x86_64-linux
           - os: ubuntu-22.04-32core-graph-team-arm64
             platform: linux/arm64
+            binary_name: scip-clang-arm64-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: Build binary
+        run: bazel build //indexer:scip-clang --config release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: bazel-bin/indexer/scip-clang
+          name: ${{ matrix.binary_name }}
+          if-no-files-found: error
+
+  build-docker:
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux/amd64
+            binary_name: scip-clang-x86_64-linux
+          - os: ubuntu-22.04-arm
+            platform: linux/arm64
+            binary_name: scip-clang-arm64-linux
     runs-on: ${{ matrix.os }}
     steps:
       - name: Prepare
@@ -45,6 +89,14 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Download pre-built binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: /tmp/binary
+
+      - run: cp /tmp/binary/${{ matrix.binary_name }}/scip-clang ./scip-clang
 
       - name: Build and push by digest
         id: build
