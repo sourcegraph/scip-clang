@@ -2,20 +2,9 @@ name: ci
 
 on:
   push:
-    branches: ["docker-build"]
+    branches: ["main"]
     tags:
       - "v*"
-  workflow_dispatch:
-    inputs:
-      revision:
-        description: "Tag or revision to build binaries for"
-        type: string
-        required: true
-      create_release:
-        description: "Should publish the binary or not"
-        required: true
-        default: "false"
-
 env:
   REGISTRY_IMAGE: sourcegraph/scip-clang
 
@@ -147,7 +136,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Snapshot metadata
-        if: github.ref == 'refs/heads/docker-build'
+        if: github.ref == 'refs/heads/main'
         uses: docker/metadata-action@v5
         with:
           images: |
