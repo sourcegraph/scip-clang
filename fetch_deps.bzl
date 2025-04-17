@@ -210,22 +210,22 @@ def fetch_direct_dependencies():
     http_archive(
         name = "actionlint_darwin_arm64",
         build_file = "@scip_clang//third_party:actionlint.BUILD",
-        sha256 = "4b8eff986643b8d9918c4fd3ada9c0eee7e59230a53a46a9bd9686521dcad170",
-        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.6.27/actionlint_1.6.27_darwin_arm64.tar.gz"],
+        sha256 = "2693315b9093aeacb4ebd91a993fea54fc215057bf0da2659056b4bc033873db",
+        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_darwin_arm64.tar.gz"],
     )
 
     http_archive(
         name = "actionlint_linux_amd64",
         build_file = "@scip_clang//third_party:actionlint.BUILD",
-        sha256 = "5c9b6e5418f688b7f7c7e3d40c13d9e41b1ca45fb6a2c35788b0580e34b7300f",
-        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.6.27/actionlint_1.6.27_linux_amd64.tar.gz"],
+        sha256 = "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
+        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz"],
     )
 
     http_archive(
         name = "actionlint_linux_arm64",
         build_file = "@scip_clang//third_party:actionlint.BUILD",
-        sha256 = "03ffe5891da7800ec39533543667697b5c292d0ff8b906397b43c58374ec052a",
-        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.6.27/actionlint_1.6.27_linux_arm64.tar.gz"],
+        sha256 = "401942f9c24ed71e4fe71b76c7d638f66d8633575c4016efd2977ce7c28317d0",
+        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_arm64.tar.gz"],
     )
 
     http_archive(
