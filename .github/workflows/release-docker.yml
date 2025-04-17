@@ -9,17 +9,17 @@ env:
   REGISTRY_IMAGE: sourcegraph/scip-clang
 
 jobs:
-  build:
+  build-binaries:
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-22.04-32core-graph-team-amd64
             platform: linux/amd64
-            binary_name: scip-clang-x86_64-linux
+            binary-name: scip-clang-x86_64-linux
           - os: ubuntu-22.04-32core-graph-team-arm64
             platform: linux/arm64
-            binary_name: scip-clang-arm64-linux
+            binary-name: scip-clang-arm64-linux
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
       - uses: bazel-contrib/setup-bazel@0.14.0
         with:
           bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}-${{ matrix.binary_name }}
+          disk-cache: ${{ github.workflow }}-${{ matrix.binary-name }}
           repository-cache: true
 
       - name: Build binary
@@ -37,21 +37,21 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: bazel-bin/indexer/scip-clang
-          name: ${{ matrix.binary_name }}
+          name: ${{ matrix.binary-name }}
           if-no-files-found: error
 
   build-docker:
-    needs: [build]
+    needs: [build-binaries]
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-22.04
             platform: linux/amd64
-            binary_name: scip-clang-x86_64-linux
+            binary-name: scip-clang-x86_64-linux
           - os: ubuntu-22.04-arm
             platform: linux/arm64
-            binary_name: scip-clang-arm64-linux
+            binary-name: scip-clang-arm64-linux
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -73,26 +73,19 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Download pre-built binary
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.binary_name }}
+          name: ${{ matrix.binary-name }}
           path: /tmp/binary
 
       - run: cp /tmp/binary/scip-clang ./scip-clang && ls -l ./scip-clang
 
       - name: Build and push by digest
-        id: build
+        id: build-images
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -104,7 +97,7 @@ jobs:
       - name: Export digest
         run: |
           mkdir -p ${{ runner.temp }}/digests
-          digest="${{ steps.build.outputs.digest }}"
+          digest="${{ steps.build-images.outputs.digest }}"
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
       - name: Upload digest
@@ -115,7 +108,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  merge_docker:
+  merge-docker:
     runs-on: ubuntu-latest
     needs: [build-docker]
     steps:
