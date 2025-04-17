@@ -2,7 +2,7 @@ name: "Release Docker images"
 
 on:
   push:
-    branches: ["main"]
+    branches: ["docker-build"]
     tags:
       - "v*"
 env:
@@ -129,7 +129,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Snapshot metadata
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/docker-build'
         uses: docker/metadata-action@v5
         with:
           images: |
