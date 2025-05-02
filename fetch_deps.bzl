@@ -189,8 +189,8 @@ def fetch_direct_dependencies():
     http_file(
         name = "buildifier_darwin_arm64",
         executable = True,
-        sha256 = "21fa0d48ef0b7251eb6e3521cbe25d1e52404763cd2a43aa29f69b5380559dd1",
-        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.0.0/buildifier-darwin-arm64"],
+        sha256 = "e08381a3ed1d59c0a17d1cee1d4e7684c6ce1fc3b5cfa1bd92a5fe978b38b47d",
+        urls = ["https://github.com/bazelbuild/buildtools/releases/download/v8.2.0/buildifier-darwin-arm64"],
     )
 
     http_file(
