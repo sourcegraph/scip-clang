@@ -21,6 +21,7 @@
 #include "rapidjson/reader.h"
 #include "spdlog/fmt/fmt.h"
 
+#include "indexer/CommandLineCleaner.h"
 #include "indexer/CompilationDatabase.h"
 #include "indexer/FileSystem.h"
 #include "indexer/LlvmCommandLineParsing.h"
@@ -73,13 +74,16 @@ namespace {
 
 using AbsolutePath = scip_clang::AbsolutePath;
 using ToolchainInfo = scip_clang::compdb::ToolchainInfo;
+using CommandLineCleaner = scip_clang::compdb::CommandLineCleaner;
 using CompilerKind = scip_clang::compdb::CompilerKind;
+using CliOptionKind = scip_clang::compdb::CliOptionKind;
 
 struct ClangToolchainInfo : public ToolchainInfo {
   std::string resourceDir;
   std::vector<std::string> findResourceDirInvocation;
   std::string compilerDriverPath;
   std::vector<std::string> findDriverInvocation;
+  std::unique_ptr<CommandLineCleaner> cleaner;
 
   // All strings and vectors above should be non-empty for
   // a valid toolchain.
@@ -87,11 +91,13 @@ struct ClangToolchainInfo : public ToolchainInfo {
   ClangToolchainInfo(std::string resourceDir,
                      std::vector<std::string> findResourceDirInvocation,
                      std::string compilerDriverPath,
-                     std::vector<std::string> findDriverInvocation)
+                     std::vector<std::string> findDriverInvocation,
+                     std::unique_ptr<CommandLineCleaner> cleaner)
       : ToolchainInfo(), resourceDir(resourceDir),
         findResourceDirInvocation(findResourceDirInvocation),
         compilerDriverPath(compilerDriverPath),
-        findDriverInvocation(findDriverInvocation){};
+        findDriverInvocation(findDriverInvocation),
+        cleaner(std::move(cleaner)){};
 
   virtual CompilerKind kind() const override {
     return CompilerKind::Clang;
@@ -116,6 +122,7 @@ struct ClangToolchainInfo : public ToolchainInfo {
   virtual void
   adjustCommandLine(std::vector<std::string> &commandLine) const override {
     commandLine[0] = this->compilerDriverPath;
+    this->cleaner->clean(commandLine);
     commandLine.push_back("-resource-dir");
     commandLine.push_back(this->resourceDir);
   }
@@ -165,18 +172,21 @@ struct ClangToolchainInfo : public ToolchainInfo {
 
     return std::make_unique<ClangToolchainInfo>(
         resourceDir, findResourceDirInvocation, compilerDriverPath,
-        findDriverInvocation);
+        findDriverInvocation, CommandLineCleaner::forClangOrGcc());
   }
 };
 
 struct GccToolchainInfo : public ToolchainInfo {
   std::string installDir;
   std::vector<std::string> findInstallDirInvocation;
+  std::unique_ptr<CommandLineCleaner> cleaner;
 
   GccToolchainInfo(std::string installDir,
-                   std::vector<std::string> findInstallDirInvocation)
+                   std::vector<std::string> findInstallDirInvocation,
+                   std::unique_ptr<CommandLineCleaner> cleaner)
       : ToolchainInfo(), installDir(installDir),
-        findInstallDirInvocation(findInstallDirInvocation) {}
+        findInstallDirInvocation(findInstallDirInvocation),
+        cleaner(std::move(cleaner)) {}
 
   virtual CompilerKind kind() const override {
     return CompilerKind::Gcc;
@@ -194,6 +204,7 @@ struct GccToolchainInfo : public ToolchainInfo {
 
   virtual void
   adjustCommandLine(std::vector<std::string> &commandLine) const override {
+    this->cleaner->clean(commandLine);
     commandLine.push_back("-resource-dir");
     commandLine.push_back(this->installDir);
     // gcc-7 adds headers like limits.h and syslimits.h in include-fixed
@@ -227,21 +238,17 @@ struct GccToolchainInfo : public ToolchainInfo {
       return nullptr;
     }
     spdlog::debug("found gcc install directory at {}", installDir);
-    return std::make_unique<GccToolchainInfo>(installDir,
-                                              findSearchDirsInvocation);
+    return std::make_unique<GccToolchainInfo>(
+        installDir, findSearchDirsInvocation,
+        CommandLineCleaner::forClangOrGcc());
   }
-};
-
-enum class NvccOptionType {
-  NoArgument,
-  OneArgument,
 };
 
 // Based on nvcc --help from nvcc version V12.2.140
 // Build cuda_12.2.r12.2/compiler.33191640_0
 
 // clang-format off
-constexpr const char* skipOptionsNoArgs[] = {
+constexpr const char* nvccSkipOptionsNoArgs[] = {
   "--cuda", "-cuda",
   "--cubin", "-cubin",
   "--fatbin", "-fatbin",
@@ -303,7 +310,7 @@ constexpr const char* skipOptionsNoArgs[] = {
   "--host-relocatable-link", "-r"
 };
 
-constexpr const char* skipOptionsWithArgs[] = {
+constexpr const char* nvccSkipOptionsWithArgs[] = {
   "--cudart", "-cudart",
   "--cudadevrt", "-cudadevrt",
   "--libdevice-directory", "-ldir",
@@ -361,18 +368,19 @@ struct NvccToolchainInfo : public ToolchainInfo {
   /// doesn't even construct the appropriate CUDAKernelCallExpr values.
   std::unique_ptr<ClangToolchainInfo> clangInfo;
 
-  absl::flat_hash_map<std::string_view, NvccOptionType> toBeSkipped;
+  CommandLineCleaner cleaner;
 
   NvccToolchainInfo(AbsolutePath cudaDir)
       : ToolchainInfo(), cudaDir(cudaDir), clangInfo(nullptr) {
-    for (auto s : skipOptionsNoArgs) {
-      this->toBeSkipped.emplace(std::string_view(s),
-                                NvccOptionType::NoArgument);
+    CommandLineCleaner::MapType toZap;
+    for (auto s : nvccSkipOptionsNoArgs) {
+      toZap.emplace(std::string_view(s), CliOptionKind::NoArgument);
     }
-    for (auto s : skipOptionsWithArgs) {
-      this->toBeSkipped.emplace(std::string_view(s),
-                                NvccOptionType::OneArgument);
+    for (auto s : nvccSkipOptionsWithArgs) {
+      toZap.emplace(std::string_view(s), CliOptionKind::OneArgument);
     }
+    this->cleaner =
+        CommandLineCleaner{.toZap = toZap, .noArgumentMatcher = std::nullopt};
 
     // TODO: In principle, we could pick up Clang from -ccbin but that
     // requires more plumbing; it would require using the -ccbin arg
@@ -412,72 +420,15 @@ struct NvccToolchainInfo : public ToolchainInfo {
     return true;
   }
 
-  enum class ArgumentProcessing {
-    Keep,
-    DropCurrent,
-    DropCurrentAndNextIffBothPresent,
-  };
-
-  ArgumentProcessing handleArgument(const std::string &arg) const {
-    if (!arg.starts_with('-')) {
-      return ArgumentProcessing::Keep;
-    }
-    std::string_view substr = arg;
-    auto eqIndex = arg.find('=');
-    if (eqIndex != std::string::npos) {
-      substr = std::string_view(arg.data(), eqIndex);
-    }
-    auto it = this->toBeSkipped.find(substr);
-    if (it == this->toBeSkipped.end()) {
-      return ArgumentProcessing::Keep;
-    }
-    switch (it->second) {
-    case NvccOptionType::NoArgument:
-      return ArgumentProcessing::DropCurrent;
-    case NvccOptionType::OneArgument:
-      if (substr.size() == arg.size()) {
-        return ArgumentProcessing::DropCurrentAndNextIffBothPresent;
-      }
-      return ArgumentProcessing::DropCurrent;
-    }
-    ENFORCE(false, "should've exited earlier");
-  }
-
-  void removeUnknownArguments(std::vector<std::string> &commandLine) const {
-    absl::flat_hash_set<size_t> drop{};
-    for (size_t i = 0; i < commandLine.size(); ++i) {
-      switch (this->handleArgument(commandLine[i])) {
-      case ArgumentProcessing::Keep:
-        continue;
-      case ArgumentProcessing::DropCurrent:
-        drop.insert(i);
-        continue;
-      case ArgumentProcessing::DropCurrentAndNextIffBothPresent:
-        if (i + 1 < commandLine.size()) {
-          drop.insert(i);
-          drop.insert(i + 1);
-        }
-      }
-    }
-    std::vector<std::string> tmp;
-    tmp.reserve(commandLine.size() - drop.size());
-    for (size_t i = 0; i < commandLine.size(); ++i) {
-      if (!drop.contains(i)) {
-        tmp.push_back(std::move(commandLine[i]));
-      }
-    }
-    std::swap(tmp, commandLine);
-  }
-
   virtual void
   adjustCommandLine(std::vector<std::string> &commandLine) const override {
-    this->removeUnknownArguments(commandLine);
-    commandLine.push_back(
-        fmt::format("-isystem{}{}include", this->cudaDir.asStringRef(),
-                    std::filesystem::path::preferred_separator));
+    this->cleaner.clean(commandLine);
     if (this->clangInfo) {
       this->clangInfo->adjustCommandLine(commandLine);
     }
+    commandLine.push_back(
+        fmt::format("-isystem{}{}include", this->cudaDir.asStringRef(),
+                    std::filesystem::path::preferred_separator));
   }
 
   static std::unique_ptr<NvccToolchainInfo>
