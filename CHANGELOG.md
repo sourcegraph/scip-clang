@@ -1,5 +1,15 @@
 # scip-clang ChangeLog
 
+## v0.3.2 (beta)
+
+- Common architecture related arguments such as `-march`,
+  `-mcpu` and `-mtune` are skipped before pass-through to
+  Clang, which should reduce the risk of indexing failures
+  when trying to index code meant to be built by `gcc`
+  and proprietary compilers which support architectures
+  and flag values unsupported by Clang.
+  (https://github.com/sourcegraph/scip-clang/pull/488)
+
 ## v0.3.1 (beta)
 
 - Fixes an issue where invalid UTF-8 in documentation
