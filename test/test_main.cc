@@ -24,6 +24,7 @@
 #include "scip/scip.pb.h"
 
 #include "indexer/CliOptions.h"
+#include "indexer/CommandLineCleaner.h"
 #include "indexer/CompilationDatabase.h"
 #include "indexer/Enforce.h"
 #include "indexer/FileSystem.h"
@@ -147,6 +148,33 @@ TEST_CASE("UNIT_TESTS") {
                     fmt::format("expected prefixes: {}\n  actual prefixes: {}",
                                 fmt::join(expectedPrefixes, ", "),
                                 fmt::join(gotPrefixes, ", ")));
+    }
+  }
+
+  {
+    struct CommandLineCleaningTestCase {
+      std::vector<std::string> before;
+      std::vector<std::string> after;
+    };
+    std::vector<CommandLineCleaningTestCase> testCases{
+        {{
+             .before = {"gcc", "-mcpu=arm7tdmi", "-mthumb", "-mtune=arm7tdmi",
+                        "-march=armv4t", "tmp1.c"},
+             .after = {"gcc", "-mthumb", "tmp1.c"},
+         },
+         {
+             .before = {"gcc", "-mfix-cortex-a53-843419", "tmp2.c"},
+             .after = {"gcc", "tmp2.c"},
+         }}};
+    auto cleaner = scip_clang::compdb::CommandLineCleaner::forClangOrGcc();
+    for (auto &testCase : testCases) {
+      std::vector<std::string> input = testCase.before;
+      cleaner->clean(input);
+      CHECK_MESSAGE(absl::c_equal(testCase.after, input),
+                    fmt::format("cleaned command-line invocation:\n  expected: "
+                                "{}\n    actual: {}",
+                                fmt::join(testCase.after, " "),
+                                fmt::join(input, " ")));
     }
   }
 };
