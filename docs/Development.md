@@ -37,20 +37,10 @@ so they don't need to be downloaded separately.
 (The `dev` config is for local development.)
 
 ```
-# macOS
-bazel build //... --spawn_strategy=local --config=dev
-
-# Linux
 bazel build //... --config=dev
 ```
 
 The indexer binary will be placed at `bazel-bin/indexer/scip-clang`.
-
-On macOS, `--spawn_strategy=local` provides a dramatic improvement
-in incremental build times (~10x) and is highly recommended.
-If you are more paranoid, instead use
-`--experimental_reuse_sandbox_directories` which cuts down
-on build times by 2x-3x, while maintaining sandboxing.
 
 ### Running the indexer
 
@@ -72,13 +62,13 @@ Consult `--help` for user-facing flags, and `--help-all` for both user-facing an
 Run all tests:
 
 ```bash
-bazel test //test --spawn_strategy=local --config=dev
+bazel test //test --config=dev
 ```
 
 Update snapshot tests:
 
 ```bash
-bazel test //test:update --spawn_strategy=local --config=dev
+bazel test //test:update --config=dev
 ```
 
 NOTE: When adding a new test case, you need to manually create
@@ -88,10 +78,10 @@ an empty `.snapshot.cc` file for recording snapshot output
 Examples of running subsets of tests (follows directory structure):
 
 ```bash
-bazel test //test:test_index --spawn_strategy=local --config=dev
-bazel test //test:test_index_aliases --spawn_strategy=local --config=dev
-bazel test //test:update_index --spawn_strategy=local --config=dev
-bazel test //test:update_index_aliases --spawn_strategy=local --config=dev
+bazel test //test:test_index --config=dev
+bazel test //test:test_index_aliases --config=dev
+bazel test //test:update_index --config=dev
+bazel test //test:update_index_aliases --config=dev
 ```
 
 ### Indexing large projects
