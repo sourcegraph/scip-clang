@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 as indexer
+FROM ubuntu:22.04@sha256:3c61d3759c2639d4b836d32a2d3c83fa0214e36f195a3421018dbaaf79cbe37f as indexer
 
 RUN apt-get update && apt-get install -y curl libc6-dev python3 build-essential ninja-build git cmake
 
