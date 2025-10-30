@@ -75,8 +75,10 @@ build:ubsan --copt="-fsanitize=undefined" --copt="-fno-sanitize=vptr,function" -
 
 build:ci --config=asserts
 build:ci --config=stacktraces
-build:ci --config=asan
-build:ci --config=ubsan
+# FIXME(issue: GRAPH-1310): We should remove the Linux-specific bit below
+# to make debugging memory-related issues easier on macOS.
+build:ci:linux --config=asan
+build:ci:linux --config=ubsan
 
 build:dev --config=ci
 build:dev --copt="-Og" # For testing against large projects locally
