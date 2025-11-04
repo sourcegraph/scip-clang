@@ -23,6 +23,12 @@ genrule(
     visibility = ["//visibility:private"],
 )
 
+filegroup(
+    name = "public_headers",
+    srcs = _ZLIB_PREFIXED_HEADERS,
+    visibility = ["//visibility:public"],
+)
+
 cc_library(
     name = "zlib",
     srcs = [
@@ -63,5 +69,5 @@ cc_library(
         "-Wno-covered-switch-default",
         "-Wno-deprecated-non-prototype",
     ],
-    includes = ["zlib/include/"],
+    strip_include_prefix = "zlib/include",
 )

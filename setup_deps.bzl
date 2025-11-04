@@ -3,7 +3,7 @@ load("@com_github_nelhage_rules_boost//:boost/boost.bzl", "boost_deps")
 load("@com_grail_bazel_compdb//:deps.bzl", "bazel_compdb_deps")
 load("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure")
 load("@llvm-raw//utils/bazel:terminfo.bzl", "llvm_terminfo_disable")
-load("@llvm-raw//utils/bazel:zlib.bzl", "llvm_zlib_external")
+load("//:llvm_zlib_repo.bzl", "llvm_zlib_repo")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 load("@python_3_10//:defs.bzl", "interpreter")
 load("@rules_python//python:pip.bzl", "pip_parse")
@@ -15,7 +15,7 @@ def setup_dependencies():
     bazel_compdb_deps()
 
     llvm_terminfo_disable(name = "llvm_terminfo")
-    llvm_zlib_external(name = "llvm_zlib", external_zlib = "@zlib//:zlib")
+    llvm_zlib_repo(name = "llvm_zlib")
 
     # FIXME: Should we allow all targets in a release build?
     # Limit the number of backends here to save on compile time for now.

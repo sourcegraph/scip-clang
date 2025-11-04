@@ -2,7 +2,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file"
 
 _BAZEL_SKYLIB_VERSION = "1.3.0"
 _PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
-_BAZEL_TOOLCHAIN_VERSION = "0.10.3"
+_BAZEL_TOOLCHAIN_VERSION = "1.2.0"
 _RULES_BOOST_COMMIT = "00b9b9ecb9b43564de44ea0b10e22b29dcf84d79"
 _LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
 _ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
@@ -44,10 +44,10 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "toolchains_llvm",
-        sha256 = "b7cd301ef7b0ece28d20d3e778697a5e3b81828393150bed04838c0c52963a01",
+        sha256 = "995358bc869fb87cc47ff42f7dfc5886a169698e99315f8ecebca5a38ceca00c",
         strip_prefix = "toolchains_llvm-%s" % _BAZEL_TOOLCHAIN_VERSION,
         canonical_id = _BAZEL_TOOLCHAIN_VERSION,
-        url = "https://github.com/grailbio/bazel-toolchain/releases/download/{0}/toolchains_llvm-{0}.tar.gz".format(_BAZEL_TOOLCHAIN_VERSION),
+        url = "https://github.com/bazel-contrib/toolchains_llvm/archive/refs/tags/v{0}.tar.gz".format(_BAZEL_TOOLCHAIN_VERSION),
     )
 
     http_archive(
