@@ -234,8 +234,8 @@ IndexerPreprocessorWrapper::exitFileImpl(clang::FileID fileId) {
   if (!fileIdMatchesTopOfStack) {
     ENFORCE(fileIdMatchesTopOfStack,
             "fileId mismatch:\ntop of stack: {}\nexitInclude: {}",
-            debug::tryGetPath(this->sourceManager, fileInfo.fileId),
-            debug::tryGetPath(this->sourceManager, fileId));
+            std::string(debug::tryGetPath(this->sourceManager, fileInfo.fileId)),
+            std::string(debug::tryGetPath(this->sourceManager, fileId)));
   }
 
   auto [hashValue, history] = fileInfo.hashValueBuilder.finish();

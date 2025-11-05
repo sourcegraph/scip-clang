@@ -19,7 +19,8 @@
 #include "rapidjson/error/en.h"
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/reader.h"
-#include "spdlog/fmt/fmt.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 
 #include "indexer/CommandLineCleaner.h"
 #include "indexer/CompilationDatabase.h"

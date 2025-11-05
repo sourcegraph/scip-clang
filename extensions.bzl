@@ -6,7 +6,6 @@ _LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with V
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
-_SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
 _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 _UTFCPP_VERSION = "4.0.5"
 # ^ When bumping this version, check if any new fields are introduced
@@ -30,15 +29,6 @@ def _scip_deps_impl(mctx):
         sha256 = "d32835b26dd35aad8fd0ba0d712265df6565a3ad860d39e4c01ad41059ea7eda",
         strip_prefix = "bazel-compilation-database-0.5.2",
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
-    )
-    
-    # spdlog (includes fmt)
-    http_archive(
-        name = "spdlog",
-        sha256 = "93a270dd7ec8fa672eb4feaef443dc14a4a9edc7b59aea998ae5da6cbf7b7119",
-        build_file = "@scip_clang//third_party:spdlog.BUILD",
-        strip_prefix = "spdlog-%s" % _SPDLOG_COMMIT,
-        urls = ["https://github.com/gabime/spdlog/archive/%s.tar.gz" % _SPDLOG_COMMIT],
     )
     
     # cxxopts

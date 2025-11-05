@@ -609,7 +609,7 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
           ? fmt::format("anonymous namespace")
           : fmt::format("{}namespace {}",
                         namespaceDecl.isInlineNamespace() ? "inline " : "",
-                        namespaceDecl.getName());
+                        std::string(namespaceDecl.getName()));
 
   this->saveDefinition(symbol, startLoc, std::move(symbolInfo));
 }
