@@ -20,20 +20,7 @@ _UTFCPP_VERSION = "4.0.5"
 _PERFETTO_VERSION = "33.1"  # Keep in sync with docs/Development.md
 _DTL_VERSION = "1.20"
 
-def _llvm_zlib_repo_impl(ctx):
-    """Implementation of llvm_zlib wrapper repository."""
-    ctx.file("BUILD.bazel", """
-alias(
-    name = "zlib",
-    actual = "@zlib//:zlib",
-    visibility = ["//visibility:public"],
-)
-""")
-    ctx.file("WORKSPACE", "")
 
-_llvm_zlib_repo = repository_rule(
-    implementation = _llvm_zlib_repo_impl,
-)
 
 def _scip_deps_impl(mctx):
     """Implementation of scip_deps module extension."""
@@ -184,9 +171,6 @@ def _scip_deps_impl(mctx):
         sha256 = "401942f9c24ed71e4fe71b76c7d638f66d8633575c4016efd2977ce7c28317d0",
         urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_arm64.tar.gz"],
     )
-    
-    # llvm_zlib wrapper  
-    _llvm_zlib_repo(name = "llvm_zlib")
 
 def _llvm_project_impl(mctx):
     """Implementation of llvm_project module extension."""

@@ -158,7 +158,7 @@
   "moduleExtensions": {
     "//:extensions.bzl%llvm_project": {
       "general": {
-        "bzlTransitiveDigest": "pSqTVnKZamhVasvCFhGGtP4brAyVa6TcCpqtU2mpdV4=",
+        "bzlTransitiveDigest": "9BKv+iMrbKJiyfzlGpbGYBAGFz8v/Y8axJ8NLJiSib4=",
         "usagesDigest": "lyIH5IF1bMfSOmelapLc/6A9A0/++8DQuwrP0dAXX4A=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -188,7 +188,7 @@
     },
     "//:extensions.bzl%scip_deps": {
       "general": {
-        "bzlTransitiveDigest": "pSqTVnKZamhVasvCFhGGtP4brAyVa6TcCpqtU2mpdV4=",
+        "bzlTransitiveDigest": "9BKv+iMrbKJiyfzlGpbGYBAGFz8v/Y8axJ8NLJiSib4=",
         "usagesDigest": "Y4YYxLTp4a1kdC4FxWivlWw69mmj78v/6tiHOtYN1KA=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -393,11 +393,6 @@
                 "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_arm64.tar.gz"
               ]
             }
-          },
-          "llvm_zlib": {
-            "bzlFile": "@@//:extensions.bzl",
-            "ruleClassName": "_llvm_zlib_repo",
-            "attributes": {}
           }
         },
         "recordedRepoMappingEntries": [
