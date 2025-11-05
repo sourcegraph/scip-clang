@@ -3,8 +3,6 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 _LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
-_CXXOPTS_VERSION = "3.0.0"
-_RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
 _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 _UTFCPP_VERSION = "4.0.5"
@@ -24,6 +22,11 @@ def _scip_deps_impl(mctx):
     """Implementation of scip_deps module extension."""
     
     # Bazel compilation database
+    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
+    # 1. bazel-compilation-database is not available in Bazel Central Registry (BCR)
+    # 2. The upstream repository (grailbio/bazel-compilation-database) is archived 
+    #    and does not support bzlmod
+    # This must remain as an http_archive until a BCR-compatible alternative is available
     http_archive(
         name = "com_grail_bazel_compdb",
         sha256 = "d32835b26dd35aad8fd0ba0d712265df6565a3ad860d39e4c01ad41059ea7eda",
@@ -31,25 +34,13 @@ def _scip_deps_impl(mctx):
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
     )
     
-    # cxxopts
-    http_archive(
-        name = "cxxopts",
-        sha256 = "1eefdf5af3ba0c66458258de05df2a113262ad5e85cac489de0a456088e9f9b0",
-        build_file = "@scip_clang//third_party:cxxopts.BUILD",
-        strip_prefix = "cxxopts-%s" % _CXXOPTS_VERSION,
-        urls = ["https://github.com/jarro2783/cxxopts/archive/v%s.zip" % _CXXOPTS_VERSION],
-    )
-
-    # rapidjson
-    http_archive(
-        name = "rapidjson",
-        sha256 = "c79acb593f1954b2b217feb170549cb58fe4b9edac48e1d4e7285e03235c54d2",
-        build_file = "@scip_clang//third_party:rapidjson.BUILD",
-        strip_prefix = "rapidjson-%s" % _RAPIDJSON_COMMIT,
-        urls = ["https://github.com/Tencent/rapidjson/archive/%s.zip" % _RAPIDJSON_COMMIT],
-    )
 
     # wyhash
+    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
+    # 1. wyhash is not available in Bazel Central Registry (BCR)
+    # 2. The upstream repository (wangyi-fudan/wyhash) does not support bzlmod
+    # 3. We need a custom BUILD file to define cc_library targets for the header-only library
+    # This must remain as an http_archive until wyhash is added to BCR
     http_archive(
         name = "wyhash",
         sha256 = "ac8ff5dee1f6861614bbb1f2f5a0d57027574cc5fb56e2c47ac69ea2de30bbb0",
