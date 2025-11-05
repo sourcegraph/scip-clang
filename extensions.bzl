@@ -50,6 +50,11 @@ def _scip_deps_impl(mctx):
     )
 
     # Perfetto
+    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
+    # 1. perfetto is not available in Bazel Central Registry (BCR)
+    # 2. We require a custom BUILD file to define the cc_library target
+    # 3. We apply custom patches for undefined behavior sanitizer compatibility
+    # This must remain as an http_archive until perfetto is added to BCR with proper module support
     http_archive(
         name = "com_google_perfetto",
         sha256 = "09b3271d3829a13b400447353d442a65f8f88e2df5a26f96778ab66c4cd26ec1",
@@ -60,7 +65,12 @@ def _scip_deps_impl(mctx):
         patches = ["@scip_clang//third_party:perfetto.patch"],
     )
 
-    # DTL
+    # DTL (diff template library)
+    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
+    # 1. dtl is not available in Bazel Central Registry (BCR)
+    # 2. The upstream repository (cubicdaiya/dtl) does not support bzlmod
+    # 3. We need a custom BUILD file to define cc_library targets
+    # This must remain as an http_archive until dtl is added to BCR
     http_archive(
         name = "dtl",
         sha256 = "579f81bca88f4b9760a59d99c5a95bd8dd5dc2f20f33f1f9b5f64cb08979f54d",
@@ -98,27 +108,7 @@ def _scip_deps_impl(mctx):
         ],
     )
 
-    # Buildifier tools
-    http_file(
-        name = "buildifier_darwin_arm64",
-        executable = True,
-        sha256 = "21fa0d48ef0b7251eb6e3521cbe25d1e52404763cd2a43aa29f69b5380559dd1",
-        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.0.0/buildifier-darwin-arm64"],
-    )
 
-    http_file(
-        name = "buildifier_linux_amd64",
-        executable = True,
-        sha256 = "0b51a6cb81bc3b51466ea2210053992654987a907063d0c2b9c03be29de52eff",
-        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.1.0/buildifier-linux-amd64"],
-    )
-
-    http_file(
-        name = "buildifier_linux_arm64",
-        executable = True,
-        sha256 = "5acdd65684105f73d1c65ee4737f6cf388afff8674eb88045aa3c204811b02f3",
-        urls = ["https://github.com/bazelbuild/buildtools/releases/download/6.1.0/buildifier-linux-arm64"],
-    )
 
     # Actionlint tools
     http_archive(
