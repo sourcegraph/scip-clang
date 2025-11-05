@@ -80,6 +80,11 @@ def _scip_deps_impl(mctx):
     )
 
     # SCIP
+    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
+    # 1. scip is not available in Bazel Central Registry (BCR)
+    # 2. The upstream repository (sourcegraph/scip) does not support bzlmod
+    # 3. We need a custom BUILD file to define proto targets for the scip schema
+    # This must remain as an http_archive until scip is added to BCR with proper module support
     http_archive(
         name = "scip",
         sha256 = "b1d2fc009345857aa32cdddec11b75ce1e5c20430f668044231ed309d48b7355",
@@ -89,6 +94,11 @@ def _scip_deps_impl(mctx):
     )
 
     # utfcpp
+    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
+    # 1. utfcpp is not available in Bazel Central Registry (BCR)
+    # 2. The upstream repository (nemtrif/utfcpp) does not support bzlmod
+    # 3. We need a custom BUILD file to define cc_library targets for the header-only library
+    # This must remain as an http_archive until utfcpp is added to BCR
     http_archive(
         name = "utfcpp",
         sha256 = "ffc668a310e77607d393f3c18b32715f223da1eac4c4d6e0579a11df8e6b59cf",
@@ -97,7 +107,13 @@ def _scip_deps_impl(mctx):
         url = "https://github.com/nemtrif/utfcpp/archive/refs/tags/v{0}.tar.gz".format(_UTFCPP_VERSION),
     )
 
-    # llvm_zstd
+    # llvm_zstd 
+    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
+    # 1. LLVM requires a specific build setting flag @llvm_zstd//:llvm_enable_zstd
+    # 2. The BCR version of zstd doesn't provide this target
+    # 3. Adding it via patch would require zstd to depend on bazel_skylib, which it doesn't
+    # 4. LLVM's custom BUILD file provides the necessary build setting
+    # This must remain as an http_archive with LLVM's custom BUILD overlay
     http_archive(
         name = "llvm_zstd",
         build_file = "@llvm-raw//utils/bazel/third_party_build:zstd.BUILD",
