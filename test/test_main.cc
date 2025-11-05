@@ -146,8 +146,8 @@ TEST_CASE("UNIT_TESTS") {
       absl::c_reverse(gotPrefixes);
       CHECK_MESSAGE(absl::c_equal(expectedPrefixes, gotPrefixes),
                     fmt::format("expected prefixes: {}\n  actual prefixes: {}",
-                                fmt::join(expectedPrefixes, ", "),
-                                fmt::join(gotPrefixes, ", ")));
+                                absl::StrJoin(expectedPrefixes, ", "),
+                                absl::StrJoin(gotPrefixes, ", ")));
     }
   }
 
@@ -173,8 +173,8 @@ TEST_CASE("UNIT_TESTS") {
       CHECK_MESSAGE(absl::c_equal(testCase.after, input),
                     fmt::format("cleaned command-line invocation:\n  expected: "
                                 "{}\n    actual: {}",
-                                fmt::join(testCase.after, " "),
-                                fmt::join(input, " ")));
+                                absl::StrJoin(testCase.after, " "),
+                                absl::StrJoin(input, " ")));
     }
   }
 };
