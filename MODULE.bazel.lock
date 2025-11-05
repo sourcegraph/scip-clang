@@ -334,7 +334,7 @@
   "moduleExtensions": {
     "//:extensions.bzl%llvm_project": {
       "general": {
-        "bzlTransitiveDigest": "ntRsqlArY3NPH+ObgUABJW8wIAQQALbheyZ16P38/mI=",
+        "bzlTransitiveDigest": "SxTRjrxHYfcl1L1/ZcrDzMjeadBpXnpFqMhGn4O+T6I=",
         "usagesDigest": "lyIH5IF1bMfSOmelapLc/6A9A0/++8DQuwrP0dAXX4A=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -364,7 +364,7 @@
     },
     "//:extensions.bzl%scip_deps": {
       "general": {
-        "bzlTransitiveDigest": "ntRsqlArY3NPH+ObgUABJW8wIAQQALbheyZ16P38/mI=",
+        "bzlTransitiveDigest": "SxTRjrxHYfcl1L1/ZcrDzMjeadBpXnpFqMhGn4O+T6I=",
         "usagesDigest": "Y4YYxLTp4a1kdC4FxWivlWw69mmj78v/6tiHOtYN1KA=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},

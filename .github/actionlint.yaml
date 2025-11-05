@@ -1,6 +1,0 @@
-# Configuration related to self-hosted runner.
-self-hosted-runner:
-  # Labels of self-hosted runner in array of strings.
-  labels:
-    - ubuntu-22.04-32core-graph-team-amd64
-    - ubuntu-22.04-32core-graph-team-arm64

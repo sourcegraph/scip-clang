@@ -3,24 +3,24 @@
 @@ -33,7 +33,11 @@
      else
          ec.clear();
- 
+
 +#ifdef __APPLE__
 +    auto my_fd = dirfd(dir.get());
 +#else
      auto my_fd = ::dirfd(dir.get());
 +#endif
- 
+
      struct ::dirent * ent_p;
  
 @@ -117,7 +121,11 @@
              return;
          }
- 
+
 +#ifdef __APPLE__
 +        auto my_fd = dirfd(dir);
 +#else
          auto my_fd = ::dirfd(dir);
 +#endif
          struct ::dirent * ent_p;
- 
+
          while ((ent_p = readdir(dir)) != nullptr)

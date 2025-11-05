@@ -18,8 +18,6 @@ bazel_dep(name = "buildifier_prebuilt", version = "8.2.1")
 # Python support
 bazel_dep(name = "rules_python", version = "0.40.0")
 
-# Build tools and compilation database - handled via custom extension
-
 # C++ dependencies
 bazel_dep(name = "abseil-cpp", version = "20240722.0", repo_name = "com_google_absl")
 bazel_dep(name = "protobuf", version = "29.3", repo_name = "com_google_protobuf")
@@ -29,7 +27,6 @@ bazel_dep(name = "spdlog", version = "1.16.0.bcr.1")
 bazel_dep(name = "cxxopts", version = "3.0.0")
 bazel_dep(name = "rapidjson", version = "1.1.0.bcr.20241007")
 
-# Boost libraries from Bazel Central Registry (BCR)
 bazel_dep(name = "boost.date_time", version = "1.83.0")
 bazel_dep(name = "boost.interprocess", version = "1.83.0.bcr.1") 
 bazel_dep(name = "boost.process", version = "1.83.0.bcr.1")
@@ -100,7 +97,7 @@ use_repo(pip, "python_deps")
 llvm_project = use_extension("//:extensions.bzl", "llvm_project")
 use_repo(llvm_project, "llvm-raw")
 
-# Custom dependencies that don't have official Bzlmod modules  
+# Custom dependencies that don't have official Bzlmod modules
 scip_deps = use_extension("//:extensions.bzl", "scip_deps")
 use_repo(
     scip_deps,
