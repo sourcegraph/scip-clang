@@ -124,30 +124,6 @@ def _scip_deps_impl(mctx):
         ],
     )
 
-
-
-    # Actionlint tools
-    http_archive(
-        name = "actionlint_darwin_arm64",
-        build_file = "@scip_clang//third_party:actionlint.BUILD",
-        sha256 = "2693315b9093aeacb4ebd91a993fea54fc215057bf0da2659056b4bc033873db",
-        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_darwin_arm64.tar.gz"],
-    )
-
-    http_archive(
-        name = "actionlint_linux_amd64",
-        build_file = "@scip_clang//third_party:actionlint.BUILD",
-        sha256 = "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
-        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz"],
-    )
-
-    http_archive(
-        name = "actionlint_linux_arm64",
-        build_file = "@scip_clang//third_party:actionlint.BUILD",
-        sha256 = "401942f9c24ed71e4fe71b76c7d638f66d8633575c4016efd2977ce7c28317d0",
-        urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_arm64.tar.gz"],
-    )
-
 def _llvm_project_impl(mctx):
     """Implementation of llvm_project module extension."""
     

@@ -334,7 +334,7 @@
   "moduleExtensions": {
     "//:extensions.bzl%llvm_project": {
       "general": {
-        "bzlTransitiveDigest": "pHuU5pCB1wiXYl+I5M5UvHQ6+qjkxuktmky+x0X0J0U=",
+        "bzlTransitiveDigest": "ntRsqlArY3NPH+ObgUABJW8wIAQQALbheyZ16P38/mI=",
         "usagesDigest": "lyIH5IF1bMfSOmelapLc/6A9A0/++8DQuwrP0dAXX4A=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -364,7 +364,7 @@
     },
     "//:extensions.bzl%scip_deps": {
       "general": {
-        "bzlTransitiveDigest": "pHuU5pCB1wiXYl+I5M5UvHQ6+qjkxuktmky+x0X0J0U=",
+        "bzlTransitiveDigest": "ntRsqlArY3NPH+ObgUABJW8wIAQQALbheyZ16P38/mI=",
         "usagesDigest": "Y4YYxLTp4a1kdC4FxWivlWw69mmj78v/6tiHOtYN1KA=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -454,39 +454,6 @@
               "strip_prefix": "zstd-1.5.2",
               "urls": [
                 "https://github.com/facebook/zstd/releases/download/v1.5.2/zstd-1.5.2.tar.gz"
-              ]
-            }
-          },
-          "actionlint_darwin_arm64": {
-            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
-            "ruleClassName": "http_archive",
-            "attributes": {
-              "build_file": "@@//third_party:actionlint.BUILD",
-              "sha256": "2693315b9093aeacb4ebd91a993fea54fc215057bf0da2659056b4bc033873db",
-              "urls": [
-                "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_darwin_arm64.tar.gz"
-              ]
-            }
-          },
-          "actionlint_linux_amd64": {
-            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
-            "ruleClassName": "http_archive",
-            "attributes": {
-              "build_file": "@@//third_party:actionlint.BUILD",
-              "sha256": "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757",
-              "urls": [
-                "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz"
-              ]
-            }
-          },
-          "actionlint_linux_arm64": {
-            "bzlFile": "@@bazel_tools//tools/build_defs/repo:http.bzl",
-            "ruleClassName": "http_archive",
-            "attributes": {
-              "build_file": "@@//third_party:actionlint.BUILD",
-              "sha256": "401942f9c24ed71e4fe71b76c7d638f66d8633575c4016efd2977ce7c28317d0",
-              "urls": [
-                "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_arm64.tar.gz"
               ]
             }
           }
