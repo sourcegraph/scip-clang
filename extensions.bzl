@@ -17,30 +17,16 @@ _PERFETTO_VERSION = "33.1"  # Keep in sync with docs/Development.md
 _DTL_VERSION = "1.20"
 
 
-
 def _scip_deps_impl(mctx):
     """Implementation of scip_deps module extension."""
-    
-    # Bazel compilation database
-    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
-    # 1. bazel-compilation-database is not available in Bazel Central Registry (BCR)
-    # 2. The upstream repository (grailbio/bazel-compilation-database) is archived 
-    #    and does not support bzlmod
-    # This must remain as an http_archive until a BCR-compatible alternative is available
+
     http_archive(
         name = "com_grail_bazel_compdb",
         sha256 = "d32835b26dd35aad8fd0ba0d712265df6565a3ad860d39e4c01ad41059ea7eda",
         strip_prefix = "bazel-compilation-database-0.5.2",
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
     )
-    
 
-    # wyhash
-    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
-    # 1. wyhash is not available in Bazel Central Registry (BCR)
-    # 2. The upstream repository (wangyi-fudan/wyhash) does not support bzlmod
-    # 3. We need a custom BUILD file to define cc_library targets for the header-only library
-    # This must remain as an http_archive until wyhash is added to BCR
     http_archive(
         name = "wyhash",
         sha256 = "ac8ff5dee1f6861614bbb1f2f5a0d57027574cc5fb56e2c47ac69ea2de30bbb0",
@@ -49,12 +35,6 @@ def _scip_deps_impl(mctx):
         urls = ["https://github.com/wangyi-fudan/wyhash/archive/%s.zip" % _WYHASH_COMMIT],
     )
 
-    # Perfetto
-    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
-    # 1. perfetto is not available in Bazel Central Registry (BCR)
-    # 2. We require a custom BUILD file to define the cc_library target
-    # 3. We apply custom patches for undefined behavior sanitizer compatibility
-    # This must remain as an http_archive until perfetto is added to BCR with proper module support
     http_archive(
         name = "com_google_perfetto",
         sha256 = "09b3271d3829a13b400447353d442a65f8f88e2df5a26f96778ab66c4cd26ec1",
@@ -65,12 +45,6 @@ def _scip_deps_impl(mctx):
         patches = ["@scip_clang//third_party:perfetto.patch"],
     )
 
-    # DTL (diff template library)
-    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
-    # 1. dtl is not available in Bazel Central Registry (BCR)
-    # 2. The upstream repository (cubicdaiya/dtl) does not support bzlmod
-    # 3. We need a custom BUILD file to define cc_library targets
-    # This must remain as an http_archive until dtl is added to BCR
     http_archive(
         name = "dtl",
         sha256 = "579f81bca88f4b9760a59d99c5a95bd8dd5dc2f20f33f1f9b5f64cb08979f54d",
@@ -79,12 +53,6 @@ def _scip_deps_impl(mctx):
         urls = ["https://github.com/cubicdaiya/dtl/archive/v%s.tar.gz" % _DTL_VERSION],
     )
 
-    # SCIP
-    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
-    # 1. scip is not available in Bazel Central Registry (BCR)
-    # 2. The upstream repository (sourcegraph/scip) does not support bzlmod
-    # 3. We need a custom BUILD file to define proto targets for the scip schema
-    # This must remain as an http_archive until scip is added to BCR with proper module support
     http_archive(
         name = "scip",
         sha256 = "b1d2fc009345857aa32cdddec11b75ce1e5c20430f668044231ed309d48b7355",
@@ -93,12 +61,6 @@ def _scip_deps_impl(mctx):
         urls = ["https://github.com/sourcegraph/scip/archive/%s.zip" % _SCIP_COMMIT],
     )
 
-    # utfcpp
-    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
-    # 1. utfcpp is not available in Bazel Central Registry (BCR)
-    # 2. The upstream repository (nemtrif/utfcpp) does not support bzlmod
-    # 3. We need a custom BUILD file to define cc_library targets for the header-only library
-    # This must remain as an http_archive until utfcpp is added to BCR
     http_archive(
         name = "utfcpp",
         sha256 = "ffc668a310e77607d393f3c18b32715f223da1eac4c4d6e0579a11df8e6b59cf",
@@ -107,13 +69,6 @@ def _scip_deps_impl(mctx):
         url = "https://github.com/nemtrif/utfcpp/archive/refs/tags/v{0}.tar.gz".format(_UTFCPP_VERSION),
     )
 
-    # llvm_zstd 
-    # NOTE: This dependency cannot be migrated to MODULE.bazel because:
-    # 1. LLVM requires a specific build setting flag @llvm_zstd//:llvm_enable_zstd
-    # 2. The BCR version of zstd doesn't provide this target
-    # 3. Adding it via patch would require zstd to depend on bazel_skylib, which it doesn't
-    # 4. LLVM's custom BUILD file provides the necessary build setting
-    # This must remain as an http_archive with LLVM's custom BUILD overlay
     http_archive(
         name = "llvm_zstd",
         build_file = "@llvm-raw//utils/bazel/third_party_build:zstd.BUILD",
@@ -126,8 +81,7 @@ def _scip_deps_impl(mctx):
 
 def _llvm_project_impl(mctx):
     """Implementation of llvm_project module extension."""
-    
-    # LLVM raw source
+
     http_archive(
         name = "llvm-raw",
         sha256 = "04b76a5be88331f71a4e4fe96bccfebec302ddd0dbd9418fd5c186a7361c54fb",
@@ -135,11 +89,7 @@ def _llvm_project_impl(mctx):
         build_file_content = "# empty",
         urls = ["https://github.com/llvm/llvm-project/archive/%s.tar.gz" % _LLVM_COMMIT],
     )
-    
-    # Note: llvm_terminfo and llvm-project configuration are handled in WORKSPACE
-    # because they need to load from @llvm-raw which can't be done in module extensions
 
-# Module extension declarations
 scip_deps = module_extension(
     implementation = _scip_deps_impl,
 )
