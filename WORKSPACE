@@ -18,10 +18,6 @@ llvm_configure(
     targets = ["AArch64", "X86"],
 )
 
-# Load boost dependencies  
-load("@com_github_nelhage_rules_boost//:boost/boost.bzl", "boost_deps")
-boost_deps()
-
 # Load compilation database dependencies
 load("@com_grail_bazel_compdb//:deps.bzl", "bazel_compdb_deps")
 bazel_compdb_deps()

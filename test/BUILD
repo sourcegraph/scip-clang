@@ -18,7 +18,7 @@ cc_binary(
     visibility = ["//tools:__pkg__"],
     deps = [
         "//indexer:scip-clang-lib",
-        "@boost//:process",
+        "@boost.process",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/strings",
         "@cxxopts",
@@ -41,7 +41,7 @@ cc_binary(
     visibility = ["//tools:__pkg__"],
     deps = [
         "//indexer:scip-clang-lib",
-        "@boost//:process",
+        "@boost.process",
         "@llvm-project//llvm:Support",
     ],
 )

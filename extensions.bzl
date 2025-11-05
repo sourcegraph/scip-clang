@@ -2,7 +2,6 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
-_RULES_BOOST_COMMIT = "00b9b9ecb9b43564de44ea0b10e22b29dcf84d79"
 _LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
@@ -31,16 +30,6 @@ def _scip_deps_impl(mctx):
         sha256 = "d32835b26dd35aad8fd0ba0d712265df6565a3ad860d39e4c01ad41059ea7eda",
         strip_prefix = "bazel-compilation-database-0.5.2",
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
-    )
-    
-    # Rules boost
-    http_archive(
-        name = "com_github_nelhage_rules_boost",
-        sha256 = "a8499f581899ae7356e40e2aab6e985dd2da9c894c91197341aace9a0a6157fe",
-        strip_prefix = "rules_boost-%s" % _RULES_BOOST_COMMIT,
-        urls = [
-            "https://github.com/nelhage/rules_boost/archive/%s.tar.gz" % _RULES_BOOST_COMMIT,
-        ],
     )
     
     # spdlog (includes fmt)
