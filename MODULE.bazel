@@ -1,6 +1,106 @@
-###############################################################################
-# Bazel now uses Bzlmod by default to manage external dependencies.
-# Please consider migrating your external dependencies from WORKSPACE to MODULE.bazel.
-#
-# For more details, please check https://github.com/bazelbuild/bazel/issues/18958
-###############################################################################
+module(
+    name = "scip_clang",
+    version = "0.3.2",
+)
+
+# Core build dependencies
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "aspect_bazel_lib", version = "2.10.0")
+bazel_dep(name = "rules_cc", version = "0.0.16")
+
+# Toolchain dependencies
+bazel_dep(name = "toolchains_llvm", version = "1.2.0")
+
+# Python support
+bazel_dep(name = "rules_python", version = "0.40.0")
+
+# Build tools and compilation database - handled via custom extension
+
+# C++ dependencies
+bazel_dep(name = "abseil-cpp", version = "20240722.0", repo_name = "com_google_absl")
+bazel_dep(name = "protobuf", version = "29.3", repo_name = "com_google_protobuf")
+bazel_dep(name = "zlib", version = "1.3.1")
+bazel_dep(name = "doctest", version = "2.4.11")
+# Note: boost and spdlog are handled via custom extensions since they're not in BCR
+
+# Configure LLVM toolchain
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+llvm.toolchain(
+    name = "llvm_toolchain",
+    llvm_versions = {
+        "linux-aarch64": "15.0.6",
+        "linux-x86_64": "15.0.6",
+        "darwin-aarch64": "15.0.6",
+        "darwin-arm64": "15.0.6",
+        "darwin-x86_64": "15.0.7",
+    },
+    sha256 = {
+        "linux-aarch64": "8ca4d68cf103da8331ca3f35fe23d940c1b78fb7f0d4763c1c059e352f5d1bec",
+        "linux-x86_64": "38bc7f5563642e73e69ac5626724e206d6d539fbef653541b34cae0ba9c3f036",
+        "darwin-aarch64": "32bc7b8eee3d98f72dd4e5651e6da990274ee2d28c5c19a7d8237eb817ce8d91",
+        "darwin-arm64": "32bc7b8eee3d98f72dd4e5651e6da990274ee2d28c5c19a7d8237eb817ce8d91",
+        "darwin-x86_64": "d16b6d536364c5bec6583d12dd7e6cf841b9f508c4430d9ee886726bd9983f1c",
+    },
+    urls = {
+        "linux-aarch64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/clang+llvm-15.0.6-aarch64-linux-gnu.tar.xz"],
+        "linux-x86_64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/clang+llvm-15.0.6-x86_64-linux-gnu-ubuntu-18.04.tar.xz"],
+        "darwin-aarch64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/clang+llvm-15.0.6-arm64-apple-darwin21.0.tar.xz"],
+        "darwin-arm64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/clang+llvm-15.0.6-arm64-apple-darwin21.0.tar.xz"],
+        "darwin-x86_64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/clang+llvm-15.0.7-x86_64-apple-darwin21.0.tar.xz"],
+    },
+    strip_prefix = {
+        "linux-aarch64": "clang+llvm-15.0.6-aarch64-linux-gnu",
+        "linux-x86_64": "clang+llvm-15.0.6-x86_64-linux-gnu-ubuntu-18.04",
+        "darwin-aarch64": "clang+llvm-15.0.6-arm64-apple-darwin21.0",
+        "darwin-arm64": "clang+llvm-15.0.6-arm64-apple-darwin21.0",
+        "darwin-x86_64": "clang+llvm-15.0.7-x86_64-apple-darwin21.0",
+    },
+)
+use_repo(llvm, "llvm_toolchain", "llvm_toolchain_llvm")
+register_toolchains("@llvm_toolchain//:all")
+
+# Python configuration
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    python_version = "3.10",
+    # Remove this once agents stop running tests as root
+    # https://github.com/sourcegraph/sourcegraph-public-snapshot/issues/47943
+    ignore_root_user_error = True,
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "python_deps",
+    python_version = "3.10",
+    requirements_lock = "//tools:requirements_lock.txt",
+)
+use_repo(pip, "python_deps")
+
+# LLVM Project raw source (must come before scip_deps that references it)
+llvm_project = use_extension("//:extensions.bzl", "llvm_project")
+use_repo(llvm_project, "llvm-raw")
+
+# Custom dependencies that don't have official Bzlmod modules
+scip_deps = use_extension("//:extensions.bzl", "scip_deps")
+use_repo(
+    scip_deps,
+    "com_grail_bazel_compdb",
+    "com_github_nelhage_rules_boost",
+    "spdlog",
+    "cxxopts",
+    "rapidjson",
+    "wyhash",
+    "com_google_perfetto",
+    "dtl",
+    "buildifier_darwin_arm64",
+    "buildifier_linux_amd64",
+    "buildifier_linux_arm64",
+    "actionlint_darwin_arm64",
+    "actionlint_linux_amd64",
+    "actionlint_linux_arm64",
+    "utfcpp",
+    "scip",
+    "llvm_zlib",
+    "llvm_zstd",
+)
