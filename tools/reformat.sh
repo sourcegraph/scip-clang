@@ -3,17 +3,14 @@ set -euo pipefail
 
 PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/.."
 
-if [ ! -f "bazel-bin/external/llvm_toolchain/clang-format" ]; then
-  bazel build @llvm_toolchain//:clang-format
-fi
-
-if [ ! -f "bazel-bin/third_party/bazel_buildtools/buildifier" ]; then
-  bazel build //third_party/bazel_buildtools:buildifier
-fi
+bazel build @llvm_toolchain//:clang-format
+bazel build //third_party/bazel_buildtools:buildifier
 
 (
   cd "$PROJECT_ROOT"
-  git ls-files BUILD WORKSPACE "**/BUILD" "**/.BUILD" "**.bzl" | xargs bazel-bin/third_party/bazel_buildtools/buildifier
-  git ls-files "**.cc" "**.h" | xargs bazel-bin/external/llvm_toolchain/clang-format -i
+  BUILDIFIER_BIN="$(bazel cquery --output=files //third_party/bazel_buildtools:buildifier 2>/dev/null)"
+  CLANG_FORMAT_BIN="$(bazel cquery --output=files @llvm_toolchain//:clang-format 2>/dev/null)"
+  git ls-files BUILD WORKSPACE "**/BUILD" "**/.BUILD" "**.bzl" | xargs "$BUILDIFIER_BIN"
+  git ls-files "**.cc" "**.h" | xargs "$CLANG_FORMAT_BIN" -i
   git ls-files "**.py" | sed -e "s|^|$PWD/|" | xargs bazel run //tools:reformat_python --
 )
