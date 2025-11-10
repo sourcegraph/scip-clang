@@ -22,7 +22,7 @@ jobs:
             binary-name: scip-clang-arm64-linux
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: bazel-contrib/setup-bazel@0.14.0
         with:
@@ -54,7 +54,7 @@ jobs:
             binary-name: scip-clang-arm64-linux
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Prepare
         run: |

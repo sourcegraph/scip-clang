@@ -41,7 +41,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: "📝 Check version"
         run: |
           set -euo pipefail
@@ -131,7 +131,7 @@ jobs:
     needs: build-and-upload-artifacts
     runs-on: "ubuntu-22.04"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: "📝 Create Release"
         run: |
           REV="$INPUT_REVISION"
