@@ -14,6 +14,7 @@
 
 #include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/SourceManager.h"
 
 #include "indexer/ApproximateNameResolver.h"
 #include "indexer/ClangAstMacros.h"
@@ -37,13 +38,13 @@ FOR_EACH_TYPE_TO_BE_INDEXED(FORWARD_DECLARE)
 class ASTContext;
 class Decl;
 class DeclarationNameInfo;
+class FileID;
 class LangOptions;
 class MacroDefinition;
 class MacroInfo;
 class NamedDecl;
 class NestedNameSpecifierLoc;
 class QualType;
-class SourceManager;
 class TagDecl;
 class TagTypeLoc;
 class Token;
@@ -370,7 +371,8 @@ private:
 
   void saveReference(SymbolNameRef symbol, clang::SourceLocation loc,
                      const clang::Decl *maybeFwdDecl = nullptr,
-                     int32_t extraRoles = 0);
+                     int32_t extraRoles = 0,
+                     clang::SourceRange enclosingRange = {});
 
   /// Helper method for recording a \c scip::Occurrence and a
   /// \c scip::SymbolInformation for a definition.
@@ -380,7 +382,8 @@ private:
   /// For local variables, \param symbolInfo should be \c std::nullopt.
   void saveDefinition(SymbolNameRef symbol, clang::SourceLocation loc,
                       std::optional<scip::SymbolInformation> &&symbolInfo,
-                      int32_t extraRoles = 0);
+                      int32_t extraRoles = 0,
+                      clang::SourceRange enclosingRange = {});
 
   /// Only for use inside \c saveDefinition.
   void saveExternalSymbol(SymbolNameRef symbol, scip::SymbolInformation &&);
@@ -395,12 +398,14 @@ private:
   /// since SCIP only tracks SymbolInformation values in external code.
   PartialDocument &saveOccurrence(SymbolNameRef symbol,
                                   clang::SourceLocation loc,
-                                  int32_t allRoles = 0);
+                                  int32_t allRoles = 0,
+                                  clang::SourceRange enclosingRange = {});
 
   PartialDocument &saveOccurrenceImpl(SymbolNameRef symbol,
                                       FileLocalSourceRange range,
                                       clang::FileID fileId,
-                                      int32_t allRoles = 0);
+                                      int32_t allRoles = 0,
+                                      FileLocalSourceRange enclosingRange = {});
 
   DocComment getDocComment(const clang::Decl &) const;
 };
