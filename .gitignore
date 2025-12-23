@@ -6,5 +6,6 @@
 /compile_commands.json
 
 /ci.bazelrc
+/buildbuddy.bazelrc
 
 /**/__pycache__
