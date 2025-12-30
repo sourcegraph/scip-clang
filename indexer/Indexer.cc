@@ -530,7 +530,8 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
   }
   auto symbol = optSymbol.value();
 
-  if (functionDecl.isPureVirtual() || functionDecl.isThisDeclarationADefinition()) {
+  if (functionDecl.isPureVirtual()
+      || functionDecl.isThisDeclarationADefinition()) {
     scip::SymbolInformation symbolInfo{};
     this->getDocComment(functionDecl).addTo(symbolInfo);
     if (auto *cxxMethodDecl =

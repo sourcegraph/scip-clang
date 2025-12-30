@@ -61,7 +61,8 @@ lookupDependentName(clang::CXXRecordDecl *record, clang::DeclarationName name,
 
   // Search in base classes
   for (const auto &base : record->bases()) {
-    auto *baseRecord = tryFindDeclForBaseType(base.getType().getTypePtrOrNull());
+    auto *baseRecord =
+        tryFindDeclForBaseType(base.getType().getTypePtrOrNull());
     if (!baseRecord || !baseRecord->hasDefinition())
       continue;
     auto baseResults =

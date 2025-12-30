@@ -17,8 +17,9 @@ steps:
 
       ./tools/lint.sh
 
-      # DO NOT remove --config=ci as that turns on sanitizers.
-      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... --config=ci
+      # Use RBE for builds (Ubuntu 22.04 container) since LLVM 21 requires glibc 2.34+
+      # The --config=ci settings are included for test retries and other CI behaviors
+      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... --config=rbe
 
       # Don't use //... as that will also try to update snapshots
-      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test --config=ci
+      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test --config=rbe

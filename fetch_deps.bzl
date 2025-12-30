@@ -1,16 +1,16 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 _BAZEL_SKYLIB_VERSION = "1.3.0"
-_PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
-_BAZEL_TOOLCHAIN_VERSION = "0.10.3"
+_PLATFORMS_VERSION = "1.0.0"  # Updated from 2022 commit for visionos support
+_BAZEL_TOOLCHAIN_VERSION = "1.6.0"
 _RULES_BOOST_COMMIT = "00b9b9ecb9b43564de44ea0b10e22b29dcf84d79"
 _LLVM_COMMIT = "2078da43e25a4623cab2d0d60decddf709aaea28"  # Keep in sync with Version.h
-_ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
+_ABSL_VERSION = "20240722.0"
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
 _SPDLOG_COMMIT = "486b55554f11c9cccc913e11a87085b2a91f706f"  # v1.16.0
-_PROTOBUF_VERSION = "3.21.12"
+_PROTOBUF_VERSION = "25.3"
 _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 _UTFCPP_VERSION = "4.0.5"
 # ^ When bumping this version, check if any new fields are introduced
@@ -37,17 +37,19 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "platforms",
-        sha256 = "b4a3b45dc4202e2b3e34e3bc49d2b5b37295fc23ea58d88fb9e01f3642ad9b55",
-        strip_prefix = "platforms-%s" % _PLATFORMS_COMMIT,
-        urls = ["https://github.com/bazelbuild/platforms/archive/%s.zip" % _PLATFORMS_COMMIT],
+        sha256 = "3384eb1c30762704fbe38e440204e114154086c8fc8a8c2e3e28441028c019a8",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/{0}/platforms-{0}.tar.gz".format(_PLATFORMS_VERSION),
+            "https://github.com/bazelbuild/platforms/releases/download/{0}/platforms-{0}.tar.gz".format(_PLATFORMS_VERSION),
+        ],
     )
 
     http_archive(
         name = "toolchains_llvm",
-        sha256 = "b7cd301ef7b0ece28d20d3e778697a5e3b81828393150bed04838c0c52963a01",
-        strip_prefix = "toolchains_llvm-%s" % _BAZEL_TOOLCHAIN_VERSION,
+        sha256 = "2b298a1d7ea99679f5edf8af09367363e64cb9fbc46e0b7c1b1ba2b1b1b51058",
+        strip_prefix = "toolchains_llvm-v%s" % _BAZEL_TOOLCHAIN_VERSION,
         canonical_id = _BAZEL_TOOLCHAIN_VERSION,
-        url = "https://github.com/grailbio/bazel-toolchain/releases/download/{0}/toolchains_llvm-{0}.tar.gz".format(_BAZEL_TOOLCHAIN_VERSION),
+        url = "https://github.com/bazel-contrib/toolchains_llvm/releases/download/v{0}/toolchains_llvm-v{0}.tar.gz".format(_BAZEL_TOOLCHAIN_VERSION),
     )
 
     http_archive(
@@ -79,14 +81,14 @@ def fetch_direct_dependencies():
     # Keep the name 'zlib' so that Protobuf doesn't pull in another copy.
     #
     # https://sourcegraph.com/github.com/protocolbuffers/protobuf/-/blob/protobuf_deps.bzl?L48-58
+    # Using zlib 1.3.1 to fix macro conflicts with macOS headers in zlib 1.2.11
     http_archive(
         name = "zlib",
         build_file = "@scip_clang//third_party:zlib.BUILD",
-        sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
-        strip_prefix = "zlib-1.2.11",
+        sha256 = "17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c",
+        strip_prefix = "zlib-1.3.1",
         urls = [
-            "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
-            "https://zlib.net/zlib-1.2.11.tar.gz",
+            "https://github.com/madler/zlib/archive/refs/tags/v1.3.1.tar.gz",
         ],
     )
 
@@ -126,7 +128,7 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "com_google_protobuf",
-        sha256 = "f7042d540c969b00db92e8e1066a9b8099c8379c33f40f360eb9e1d98a36ca26",
+        sha256 = "5156b22536feaa88cf95503153a6b2cd67cc80f20f1218f154b84a12c288a220",
         urls = ["https://github.com/protocolbuffers/protobuf/archive/v%s.zip" % _PROTOBUF_VERSION],
         strip_prefix = "protobuf-%s" % _PROTOBUF_VERSION,
     )
@@ -145,11 +147,9 @@ def fetch_direct_dependencies():
     # https://sourcegraph.com/github.com/protocolbuffers/protobuf/-/blob/protobuf_deps.bzl?L39-46
     http_archive(
         name = "com_google_absl",
-        sha256 = "fee8ec623d8bbf0ecb9563a8e08ae319d1ca9fdf8c1c84384520a6992f571659",
-        strip_prefix = "abseil-cpp-%s" % _ABSL_COMMIT,
-        urls = ["https://github.com/abseil/abseil-cpp/archive/%s.zip" % _ABSL_COMMIT],
-        patch_args = ["-p1"],
-        patches = ["//third_party:abseil.patch"],
+        sha256 = "95e90be7c3643e658670e0dd3c1b27092349c34b632c6e795686355f67eca89f",
+        strip_prefix = "abseil-cpp-%s" % _ABSL_VERSION,
+        urls = ["https://github.com/abseil/abseil-cpp/archive/%s.zip" % _ABSL_VERSION],
     )
 
     # Abseil also has a flags/argument parsing library, but let's
