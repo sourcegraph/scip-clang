@@ -226,6 +226,7 @@
 //     ^ definition [..] f(a9a88f5fb6852c6b).
 //     documentation
 //     | No documentation available.
+//       ^^^^^^^^^^^^ reference [..] GenericClass#
 //                    ^ reference [..] E#
 //                           ^ reference [..] E#
 //                              ^^ reference [..] E#E0.
@@ -286,6 +287,7 @@
 //      documentation
 //      | No documentation available.
 //      relation implementation [..] CRTPBase#
+//                 ^^^^^^^^ reference [..] CRTPBase#
 //                          ^^^^^^^^^ reference [..] CRTPChild#
     void doStuff() { }
 //       ^^^^^^^ definition [..] CRTPChild#doStuff(49f6e7a06ebc5aa8).

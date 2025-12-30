@@ -25,11 +25,13 @@
   struct TemplatedDerived: TemplatedBase<T> {};
 //       ^^^^^^^^^^^^^^^^ definition [..] TemplatedDerived#
 //       relation implementation [..] TemplatedBase#
+//                         ^^^^^^^^^^^^^ reference [..] TemplatedBase#
 //                                       ^ reference local 1
   
   struct DerivedFromInstantiation: TemplatedBase<int> {};
 //       ^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] DerivedFromInstantiation#
 //       relation implementation [..] TemplatedBase#
+//                                 ^^^^^^^^^^^^^ reference [..] TemplatedBase#
   
   template <typename T>
 //                   ^ definition local 2
@@ -45,11 +47,13 @@
   struct SpecializedDerived: SpecializedBase<T> {};
 //       ^^^^^^^^^^^^^^^^^^ definition [..] SpecializedDerived#
 //       relation implementation [..] SpecializedBase#
+//                           ^^^^^^^^^^^^^^^ reference [..] SpecializedBase#
 //                                           ^ reference local 3
   
   struct DerivedFromSpecialization: SpecializedBase<int> {};
 //       ^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] DerivedFromSpecialization#
 //       relation implementation [..] SpecializedBase#
+//                                  ^^^^^^^^^^^^^^^ reference [..] SpecializedBase#
   
   template <typename T>
 //                   ^ definition local 4
@@ -61,6 +65,7 @@
   struct CrtpDerivedMono: CrtpBase<CrtpDerivedMono> {};
 //       ^^^^^^^^^^^^^^^ definition [..] CrtpDerivedMono#
 //       relation implementation [..] CrtpBase#
+//                        ^^^^^^^^ reference [..] CrtpBase#
 //                                 ^^^^^^^^^^^^^^^ reference [..] CrtpDerivedMono#
   
   template <typename T>
@@ -68,6 +73,8 @@
   struct CrtpDerivedTemplated: CrtpBase<CrtpDerivedTemplated<T>> {};
 //       ^^^^^^^^^^^^^^^^^^^^ definition [..] CrtpDerivedTemplated#
 //       relation implementation [..] CrtpBase#
+//                             ^^^^^^^^ reference [..] CrtpBase#
+//                                      ^^^^^^^^^^^^^^^^^^^^ reference [..] CrtpDerivedTemplated#
 //                                                           ^ reference local 5
   
   template <typename T>
@@ -80,6 +87,7 @@
 //                                       ^ definition local 7
   struct DerivedFromTemplateTemplateParam: H<int> {};
 //       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] DerivedFromTemplateTemplateParam#
+//                                         ^ reference local 7
   
   template <bool, class T> struct BaseWithOnlySpecializations;
 //                      ^ definition local 8
@@ -96,12 +104,14 @@
   struct DerivedFromBasedWithOnlySpecialization: public BaseWithOnlySpecializations<false, T> {};
 //       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] DerivedFromBasedWithOnlySpecialization#
 //       relation implementation [..] BaseWithOnlySpecializations#
+//                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ reference [..] BaseWithOnlySpecializations#
 //                                                                                         ^ reference local 10
   
   template <typename T>
 //                   ^ definition local 11
   struct DerivedFromSelf: DerivedFromSelf<T *> {};
 //       ^^^^^^^^^^^^^^^ definition [..] DerivedFromSelf#
+//                        ^^^^^^^^^^^^^^^ reference [..] DerivedFromSelf#
 //                                        ^ reference local 11
   
   template <>
@@ -111,6 +121,7 @@
   void useDerivedFromSelf() {
 //     ^^^^^^^^^^^^^^^^^^ definition [..] useDerivedFromSelf(49f6e7a06ebc5aa8).
       DerivedFromSelf<int> x;
+//    ^^^^^^^^^^^^^^^ reference [..] DerivedFromSelf#
 //                         ^ definition local 12
       (void)x;
 //          ^ reference local 12

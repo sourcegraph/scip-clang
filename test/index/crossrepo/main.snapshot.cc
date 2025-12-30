@@ -19,6 +19,7 @@
 //                ^ reference local 0
     dep1::S<int> s{};
 //  ^^^^ reference dep1 v1$ dep1/
+//        ^ reference dep1 v1$ dep1/S#
 //               ^ definition local 1
     return s.identity(0);
 //         ^ reference local 1

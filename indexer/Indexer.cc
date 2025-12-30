@@ -807,6 +807,17 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
     const clang::TemplateSpecializationTypeLoc &templateSpecializationTypeLoc) {
   auto *templateSpecializationType = templateSpecializationTypeLoc.getTypePtr();
   auto templateName = templateSpecializationType->getTemplateName();
+
+  // Unwrap QualifiedTemplateName and DeducedTemplateStorage to get the
+  // underlying template. These wrappers preserve source-level qualifications
+  // but we need the actual template declaration for indexing.
+  if (auto *qualifiedName = templateName.getAsQualifiedTemplateName()) {
+    templateName = qualifiedName->getUnderlyingTemplate();
+  }
+  if (auto *deducedStorage = templateName.getAsDeducedTemplateName()) {
+    templateName = deducedStorage->getUnderlying();
+  }
+
   using Kind = clang::TemplateName::NameKind;
   switch (templateName.getKind()) {
   case Kind::Template: {
@@ -844,6 +855,7 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
   case Kind::OverloadedTemplate:
   case Kind::AssumedTemplate:
   case Kind::QualifiedTemplate:
+  case Kind::DeducedTemplate:
   case Kind::DependentTemplate:
   case Kind::SubstTemplateTemplateParm:
   case Kind::SubstTemplateTemplateParmPack:
