@@ -111,12 +111,17 @@ def fetch_direct_dependencies():
         ],
     )
 
+    # Cherry-pick fix for CUDA assertion failure from
+    # https://github.com/llvm/llvm-project/pull/173762
+    # Can be removed once LLVM merges the fix and we update the commit.
     http_archive(
         name = "llvm-raw",
         sha256 = "536a4d64ab21bc85bf95ae4dc412b36e8a9c72d487a476839f3c31c3ded69e96",
         strip_prefix = "llvm-project-%s" % _LLVM_COMMIT,
         build_file_content = "# empty",
         urls = ["https://github.com/llvm/llvm-project/archive/%s.tar.gz" % _LLVM_COMMIT],
+        patch_args = ["-p1"],
+        patches = ["//third_party:llvm-cuda-tooling.patch"],
     )
 
     http_archive(
