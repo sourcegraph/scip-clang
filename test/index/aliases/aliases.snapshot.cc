@@ -57,7 +57,6 @@
   
     void f(R<S>) {}
 //       ^ definition [..] e/f(6824106dca99b347).
-//         ^ reference [..] e/R#
 //           ^ reference [..] e/S#
   }
   
@@ -214,7 +213,6 @@
 //                       ^ definition local 10
       using SAlias = S<T>;
 //          ^^^^^^ definition [..] i/k/SAlias#
-//                   ^ reference [..] i/k/S#
 //                     ^ reference local 10
     }
   
@@ -224,7 +222,6 @@
 //           ^ reference [..] i/k/S#
     using SS = S<int>;
 //        ^^ definition [..] i/SS#
-//             ^ reference [..] i/S#
   
     using j::zero;
 //        ^ reference [..] i/j/
@@ -232,7 +229,7 @@
 //           ^^^^ reference [..] i/j/zero.
     static int zero_int = zero<int>;
 //             ^^^^^^^^ definition [..] i/zero_int.
-//                        ^^^^ reference [..] i/j/zero.
+//                        ^^^^ reference [..] i/zero.
   
     using k::SAlias;
 //        ^ reference [..] i/k/
@@ -240,5 +237,4 @@
 //           ^^^^^^ reference [..] i/k/SAlias#
     using SAliasInt = SAlias<int>;
 //        ^^^^^^^^^ definition [..] i/SAliasInt#
-//                    ^^^^^^ reference [..] i/SAlias#
   }

@@ -60,10 +60,8 @@
 //        ^^^^ reference [..] zero.
   
     (void)C<int>().mono;
-//        ^ reference [..] C#
 //                 ^^^^ reference [..] C#mono.
     (void)C<int>().from_param;
-//        ^ reference [..] C#
 //                 ^^^^^^^^^^ reference [..] C#from_param.
   
     (void)C<int>::static_mono;

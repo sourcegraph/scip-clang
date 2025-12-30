@@ -16,13 +16,11 @@
 //                               ^ definition local 3
 //                                                               ^ definition local 4
   F<B> fmap(A f(B), F<A> fa) {
-//^ reference local 4
 //  ^ reference local 3
-//     ^^^^ definition [..] fmap(48b319d339a486cb).
+//     ^^^^ definition [..] fmap(22a739e3a02d9724).
 //          ^ reference local 2
 //            ^ definition local 5
 //              ^ reference local 3
-//                  ^ reference local 4
 //                    ^ reference local 2
 //                       ^^ definition local 6
     return fa.fmap(f);
@@ -41,8 +39,7 @@
 //                      ^^ definition local 9
 //                                                             ^^ definition local 10
   void g(As<Bs...> ...) {}
-//     ^ definition [..] g(c3d59a70a6e5360c).
-//       ^^ reference local 10
+//     ^ definition [..] g(da52d0cc43a6b199).
 //          ^^ reference local 9
   
   template <typename T>
@@ -72,7 +69,6 @@
   
   using IntRefPtr = RefPtr<int>;
 //      ^^^^^^^^^ definition [..] IntRefPtr#
-//                  ^^^^^^ reference [..] RefPtr#
   
   template <typename T>
 //                   ^ definition local 14
@@ -100,18 +96,12 @@
   void use_empty() {
 //     ^^^^^^^^^ definition [..] use_empty(49f6e7a06ebc5aa8).
     Empty<int> x;
-//  ^^^^^ reference [..] Empty#
 //             ^ definition local 18
     Empty<Empty<void>> y;
-//  ^^^^^ reference [..] Empty#
-//        ^^^^^ reference [..] Empty#
 //                     ^ definition local 19
     Empty<PointerType<void *>> z;
-//  ^^^^^ reference [..] Empty#
-//        ^^^^^^^^^^^ reference [..] PointerType#
 //                             ^ definition local 20
     RefPtr<int> w;
-//  ^^^^^^ reference [..] RefPtr#
 //              ^ definition local 21
   }
   
@@ -128,11 +118,9 @@
   struct M1: M0<T> {
 //       ^^ definition [..] M1#
 //       relation implementation [..] M0#
-//           ^^ reference [..] M0#
 //              ^ reference local 23
     using B = M0<T>;
 //        ^ definition [..] M1#B#
-//            ^^ reference [..] M0#
 //               ^ reference local 23
     using B::A;
 //        ^ reference [..] M1#B#

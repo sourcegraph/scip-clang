@@ -272,7 +272,8 @@ public:
       llvm::StringRef /*fileName*/, bool /*isAngled*/,
       clang::CharSourceRange fileNameRange,
       clang::OptionalFileEntryRef optFileEntry, clang::StringRef /*searchPath*/,
-      clang::StringRef /*relativePath*/, const clang::Module * /*importModule*/,
+      clang::StringRef /*relativePath*/,
+      const clang::Module * /*suggestedModule*/, bool /*moduleImported*/,
       clang::SrcMgr::CharacteristicKind /*fileType*/) override;
 
   // FIXME(issue: https://github.com/sourcegraph/scip-clang/issues/21):
