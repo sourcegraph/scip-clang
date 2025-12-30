@@ -302,7 +302,8 @@ void IndexerPreprocessorWrapper::InclusionDirective(
     llvm::StringRef /*fileName*/, bool /*isAngled*/,
     clang::CharSourceRange fileNameRange,
     clang::OptionalFileEntryRef optFileEntry, clang::StringRef /*searchPath*/,
-    clang::StringRef /*relativePath*/, const clang::Module * /*importModule*/,
+    clang::StringRef /*relativePath*/,
+    const clang::Module * /*suggestedModule*/, bool /*moduleImported*/,
     clang::SrcMgr::CharacteristicKind /*fileType*/) {
   if (!optFileEntry.has_value() || fileNameRange.isInvalid()) {
     return;

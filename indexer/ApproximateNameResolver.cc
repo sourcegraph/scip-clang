@@ -14,6 +14,37 @@
 
 namespace scip_clang {
 
+namespace {
+// Reimplementation of the removed CXXRecordDecl::lookupDependentName
+llvm::SmallVector<clang::NamedDecl *, 4>
+lookupDependentName(clang::CXXRecordDecl *record, clang::DeclarationName name,
+                    llvm::function_ref<bool(const clang::NamedDecl *)> filter) {
+  llvm::SmallVector<clang::NamedDecl *, 4> results;
+  for (auto *decl : record->lookup(name)) {
+    if (filter(decl)) {
+      results.push_back(decl);
+    }
+  }
+  if (!results.empty())
+    return results;
+
+  // Search in base classes
+  for (const auto &base : record->bases()) {
+    auto *baseType = base.getType()->getAs<clang::RecordType>();
+    if (!baseType)
+      continue;
+    auto *baseRecord =
+        llvm::dyn_cast<clang::CXXRecordDecl>(baseType->getDecl());
+    if (!baseRecord || !baseRecord->hasDefinition())
+      continue;
+    auto baseResults =
+        lookupDependentName(baseRecord->getDefinition(), name, filter);
+    results.append(baseResults.begin(), baseResults.end());
+  }
+  return results;
+}
+} // namespace
+
 MemberLookupKey::MemberLookupKey(const clang::Type *type,
                                  const clang::DeclarationNameInfo &declNameInfo)
     : canonicalTypePtr(type->getCanonicalTypeInternal().getTypePtrOrNull()),
@@ -66,7 +97,7 @@ ApproximateNameResolver::tryResolveMember(
     }
     cxxRecordDecl = cxxRecordDecl->getDefinition();
     auto lookupResults =
-        cxxRecordDecl->lookupDependentName(declNameInfo.getName(), filter);
+        lookupDependentName(cxxRecordDecl, declNameInfo.getName(), filter);
     for (auto *namedDecl : lookupResults) {
       auto *unresolvedUsingValueDecl =
           llvm::dyn_cast<clang::UnresolvedUsingValueDecl>(namedDecl);

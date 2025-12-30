@@ -64,7 +64,7 @@ PackageMap::PackageMap(const RootPath &projectRootPath,
 
 void PackageMap::populate(const StdPath &packageMapPath) {
   std::error_code error;
-  auto path = std::string_view(packageMapPath.c_str());
+  std::string path(packageMapPath.c_str());
   if (!llvm::sys::fs::exists(path)) {
     spdlog::error("package map not found at path: {}", path);
     std::exit(EXIT_FAILURE);

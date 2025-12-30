@@ -4,12 +4,12 @@ _BAZEL_SKYLIB_VERSION = "1.3.0"
 _PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
 _BAZEL_TOOLCHAIN_VERSION = "0.10.3"
 _RULES_BOOST_COMMIT = "00b9b9ecb9b43564de44ea0b10e22b29dcf84d79"
-_LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
+_LLVM_COMMIT = "2078da43e25a4623cab2d0d60decddf709aaea28"  # Keep in sync with Version.h
 _ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
-_SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
+_SPDLOG_COMMIT = "486b55554f11c9cccc913e11a87085b2a91f706f"  # v1.16.0
 _PROTOBUF_VERSION = "3.21.12"
 _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 _UTFCPP_VERSION = "4.0.5"
@@ -22,7 +22,7 @@ _UTFCPP_VERSION = "4.0.5"
 # See https://github.com/google/perfetto/issues/271#issuecomment-1527691232
 _PERFETTO_VERSION = "33.1"  # Keep in sync with docs/Development.md
 _DOCTEST_VERSION = "2.4.9"
-_DTL_VERSION = "1.20"
+_DTL_VERSION = "1.21"
 _RULES_PYTHON_VERSION = "0.18.1"
 
 def fetch_direct_dependencies():
@@ -100,9 +100,20 @@ def fetch_direct_dependencies():
         ],
     )
 
+    # LLVM 18+ uses zlib-ng instead of zlib
+    http_archive(
+        name = "llvm_zlib",
+        build_file = "@llvm-raw//utils/bazel/third_party_build:zlib-ng.BUILD",
+        sha256 = "e36bb346c00472a1f9ff2a0a4643e590a254be6379da7cddd9daeb9a7f296731",
+        strip_prefix = "zlib-ng-2.0.7",
+        urls = [
+            "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.7.zip",
+        ],
+    )
+
     http_archive(
         name = "llvm-raw",
-        sha256 = "04b76a5be88331f71a4e4fe96bccfebec302ddd0dbd9418fd5c186a7361c54fb",
+        sha256 = "536a4d64ab21bc85bf95ae4dc412b36e8a9c72d487a476839f3c31c3ded69e96",
         strip_prefix = "llvm-project-%s" % _LLVM_COMMIT,
         build_file_content = "# empty",
         urls = ["https://github.com/llvm/llvm-project/archive/%s.tar.gz" % _LLVM_COMMIT],
@@ -165,7 +176,7 @@ def fetch_direct_dependencies():
     # NOTE: fmt also comes through spdlog, we don't have an explicit dep on fmt.
     http_archive(
         name = "spdlog",
-        sha256 = "93a270dd7ec8fa672eb4feaef443dc14a4a9edc7b59aea998ae5da6cbf7b7119",
+        sha256 = "d2fef585c9879dd239dc498e2e8a1e22982b3ed67b2d14e78622b7ef25bdfdfa",
         build_file = "@scip_clang//third_party:spdlog.BUILD",
         strip_prefix = "spdlog-%s" % _SPDLOG_COMMIT,
         urls = ["https://github.com/gabime/spdlog/archive/%s.tar.gz" % _SPDLOG_COMMIT],
@@ -180,7 +191,7 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "dtl",
-        sha256 = "579f81bca88f4b9760a59d99c5a95bd8dd5dc2f20f33f1f9b5f64cb08979f54d",
+        sha256 = "90ed2dbf4e6d687737fe25f118bbcb6aed778cecc3f2115d191a032bf8643dbd",
         build_file = "@scip_clang//third_party:dtl.BUILD",
         strip_prefix = "dtl-%s" % _DTL_VERSION,
         urls = ["https://github.com/cubicdaiya/dtl/archive/v%s.tar.gz" % _DTL_VERSION],
