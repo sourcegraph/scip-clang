@@ -76,6 +76,7 @@
     void ff0() {
 //       ^^^ definition [..] ZZ#ff0(49f6e7a06ebc5aa8).
       this->f0();
+//          ^^ reference [..] Z#f0(49f6e7a06ebc5aa8).
     }
   
     template <typename U>
@@ -83,7 +84,9 @@
     void gg0() {
 //       ^^^ definition [..] ZZ#gg0(49f6e7a06ebc5aa8).
       this->f0();
+//          ^^ reference [..] Z#f0(49f6e7a06ebc5aa8).
       this->template g0<U>();
+//                   ^^ reference [..] Z#g0(49f6e7a06ebc5aa8).
 //                      ^ reference local 6
     }
   };
