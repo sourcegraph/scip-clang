@@ -11,15 +11,16 @@ import %workspace%/.aspect/bazelrc/performance.bazelrc
 
 common --enable_platform_specific_config
 
-# Disable bzlmod for now - WORKSPACE dependencies not yet migrated
-common --enable_bzlmod=false
-
 # LLD is technically good enough on macOS
 # (Chromium is using it: https://github.com/chromium/chromium/blob/main/docs/mac_lld.md)
 # but grailbio/bazel-toolchain doesn't support it.
 # https://sourcegraph.com/github.com/grailbio/bazel-toolchain@d52ce5d96915428a5ee6f7079078df706c5fddab/-/blob/toolchain/cc_toolchain_config.bzl?L154:11
 build:linux --linkopt="-fuse-ld=lld"
 
+# Based on release notes from since we're on Bazel < 7
+# https://github.com/bazel-contrib/toolchains_llvm/releases/tag/0.10.3
+build --features=-supports_dynamic_linker
+build --features=-libtool
 
 # Not sure why setting all of these is necessary, but just setting cxxopt
 # Leads to usage of old C++ version when compiling LLVM, which needs C++14 or newer.
@@ -30,7 +31,8 @@ build --cxxopt="-std=c++20" --host_cxxopt="-std=c++20" --client_env=BAZEL_CXXOPT
 # Per grailbio/bazel-toolchain docs
 build --incompatible_enable_cc_toolchain_resolution
 
-build --repo_env BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+build --repo_env BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1 
+build --@llvm_zstd//:llvm_enable_zstd=false
 
 build --copt="-Wall" --copt="-Wextra" --copt="-Wwrite-strings" --copt="-Wcast-qual" --copt="-Wmissing-field-initializers" --copt="-Wimplicit-fallthrough" --copt="-Wcovered-switch-default" --copt="-Wsuggest-override" --copt="-Wstring-concatenation" --copt="-Wstring-conversion" --copt="-Wmisleading-indentation"
 
@@ -44,9 +46,6 @@ build --per_file_copt="external/llvm-project/.*@-Wno-deprecated-anon-enum-enum-c
 build --per_file_copt="external/llvm-project/.*@-Wno-ambiguous-reversed-operator" # C++20 warning
 build --per_file_copt="external/com_google_protobuf/.*@-Wno-deprecated-declarations" # sprintf on macOS
 build --per_file_copt="external/com_google_protobuf/.*@-Wno-unused-function"
-build --per_file_copt="external/com_google_protobuf/.*@-Wno-missing-field-initializers" # Clang 21 stricter checks
-build --per_file_copt="external/com_google_protobuf/.*@-Wno-unnecessary-virtual-specifier" # Clang 21 new warning
-build --per_file_copt="external/com_google_absl/.*@-Wno-deprecated-builtins" # __is_trivially_relocatable deprecation
 
 build:asserts --copt="-DFORCE_DEBUG=1"
 build:asserts --copt="-DLLVM_ENABLE_ASSERTIONS=1"
@@ -98,14 +97,8 @@ build:release-linux --cxxopt="-flto=thin" --linkopt="-flto=thin"
 build:rbe --remote_executor=grpcs://remote.buildbuddy.io
 build:rbe --bes_backend=grpcs://remote.buildbuddy.io
 build:rbe --bes_results_url=https://app.buildbuddy.io/invocation/
-build:rbe --remote_default_exec_properties=container-image=docker://gcr.io/flame-public/rbe-ubuntu22-04:latest
+build:rbe --remote_default_exec_properties=container-image=docker://gcr.io/flame-public/rbe-ubuntu24-04:latest
 build:rbe --remote_upload_local_results=true
 build:rbe --experimental_remote_cache_compression=true
 build:rbe --jobs=80
-
-# Disable C++ modules features to avoid "crosstool module is needed" errors
-# when using -nostdinc++ with macOS SDK headers
-build --features=-header_modules
-build --features=-layering_check
-build --features=-parse_headers
-build --features=-modules
+build --local_ram_resources=HOST_RAM*.5
