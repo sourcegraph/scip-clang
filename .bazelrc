@@ -97,8 +97,7 @@ build:release-linux --cxxopt="-flto=thin" --linkopt="-flto=thin"
 build:rbe --remote_executor=grpcs://remote.buildbuddy.io
 build:rbe --bes_backend=grpcs://remote.buildbuddy.io
 build:rbe --bes_results_url=https://app.buildbuddy.io/invocation/
-build:rbe --remote_default_exec_properties=container-image=docker://gcr.io/flame-public/rbe-ubuntu24-04:latest
+build:rbe --remote_default_exec_properties=container-image=docker://gcr.io/flame-public/rbe-ubuntu22-04:latest
 build:rbe --remote_upload_local_results=true
 build:rbe --experimental_remote_cache_compression=true
 build:rbe --jobs=80
-build --local_ram_resources=HOST_RAM*.5
