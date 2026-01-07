@@ -1,9 +1,9 @@
 $schema: "http://json.schemastore.org/buildkite"
 steps:
-  - label: ":bazel: Build and Test"
+  - label: "lint"
     agents:
-      queue: bazel
-    key: build
+      queue: stateless
+    key: lint
     command: |
       ./tools/reformat.sh
       if ! git diff --quiet; then
@@ -16,7 +16,11 @@ steps:
       fi
 
       ./tools/lint.sh
-
+  - label: "build and test"
+    agents:
+      queue: aspect-devx-service
+    key: build
+    command: |
       # DO NOT remove --config=ci as that turns on sanitizers.
       bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... --config=ci
 
