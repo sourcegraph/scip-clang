@@ -1,28 +1,35 @@
 $schema: "http://json.schemastore.org/buildkite"
+# steps:
+  # - label: "lint"
+  #   agents:
+  #     queue: aspect-small
+  #   key: lint
+  #   command: |
+  #     ./tools/reformat.sh
+  #     if ! git diff --quiet; then
+  #       git diff
+  #       echo ""
+  #       echo "-----------------------------------"
+  #       echo "Re-run ./tools/reformat.sh and push"
+  #       echo "-----------------------------------"
+  #       exit 1
+  #     fi
+  #
+  #     ./tools/lint.sh
 steps:
-  - label: "lint"
+  - key: aspect-workflows-upload
+    label: ":aspect: Setup Aspect Workflows"
+    commands: |
+      rosetta steps | buildkite-agent pipeline upload
     agents:
-      queue: stateless
-    key: lint
-    command: |
-      ./tools/reformat.sh
-      if ! git diff --quiet; then
-        git diff
-        echo ""
-        echo "-----------------------------------"
-        echo "Re-run ./tools/reformat.sh and push"
-        echo "-----------------------------------"
-        exit 1
-      fi
-
-      ./tools/lint.sh
-  - label: "build and test"
-    agents:
-      queue: aspect-devx-service
-    key: build
-    command: |
-      # DO NOT remove --config=ci as that turns on sanitizers.
-      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... --config=ci
-
-      # Don't use //... as that will also try to update snapshots
-      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test --config=ci
+      queue: aspect-small-ubuntu-lts
+  # - label: "build and test"
+  #   agents:
+  #     queue: aspect-devx-service
+  #   key: build
+  #   command: |
+  #     # DO NOT remove --config=ci as that turns on sanitizers.
+  #     bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... --config=ci
+  #
+  #     # Don't use //... as that will also try to update snapshots
+  #     bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test --config=ci
