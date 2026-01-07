@@ -8,6 +8,7 @@ tasks:
   - build:
       targets:
           - //...
+          - -//tools:compdb  # Exclude: com_grail_bazel_compdb is incompatible with current toolchain
       bazel:
         flags:
           - "--config=ci"
