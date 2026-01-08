@@ -8,7 +8,6 @@ on:
       - "v*"
 env:
   REGISTRY_IMAGE: sourcegraph/scip-clang
-  SHORT_SHA: ""
 
 jobs:
   build-binaries:
