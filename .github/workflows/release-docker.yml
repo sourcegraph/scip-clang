@@ -133,7 +133,8 @@ jobs:
       - name: Set short SHA
         run: echo "SHORT_SHA=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
 
-      - name: Push SHA tag (always)
+      - name: Push SHA tag (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create -t ${{ env.REGISTRY_IMAGE }}:${{ env.SHORT_SHA }} \
