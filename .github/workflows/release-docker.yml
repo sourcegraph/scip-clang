@@ -1,12 +1,14 @@
 name: "Release Docker images"
 
 on:
+  workflow_dispatch:
   push:
     branches: ["main"]
     tags:
       - "v*"
 env:
   REGISTRY_IMAGE: sourcegraph/scip-clang
+  SHORT_SHA: ""
 
 jobs:
   build-binaries:
@@ -128,8 +130,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set short SHA
+        run: echo "SHORT_SHA=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Push SHA tag (always)
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create -t ${{ env.REGISTRY_IMAGE }}:${{ env.SHORT_SHA }} \
+            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+
       - name: Snapshot metadata
         if: github.ref == 'refs/heads/main'
+        id: meta-snapshot
         uses: docker/metadata-action@v5
         with:
           images: |
@@ -137,8 +149,16 @@ jobs:
           tags: |
             type=raw,value=latest-snapshot
 
+      - name: Push snapshot tags
+        if: github.ref == 'refs/heads/main'
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+
       - name: Tag metadata
         if: startsWith(github.ref, 'refs/tags/v')
+        id: meta-release
         uses: docker/metadata-action@v5
         with:
           images: |
@@ -149,7 +169,8 @@ jobs:
             type=raw,value=${{ env.MINOR }}
             type=raw,value=${{ env.MAJOR }}
 
-      - name: Create manifest list and push
+      - name: Push release tags
+        if: startsWith(github.ref, 'refs/tags/v')
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
