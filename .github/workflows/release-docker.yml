@@ -146,13 +146,6 @@ jobs:
           tags: |
             type=raw,value=latest-snapshot
 
-      - name: Push snapshot tags
-        if: github.ref == 'refs/heads/main'
-        working-directory: ${{ runner.temp }}/digests
-        run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
-
       - name: Tag metadata
         if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/metadata-action@v5
@@ -165,8 +158,8 @@ jobs:
             type=raw,value=${{ env.MINOR }}
             type=raw,value=${{ env.MAJOR }}
 
-      - name: Push release tags
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create manifest list and push
+        if: github.event_name != 'workflow_dispatch'
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
