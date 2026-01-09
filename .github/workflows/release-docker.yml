@@ -1,6 +1,7 @@
 name: "Release Docker images"
 
 on:
+  workflow_dispatch:
   push:
     branches: ["main"]
     tags:
@@ -128,6 +129,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Push SHA tag (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          SHORT_SHA="sha-$(echo ${{ github.sha }} | cut -c1-7)"
+          docker buildx imagetools create -t ${{ env.REGISTRY_IMAGE }}:$SHORT_SHA \
+            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+
       - name: Snapshot metadata
         if: github.ref == 'refs/heads/main'
         uses: docker/metadata-action@v5
@@ -150,6 +159,7 @@ jobs:
             type=raw,value=${{ env.MAJOR }}
 
       - name: Create manifest list and push
+        if: github.event_name != 'workflow_dispatch'
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
