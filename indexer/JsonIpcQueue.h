@@ -11,7 +11,6 @@
 #include "boost/interprocess/ipc/message_queue.hpp"
 #pragma clang diagnostic pop
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"

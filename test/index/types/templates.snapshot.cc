@@ -18,7 +18,7 @@
   F<B> fmap(A f(B), F<A> fa) {
 //^ reference local 4
 //  ^ reference local 3
-//     ^^^^ definition [..] fmap(48b319d339a486cb).
+//     ^^^^ definition [..] fmap(22a739e3a02d9724).
 //          ^ reference local 2
 //            ^ definition local 5
 //              ^ reference local 3
@@ -41,7 +41,7 @@
 //                      ^^ definition local 9
 //                                                             ^^ definition local 10
   void g(As<Bs...> ...) {}
-//     ^ definition [..] g(c3d59a70a6e5360c).
+//     ^ definition [..] g(da52d0cc43a6b199).
 //       ^^ reference local 10
 //          ^^ reference local 9
   

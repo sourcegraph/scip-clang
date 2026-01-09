@@ -80,7 +80,6 @@ struct FileLocalSourceRange {
                       r.endLine);
   }
   DERIVE_CMP_ALL(FileLocalSourceRange)
-  DERIVE_EQ_ALL(FileLocalSourceRange)
 
   static std::pair<FileLocalSourceRange, clang::FileID>
   fromNonEmpty(const clang::SourceManager &, clang::SourceRange inclusiveRange);

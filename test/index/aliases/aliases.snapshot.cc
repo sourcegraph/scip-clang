@@ -232,7 +232,7 @@
 //           ^^^^ reference [..] i/j/zero.
     static int zero_int = zero<int>;
 //             ^^^^^^^^ definition [..] i/zero_int.
-//                        ^^^^ reference [..] i/j/zero.
+//                        ^^^^ reference [..] i/zero.
   
     using k::SAlias;
 //        ^ reference [..] i/k/

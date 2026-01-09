@@ -59,7 +59,7 @@ bool AbsolutePathRef::isNormalized() const {
   auto start = llvm::sys::path::begin(this->value);
   auto end = llvm::sys::path::end(this->value);
   for (auto it = start; it != end; ++it) {
-    if (it->equals(".") || it->equals("..")) {
+    if (*it == "." || *it == "..") {
       return false;
     }
   }

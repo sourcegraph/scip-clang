@@ -23,7 +23,7 @@
 //                   ^ definition local 3
   typename remove_ref<T>::type&& move(T&& arg) {
 //         ^^^^^^^^^^ reference [..] remove_ref#
-//                               ^^^^ definition [..] move(721d19cf58c53974).
+//                               ^^^^ definition [..] move(14e6c83231ab878e).
 //                                    ^ reference local 3
 //                                        ^^^ definition local 4
     return static_cast<typename remove_ref<T>::type&&>(arg);
@@ -90,13 +90,13 @@
     C c3{move(c1)};
 //  ^ reference [..] C#
 //    ^^ definition local 10
-//       ^^^^ reference [..] move(721d19cf58c53974).
+//       ^^^^ reference [..] move(14e6c83231ab878e).
 //            ^^ reference local 7
     D d3{move(d1)};
 //  ^ reference [..] D#
 //    ^^ definition local 11
 //    ^^ reference [..] D#D(ece7426db7e2c886).
-//       ^^^^ reference [..] move(721d19cf58c53974).
+//       ^^^^ reference [..] move(14e6c83231ab878e).
 //            ^^ reference local 8
   
     C c4 = {};
@@ -134,12 +134,12 @@
     C c10 = move(c1);
 //  ^ reference [..] C#
 //    ^^^ definition local 20
-//          ^^^^ reference [..] move(721d19cf58c53974).
+//          ^^^^ reference [..] move(14e6c83231ab878e).
 //               ^^ reference local 7
     D d10 = move(d1);
 //  ^ reference [..] D#
 //    ^^^ definition local 21
 //          ^^^^ reference [..] D#D(ece7426db7e2c886).
-//          ^^^^ reference [..] move(721d19cf58c53974).
+//          ^^^^ reference [..] move(14e6c83231ab878e).
 //               ^^ reference local 8
   }

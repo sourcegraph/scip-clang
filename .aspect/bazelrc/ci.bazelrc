@@ -1,3 +1,7 @@
+# Disable bzlmod since this project uses WORKSPACE
+# Docs: https://bazel.build/external/migration#disable-bzlmod
+common --noenable_bzlmod
+
 # We recommend enforcing a policy that keeps your CI from being slowed down
 # by individual test targets that should be optimized
 # or split up into multiple test targets with sharding or manually.

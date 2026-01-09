@@ -31,6 +31,7 @@
 #include "rapidjson/error/en.h"
 #include "rapidjson/filereadstream.h"
 #include "spdlog/fmt/fmt.h"
+#include "spdlog/fmt/ranges.h"
 #include "spdlog/sinks/stdout_sinks.h"
 #include "spdlog/spdlog.h"
 
@@ -231,8 +232,8 @@ struct DriverOptions {
         projectRootPath(AbsolutePath("/"), RootKind::Project), compdbPath(),
         indexOutputPath(), statsFilePath(), packageMapPath(),
         showCompilerDiagnostics(cliOpts.showCompilerDiagnostics),
-        showProgress(cliOpts.showProgress), ipcOptions{cliOpts.ipcSizeHintBytes,
-                                                       cliOpts.receiveTimeout},
+        showProgress(cliOpts.showProgress),
+        ipcOptions{cliOpts.ipcSizeHintBytes, cliOpts.receiveTimeout},
         numWorkers(cliOpts.numWorkers), deterministic(cliOpts.deterministic),
         preprocessorRecordHistoryFilterRegex(
             cliOpts.preprocessorRecordHistoryFilterRegex),
@@ -257,7 +258,7 @@ struct DriverOptions {
                 : (llvm::sys::path::is_absolute(path)
                        ? AbsolutePath(std::string(path))
                        : this->projectRootPath.makeAbsolute(
-                           RootRelativePathRef(path, RootKind::Project)));
+                             RootRelativePathRef(path, RootKind::Project)));
     };
 
     // Strictly speaking, there is a TOCTOU problem here, as scip-clang
