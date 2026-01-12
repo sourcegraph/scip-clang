@@ -20,10 +20,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - platform: "ubuntu-24.04"
+          - platform: "ubuntu-24.04-32core-graph-team-amd64"
             config: "dev"
-          - platform: "ubuntu-24.04"
+          - platform: "ubuntu-24.04-32core-graph-team-amd64"
             config: "release"
+          # macOS 14 => arm64
           - platform: "macos-14"
             config: "release"
     runs-on: ${{ matrix.platform }}
@@ -36,20 +37,6 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: "🧹 Free up disk space"
-        if: runner.os == 'Linux'
-        run: |
-          # Free up disk space on GitHub-hosted runners
-          # The LLVM 21 toolchain requires ~5GB when extracted
-          echo "Before cleanup:"
-          df -h /
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force || true
-          echo "After cleanup:"
-          df -h /
       - uses: actions/checkout@v4
       - name: "📝 Check version"
         run: |
@@ -63,9 +50,7 @@ jobs:
       - name: "🐍 Install Bazelisk"
         run: |
           if ! command -v bazelisk && ! command -v bazel; then
-            if [ "$RUNNER_OS" == "Windows" ]; then
-              choco install bazelisk
-            elif [ "$RUNNER_OS" == "Linux" ]; then
+            if [ "$RUNNER_OS" == "Linux" ]; then
               sudo curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.16.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel
               sudo chmod +x /usr/local/bin/bazel
             else
@@ -81,22 +66,22 @@ jobs:
           create_credentials_file: true
       - name: "🚧 Build scip-clang"
         run: |
-          export MSYS2_ARG_CONV_EXCL="*"
           if [ "$RUNNER_OS" == "macOS" ]; then
             export BAZEL_MEM="13G"
-          else
+          else # if [ "$RUNNER_OS" == "Linux" ]; then
             export BAZEL_MEM="6G"
           fi
           {
             echo "startup --host_jvm_args=-Xmx$BAZEL_MEM"
           } > ci.bazelrc
+          # Comment out the 'upload log' bit below for debugging
           SUFFIX=""
           if [ "$CONFIG" == "release" ]; then
             if [ "$(uname -s)" == "Linux" ]; then
               SUFFIX="-linux"
             fi
           fi
-          bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //indexer:scip-clang --config="$CONFIG$SUFFIX"
+          bazel build //indexer:scip-clang --config="$CONFIG$SUFFIX" # --execution_log_binary_file=log
           if [ "$RUNNER_OS" == "Linux" ]; then
             echo "--- GLIBC VERSIONS ---"
             objdump -T bazel-bin/indexer/scip-clang | grep GLIBC | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
@@ -106,6 +91,11 @@ jobs:
           CONFIG: ${{ matrix.config }}
       - name: "🔎 Identify OS"
         run: echo "OS=$(uname -s | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+      # - name: '🪵 Upload log'
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: ${{ env.OS }}-${{ matrix.config }}-build-log
+      #     path: log
       - name: ${{ format('🪄 Rename binary ({0})', matrix.config) }}
         run: |
           SUFFIX="-dev"
@@ -147,6 +137,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TRIGGER: ${{ github.event_name }}
           INPUT_REVISION: ${{ inputs.revision }}
+      # Download everything to avoid spelling out the different
+      # platforms here.
       - name: "📥 Download all artifacts"
         uses: actions/download-artifact@v4
       - name: "📤 Upload artifacts for release"

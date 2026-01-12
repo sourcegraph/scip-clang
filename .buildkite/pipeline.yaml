@@ -23,13 +23,3 @@ steps:
       rosetta steps | buildkite-agent pipeline upload
     agents:
       queue: aspect-small-ubuntu-lts
-  # - label: "build and test"
-  #   agents:
-  #     queue: aspect-devx-service
-  #   key: build
-  #   command: |
-  #     # DO NOT remove --config=ci as that turns on sanitizers.
-  #     bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... --config=ci
-  #
-  #     # Don't use //... as that will also try to update snapshots
-  #     bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test --config=ci

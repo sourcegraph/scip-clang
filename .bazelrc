@@ -1,6 +1,10 @@
 try-import %workspace%/ci.bazelrc
 try-import %workspace%/buildbuddy.bazelrc
 
+# Disable bzlmod since this project uses WORKSPACE
+# Docs: https://bazel.build/external/migration#disable-bzlmod
+common --noenable_bzlmod
+
 # Import Aspect bazelrc presets
 import %workspace%/.aspect/bazelrc/bazel6.bazelrc
 import %workspace%/.aspect/bazelrc/convenience.bazelrc
