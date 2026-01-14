@@ -20,18 +20,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - platform: "ubuntu-22.04"
-            container: "gcc:9.5.0-buster"
+          - platform: "ubuntu-24.04-32core-graph-team-amd64"
             config: "dev"
-          - platform: "ubuntu-22.04"
-            container: "gcc:9.5.0-buster"
+          - platform: "ubuntu-24.04-32core-graph-team-amd64"
             config: "release"
           # macOS 14 => arm64
           - platform: "macos-14"
-            container: ""
             config: "release"
     runs-on: ${{ matrix.platform }}
-    container: ${{ matrix.container }}
     env:
       TAG: ${{ github.event.ref }}
     permissions:
@@ -53,12 +49,10 @@ jobs:
           NEW_VERSION="${TAG_LIKE/v/}" ./tools/version_check.sh
       - name: "🐍 Install Bazelisk"
         run: |
-          if ! command -v bazelisk; then
-            if [ "$RUNNER_OS" == "Windows" ]; then
-              choco install bazelisk
-            elif [ "$RUNNER_OS" == "Linux" ]; then
-              curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.16.0/bazelisk-linux-amd64 > /usr/local/bin/bazel
-              chmod +x /usr/local/bin/bazel
+          if ! command -v bazelisk && ! command -v bazel; then
+            if [ "$RUNNER_OS" == "Linux" ]; then
+              sudo curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.16.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel
+              sudo chmod +x /usr/local/bin/bazel
             else
               sudo npm install -g @bazel/bazelisk
             fi
@@ -72,10 +66,6 @@ jobs:
           create_credentials_file: true
       - name: "🚧 Build scip-clang"
         run: |
-          # Stop Windows from converting the // to /
-          # https://github.com/bazelbuild/bazel/commit/866ecc8c3d5e0b899e3f0c9c6b2265f16daae842
-          # https://stackoverflow.com/a/34386471
-          export MSYS2_ARG_CONV_EXCL="*"
           if [ "$RUNNER_OS" == "macOS" ]; then
             export BAZEL_MEM="13G"
           else # if [ "$RUNNER_OS" == "Linux" ]; then
@@ -129,7 +119,9 @@ jobs:
     name: "Create release"
     if: github.event_name != 'workflow_dispatch' || inputs.create_release
     needs: build-and-upload-artifacts
-    runs-on: "ubuntu-22.04"
+    runs-on: "ubuntu-24.04"
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: "📝 Create Release"

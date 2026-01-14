@@ -122,7 +122,8 @@ bool isTuMainFilePath(std::string_view p) {
 
 // static
 FormatOptions SnapshotPrinter::readFormatOptions(AbsolutePathRef path) {
-  std::ifstream tuStream(path.asStringView(), std::ios::in | std::ios::binary);
+  std::ifstream tuStream(std::string(path.asStringView()),
+                         std::ios::in | std::ios::binary);
   std::string prefix = "// format-options:";
   test::FormatOptions formatOptions{};
   for (std::string line; std::getline(tuStream, line);) {
@@ -219,7 +220,7 @@ void SnapshotPrinter::printDocument(const scip::Document &document,
       [](const scip::Occurrence &lhs, const scip::Occurrence &rhs) -> bool {
         return scip::compareOccurrences(lhs, rhs) == std::strong_ordering::less;
       });
-  std::ifstream input(sourceFilePath.asStringView());
+  std::ifstream input(std::string(sourceFilePath.asStringView()));
   ENFORCE(input.is_open(),
           "failed to open document at '{}' to read source code",
           sourceFilePath.asStringView());

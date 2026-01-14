@@ -14,16 +14,27 @@ load("//:fetch_deps.bzl", "fetch_direct_dependencies")
 fetch_direct_dependencies()
 
 # Setup the toolchain before setting up other dependencies
+# Note: bazel_toolchain_dependencies() brings in rules_cc 0.2.14
 load("@toolchains_llvm//toolchain:deps.bzl", "bazel_toolchain_dependencies")
 
 bazel_toolchain_dependencies()
+
+# bazel_features needs its deps called explicitly
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
+
+bazel_features_deps()
+
+# Set up cc_compatibility_proxy for rules_cc 0.2.14+ in WORKSPACE mode
+load("@rules_cc//cc:extensions.bzl", "compatibility_proxy_repo")
+
+compatibility_proxy_repo()
 
 load("//:setup_llvm.bzl", "setup_llvm_toolchain")
 
 setup_llvm_toolchain(name = "llvm_toolchain")
 
-load("@llvm_toolchain//:toolchains.bzl", "llvm_register_toolchains")
 load("@rules_python//python:repositories.bzl", "py_repositories", "python_register_toolchains")
+load("@llvm_toolchain//:toolchains.bzl", "llvm_register_toolchains")
 
 llvm_register_toolchains()
 

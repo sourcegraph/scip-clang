@@ -52,7 +52,6 @@
 //  ^^ reference local 5
   
     g1<<<undeclared, 1>>>(42); // expected-error {{use of undeclared identifier 'undeclared'}}
-//  ^^ reference [..] g1(d4f767463ce0a6b3).
   }
   
   // Make sure we can call static member kernels.

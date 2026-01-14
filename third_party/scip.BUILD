@@ -1,22 +1,19 @@
-load("@com_google_protobuf//:protobuf.bzl", "cc_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "scip_proto",
+    srcs = ["scip.proto"],
+    # Add prefix so generated headers are at scip/scip.pb.h
+    import_prefix = "scip",
+)
 
 cc_proto_library(
-    name = "proto",
-    srcs = ["scip.proto"],
+    name = "scip_cc_proto",
+    deps = [":scip_proto"],
 )
 
 cc_library(
     name = "scip",
-    srcs = ["scip.pb.cc"],
-    hdrs = ["scip.pb.h"],
-    deps = [":proto"],
-    include_prefix = "scip",
     visibility = ["//visibility:public"],
-    copts = [
-      "-Wno-unused-function",
-      # Generated code uses sprintf in some places, which
-      # is deprecated on macOS
-      "-Wno-deprecated-declarations",
-      "-Wno-covered-switch-default",
-    ],
+    deps = [":scip_cc_proto"],
 )

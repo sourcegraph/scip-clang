@@ -1,6 +1,10 @@
 try-import %workspace%/ci.bazelrc
 try-import %workspace%/buildbuddy.bazelrc
 
+# Disable bzlmod since this project uses WORKSPACE
+# Docs: https://bazel.build/external/migration#disable-bzlmod
+common --noenable_bzlmod
+
 # Import Aspect bazelrc presets
 import %workspace%/.aspect/bazelrc/bazel6.bazelrc
 import %workspace%/.aspect/bazelrc/convenience.bazelrc
@@ -46,6 +50,8 @@ build --per_file_copt="external/llvm-project/.*@-Wno-deprecated-anon-enum-enum-c
 build --per_file_copt="external/llvm-project/.*@-Wno-ambiguous-reversed-operator" # C++20 warning
 build --per_file_copt="external/com_google_protobuf/.*@-Wno-deprecated-declarations" # sprintf on macOS
 build --per_file_copt="external/com_google_protobuf/.*@-Wno-unused-function"
+build --per_file_copt="external/com_google_protobuf/.*@-Wno-missing-field-initializers"
+build --per_file_copt="external/com_google_protobuf/.*@-Wno-unnecessary-virtual-specifier"
 
 build:asserts --copt="-DFORCE_DEBUG=1"
 build:asserts --copt="-DLLVM_ENABLE_ASSERTIONS=1"

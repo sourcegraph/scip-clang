@@ -20,6 +20,7 @@
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/reader.h"
 #include "spdlog/fmt/fmt.h"
+#include "spdlog/fmt/ranges.h"
 
 #include "indexer/CommandLineCleaner.h"
 #include "indexer/CompilationDatabase.h"
@@ -97,7 +98,7 @@ struct ClangToolchainInfo : public ToolchainInfo {
         findResourceDirInvocation(findResourceDirInvocation),
         compilerDriverPath(compilerDriverPath),
         findDriverInvocation(findDriverInvocation),
-        cleaner(std::move(cleaner)){};
+        cleaner(std::move(cleaner)) {};
 
   virtual CompilerKind kind() const override {
     return CompilerKind::Clang;
