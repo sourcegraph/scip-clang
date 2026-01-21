@@ -17,7 +17,7 @@ class CompilationDatabaseEntry:
         try:
             self.arguments = shlex.split(entry["command"])
         except KeyError:
-            self.arguments = entry(["arguments"])
+            self.arguments = entry["arguments"]
 
     def change_tu_filepath(self, new_path: str):
         old_path = str(self.filepath)

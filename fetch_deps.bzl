@@ -61,11 +61,12 @@ def fetch_direct_dependencies():
         ],
     )
 
+    _HEDRON_COMMIT = "abb61a688167623088f8768cc9264798df6a9d10"
     http_archive(
-        name = "com_grail_bazel_compdb",
-        sha256 = "d32835b26dd35aad8fd0ba0d712265df6565a3ad860d39e4c01ad41059ea7eda",
-        strip_prefix = "bazel-compilation-database-0.5.2",
-        urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
+        name = "hedron_compile_commands",
+        sha256 = "1b08abffbfbe89f6dbee6a5b33753792e8004f6a36f37c0f72115bec86e68724",
+        url = "https://github.com/hedronvision/bazel-compile-commands-extractor/archive/%s.tar.gz" % _HEDRON_COMMIT,
+        strip_prefix = "bazel-compile-commands-extractor-%s" % _HEDRON_COMMIT,
     )
 
     http_archive(
