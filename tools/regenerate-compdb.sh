@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # For some reason, using --config=dev causes clangd errors inside Abseil
 # on macOS. So use the default config instead.
-bazel build //tools:compdb
+#
+# The --features flags disable module_maps which is incompatible with the
+# grailbio/bazel-compilation-database library (archived, no longer maintained).
+# See: https://github.com/grailbio/bazel-compilation-database/issues/101
+bazel build //tools:compdb --features=-layering_check --features=-module_maps
 
 PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/.."
 

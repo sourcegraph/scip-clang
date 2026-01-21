@@ -18,7 +18,7 @@ import tempfile
 import textwrap
 from typing import List
 
-from compdb import *
+from translation_unit_runner import *
 
 # https://clang.llvm.org/docs/ClangCommandLineReference.html
 # fmt: off
