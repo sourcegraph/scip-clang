@@ -1,9 +1,9 @@
 $schema: "http://json.schemastore.org/buildkite"
 steps:
-  - label: ":bazel: Build and Test"
+  - label: ":lint-roller: Lint"
+    key: lint
     agents:
-      queue: bazel
-    key: build
+      queue: aspect-small-ubuntu-lts
     command: |
       ./tools/reformat.sh
       if ! git diff --quiet; then
@@ -17,8 +17,9 @@ steps:
 
       ./tools/lint.sh
 
-      # DO NOT remove --config=ci as that turns on sanitizers.
-      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc build //... --config=ci
-
-      # Don't use //... as that will also try to update snapshots
-      bazel --bazelrc=.bazelrc --bazelrc=.aspect/bazelrc/ci.bazelrc test //test --config=ci
+  - key: aspect-workflows-upload
+    label: ":aspect: Setup Aspect Workflows"
+    commands: |
+      rosetta steps | buildkite-agent pipeline upload
+    agents:
+      queue: aspect-small-ubuntu-lts

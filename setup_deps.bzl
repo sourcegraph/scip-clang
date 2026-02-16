@@ -1,6 +1,6 @@
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@com_github_nelhage_rules_boost//:boost/boost.bzl", "boost_deps")
-load("@com_grail_bazel_compdb//:deps.bzl", "bazel_compdb_deps")
+load("@hedron_compile_commands//:workspace_setup.bzl", "hedron_compile_commands_setup")
 load("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure")
 load("@llvm-raw//utils/bazel:terminfo.bzl", "llvm_terminfo_disable")
 load("@llvm-raw//utils/bazel:zlib.bzl", "llvm_zlib_external")
@@ -12,7 +12,7 @@ load("@python_deps//:requirements.bzl", install_python_deps = "install_deps")
 def setup_dependencies():
     bazel_skylib_workspace()
     boost_deps()
-    bazel_compdb_deps()
+    hedron_compile_commands_setup()
 
     llvm_terminfo_disable(name = "llvm_terminfo")
     llvm_zlib_external(name = "llvm_zlib", external_zlib = "@zlib//:zlib")

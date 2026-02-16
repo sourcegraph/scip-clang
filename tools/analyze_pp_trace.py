@@ -8,7 +8,7 @@ import typing
 from ruamel.yaml import YAML
 import sys
 
-from compdb import *
+from translation_unit_runner import *
 
 
 def parse_arguments() -> tuple[Path, Path]:
