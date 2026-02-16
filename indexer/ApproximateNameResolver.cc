@@ -3,6 +3,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Type.h"
+#include "clang/Sema/HeuristicResolver.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -13,65 +14,6 @@
 #include "spdlog/spdlog.h"
 
 namespace scip_clang {
-
-namespace {
-
-// Helper to get CXXRecordDecl from a type, handling TemplateSpecializationType
-// for dependent base types.
-clang::CXXRecordDecl *tryFindDeclForBaseType(const clang::Type *type) {
-  if (!type)
-    return nullptr;
-
-  // Direct record type (non-dependent base)
-  if (const auto *recordType = type->getAs<clang::RecordType>())
-    return llvm::dyn_cast<clang::CXXRecordDecl>(recordType->getDecl());
-
-  // Handle InjectedClassNameType (inside template definitions)
-  if (const auto *injectedType = type->getAs<clang::InjectedClassNameType>())
-    type = injectedType->getInjectedSpecializationType().getTypePtrOrNull();
-  if (!type)
-    return nullptr;
-
-  // Handle TemplateSpecializationType (e.g., T0<T> as a dependent base type)
-  const auto *templateSpecType =
-      type->getAs<clang::TemplateSpecializationType>();
-  if (!templateSpecType)
-    return nullptr;
-
-  auto *templateDecl = llvm::dyn_cast_or_null<clang::ClassTemplateDecl>(
-      templateSpecType->getTemplateName().getAsTemplateDecl());
-  if (!templateDecl)
-    return nullptr;
-
-  return templateDecl->getTemplatedDecl();
-}
-
-// Reimplementation of the removed CXXRecordDecl::lookupDependentName
-llvm::SmallVector<clang::NamedDecl *, 4>
-lookupDependentName(clang::CXXRecordDecl *record, clang::DeclarationName name,
-                    llvm::function_ref<bool(const clang::NamedDecl *)> filter) {
-  llvm::SmallVector<clang::NamedDecl *, 4> results;
-  for (auto *decl : record->lookup(name)) {
-    if (filter(decl)) {
-      results.push_back(decl);
-    }
-  }
-  if (!results.empty())
-    return results;
-
-  // Search in base classes
-  for (const auto &base : record->bases()) {
-    auto *baseRecord =
-        tryFindDeclForBaseType(base.getType().getTypePtrOrNull());
-    if (!baseRecord || !baseRecord->hasDefinition())
-      continue;
-    auto baseResults =
-        lookupDependentName(baseRecord->getDefinition(), name, filter);
-    results.append(baseResults.begin(), baseResults.end());
-  }
-  return results;
-}
-} // namespace
 MemberLookupKey::MemberLookupKey(const clang::Type *type,
                                  const clang::DeclarationNameInfo &declNameInfo)
     : canonicalTypePtr(type->getCanonicalTypeInternal().getTypePtrOrNull()),
@@ -123,8 +65,10 @@ ApproximateNameResolver::tryResolveMember(
       continue;
     }
     cxxRecordDecl = cxxRecordDecl->getDefinition();
+    clang::HeuristicResolver resolver(this->astContext);
     auto lookupResults =
-        lookupDependentName(cxxRecordDecl, declNameInfo.getName(), filter);
+        resolver.lookupDependentName(cxxRecordDecl, declNameInfo.getName(),
+                                     filter);
     for (auto *namedDecl : lookupResults) {
       auto *unresolvedUsingValueDecl =
           llvm::dyn_cast<clang::UnresolvedUsingValueDecl>(namedDecl);

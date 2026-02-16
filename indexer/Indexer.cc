@@ -386,7 +386,7 @@ void ForwardDeclMap::emit(bool deterministic, scip::ForwardDeclIndex &index) {
 
 TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      const clang::LangOptions &langOptions,
-                     const clang::ASTContext &astContext,
+                     clang::ASTContext &astContext,
                      const FileIdsToBeIndexedSet &fileIdsToBeIndexed,
                      SymbolFormatter &symbolFormatter,
                      FileMetadataMap &fileMetadataMap)

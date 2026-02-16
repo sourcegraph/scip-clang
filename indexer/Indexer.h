@@ -298,7 +298,7 @@ using FileIdsToBeIndexedSet =
 class TuIndexer final {
   const clang::SourceManager &sourceManager;
   const clang::LangOptions &langOptions;
-  [[maybe_unused]] const clang::ASTContext &astContext;
+  clang::ASTContext &astContext;
   const FileIdsToBeIndexedSet &fileIdsToBeIndexed;
   SymbolFormatter &symbolFormatter;
   ApproximateNameResolver approximateNameResolver;
@@ -313,7 +313,7 @@ class TuIndexer final {
 
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
-            const clang::ASTContext &, const FileIdsToBeIndexedSet &,
+            clang::ASTContext &, const FileIdsToBeIndexedSet &,
             SymbolFormatter &, FileMetadataMap &);
 
   /// Emit a fake 'definition' for a file, which can be used as a target
