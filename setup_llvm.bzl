@@ -1,7 +1,9 @@
 load("@toolchains_llvm//toolchain:rules.bzl", grailbio_llvm_toolchain = "llvm_toolchain")
 
-# macOS SDK path for system libc++ headers
-# This is the standard location for Xcode Command Line Tools SDK
+# macOS SDK path for system libc++ headers (should match `xcrun --show-sdk-path`).
+# LLVM 21's bundled libc++ headers reference std::__1::__hash_memory, which doesn't
+# exist in Apple's system libc++. We use this path with -nostdinc++ and -isystem below
+# to force the use of Apple's SDK headers instead of LLVM's bundled ones.
 _MACOS_SDK = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 
 def setup_llvm_toolchain(name):

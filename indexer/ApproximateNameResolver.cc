@@ -66,9 +66,8 @@ ApproximateNameResolver::tryResolveMember(
     }
     cxxRecordDecl = cxxRecordDecl->getDefinition();
     clang::HeuristicResolver resolver(this->astContext);
-    auto lookupResults =
-        resolver.lookupDependentName(cxxRecordDecl, declNameInfo.getName(),
-                                     filter);
+    auto lookupResults = resolver.lookupDependentName(
+        cxxRecordDecl, declNameInfo.getName(), filter);
     for (auto *namedDecl : lookupResults) {
       auto *unresolvedUsingValueDecl =
           llvm::dyn_cast<clang::UnresolvedUsingValueDecl>(namedDecl);
