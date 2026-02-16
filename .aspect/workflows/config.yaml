@@ -1,0 +1,21 @@
+---
+queue: aspect-devx-service
+bazel:
+  rcfiles:
+      - ".aspect/bazelrc/ci.bazelrc"
+
+tasks:
+  - build:
+      targets:
+          - //...
+      bazel:
+        flags:
+          - "--config=ci"
+  - test:
+      targets:
+          - //test
+      bazel:
+        flags:
+          - "--config=ci"
+  - finalization:
+

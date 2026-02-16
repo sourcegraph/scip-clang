@@ -1,6 +1,10 @@
 try-import %workspace%/ci.bazelrc
 try-import %workspace%/buildbuddy.bazelrc
 
+# Disable bzlmod since this project uses WORKSPACE
+# Docs: https://bazel.build/external/migration#disable-bzlmod
+common --noenable_bzlmod
+
 # Import Aspect bazelrc presets
 import %workspace%/.aspect/bazelrc/bazel6.bazelrc
 import %workspace%/.aspect/bazelrc/convenience.bazelrc
@@ -17,10 +21,15 @@ common --enable_platform_specific_config
 # https://sourcegraph.com/github.com/grailbio/bazel-toolchain@d52ce5d96915428a5ee6f7079078df706c5fddab/-/blob/toolchain/cc_toolchain_config.bzl?L154:11
 build:linux --linkopt="-fuse-ld=lld"
 
-# Based on release notes from since we're on Bazel < 7
+# Based on release notes from toolchains_llvm
 # https://github.com/bazel-contrib/toolchains_llvm/releases/tag/0.10.3
 build --features=-supports_dynamic_linker
 build --features=-libtool
+# Disable layering_check which is enabled by default in LLVM's BUILD overlay.
+# toolchains_llvm 1.6.0 supports this feature (unlike the old grailbio toolchain),
+# but it breaks because @llvm_zlib wrapping @zlib doesn't export zlib.h in module maps.
+# Both target and host flags are needed since LLVM is also built [for tool].
+build --features=-layering_check --host_features=-layering_check
 
 # Not sure why setting all of these is necessary, but just setting cxxopt
 # Leads to usage of old C++ version when compiling LLVM, which needs C++14 or newer.

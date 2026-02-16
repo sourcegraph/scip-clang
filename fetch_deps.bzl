@@ -1,8 +1,8 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 _BAZEL_SKYLIB_VERSION = "1.3.0"
-_PLATFORMS_COMMIT = "3fbc687756043fb58a407c2ea8c944bc2fe1d922"  # 2022 Nov 10
-_BAZEL_TOOLCHAIN_VERSION = "0.10.3"
+_PLATFORMS_VERSION = "1.0.0"
+_BAZEL_TOOLCHAIN_VERSION = "1.6.0"
 _RULES_BOOST_COMMIT = "00b9b9ecb9b43564de44ea0b10e22b29dcf84d79"
 _LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
 _ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
@@ -22,7 +22,7 @@ _UTFCPP_VERSION = "4.0.5"
 # See https://github.com/google/perfetto/issues/271#issuecomment-1527691232
 _PERFETTO_VERSION = "33.1"  # Keep in sync with docs/Development.md
 _DOCTEST_VERSION = "2.4.9"
-_DTL_VERSION = "1.20"
+_DTL_VERSION = "1.21"
 _RULES_PYTHON_VERSION = "0.18.1"
 
 def fetch_direct_dependencies():
@@ -37,17 +37,19 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "platforms",
-        sha256 = "b4a3b45dc4202e2b3e34e3bc49d2b5b37295fc23ea58d88fb9e01f3642ad9b55",
-        strip_prefix = "platforms-%s" % _PLATFORMS_COMMIT,
-        urls = ["https://github.com/bazelbuild/platforms/archive/%s.zip" % _PLATFORMS_COMMIT],
+        sha256 = "3384eb1c30762704fbe38e440204e114154086c8fc8a8c2e3e28441028c019a8",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/{0}/platforms-{0}.tar.gz".format(_PLATFORMS_VERSION),
+            "https://github.com/bazelbuild/platforms/releases/download/{0}/platforms-{0}.tar.gz".format(_PLATFORMS_VERSION),
+        ],
     )
 
     http_archive(
         name = "toolchains_llvm",
-        sha256 = "b7cd301ef7b0ece28d20d3e778697a5e3b81828393150bed04838c0c52963a01",
-        strip_prefix = "toolchains_llvm-%s" % _BAZEL_TOOLCHAIN_VERSION,
+        sha256 = "2b298a1d7ea99679f5edf8af09367363e64cb9fbc46e0b7c1b1ba2b1b1b51058",
+        strip_prefix = "toolchains_llvm-v%s" % _BAZEL_TOOLCHAIN_VERSION,
         canonical_id = _BAZEL_TOOLCHAIN_VERSION,
-        url = "https://github.com/grailbio/bazel-toolchain/releases/download/{0}/toolchains_llvm-{0}.tar.gz".format(_BAZEL_TOOLCHAIN_VERSION),
+        url = "https://github.com/bazel-contrib/toolchains_llvm/releases/download/v{0}/toolchains_llvm-v{0}.tar.gz".format(_BAZEL_TOOLCHAIN_VERSION),
     )
 
     http_archive(
@@ -59,11 +61,12 @@ def fetch_direct_dependencies():
         ],
     )
 
+    _HEDRON_COMMIT = "abb61a688167623088f8768cc9264798df6a9d10"
     http_archive(
-        name = "com_grail_bazel_compdb",
-        sha256 = "d32835b26dd35aad8fd0ba0d712265df6565a3ad860d39e4c01ad41059ea7eda",
-        strip_prefix = "bazel-compilation-database-0.5.2",
-        urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
+        name = "hedron_compile_commands",
+        sha256 = "1b08abffbfbe89f6dbee6a5b33753792e8004f6a36f37c0f72115bec86e68724",
+        url = "https://github.com/hedronvision/bazel-compile-commands-extractor/archive/%s.tar.gz" % _HEDRON_COMMIT,
+        strip_prefix = "bazel-compile-commands-extractor-%s" % _HEDRON_COMMIT,
     )
 
     http_archive(
@@ -180,7 +183,7 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "dtl",
-        sha256 = "579f81bca88f4b9760a59d99c5a95bd8dd5dc2f20f33f1f9b5f64cb08979f54d",
+        sha256 = "90ed2dbf4e6d687737fe25f118bbcb6aed778cecc3f2115d191a032bf8643dbd",
         build_file = "@scip_clang//third_party:dtl.BUILD",
         strip_prefix = "dtl-%s" % _DTL_VERSION,
         urls = ["https://github.com/cubicdaiya/dtl/archive/v%s.tar.gz" % _DTL_VERSION],

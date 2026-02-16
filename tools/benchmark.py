@@ -15,7 +15,7 @@ import typing
 from typing import Any
 
 import analyze_compdb
-from compdb import *
+from translation_unit_runner import *
 
 
 class Indexer(enum.Enum):

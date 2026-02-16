@@ -15,10 +15,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04-32core-graph-team-amd64
+          - os: ubuntu-24.04-32core-graph-team-amd64
             platform: linux/amd64
             binary-name: scip-clang-x86_64-linux
-          - os: ubuntu-22.04-32core-graph-team-arm64
+          - os: ubuntu-24.04-32core-graph-team-arm64
             platform: linux/arm64
             binary-name: scip-clang-arm64-linux
     runs-on: ${{ matrix.os }}
