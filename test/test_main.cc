@@ -18,6 +18,7 @@
 #include "cxxopts.hpp"
 #include "doctest/doctest.h"
 #include "spdlog/fmt/fmt.h"
+#include "spdlog/fmt/ranges.h"
 
 #include "llvm/Support/YAMLTraits.h"
 

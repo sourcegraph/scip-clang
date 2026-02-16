@@ -40,7 +40,6 @@
   
   template <>
   struct SpecializedBase<int> {};
-//       ^^^^^^^^^^^^^^^ reference [..] SpecializedBase#
 //       ^^^^^^^^^^^^^^^ definition [..] SpecializedBase#
   
   template <typename T>
@@ -117,7 +116,6 @@
   
   template <>
   struct DerivedFromSelf<int *> {};
-//       ^^^^^^^^^^^^^^^ reference [..] DerivedFromSelf#
 //       ^^^^^^^^^^^^^^^ definition [..] DerivedFromSelf#
   
   void useDerivedFromSelf() {

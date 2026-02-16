@@ -386,7 +386,7 @@ void ForwardDeclMap::emit(bool deterministic, scip::ForwardDeclIndex &index) {
 
 TuIndexer::TuIndexer(const clang::SourceManager &sourceManager,
                      const clang::LangOptions &langOptions,
-                     const clang::ASTContext &astContext,
+                     clang::ASTContext &astContext,
                      const FileIdsToBeIndexedSet &fileIdsToBeIndexed,
                      SymbolFormatter &symbolFormatter,
                      FileMetadataMap &fileMetadataMap)
@@ -530,7 +530,8 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
   }
   auto symbol = optSymbol.value();
 
-  if (functionDecl.isPure() || functionDecl.isThisDeclarationADefinition()) {
+  if (functionDecl.isPureVirtual()
+      || functionDecl.isThisDeclarationADefinition()) {
     scip::SymbolInformation symbolInfo{};
     this->getDocComment(functionDecl).addTo(symbolInfo);
     if (auto *cxxMethodDecl =
@@ -671,33 +672,6 @@ void TuIndexer::saveNestedNameSpecifierLoc(
     case Kind::NamespaceAlias:
     case Kind::Global:
     case Kind::Super:
-    case Kind::TypeSpecWithTemplate:
-      // FIXME(def: template-specialization-support)
-      // Adding support for TypeSpecWithTemplate needs extra care
-      // for (partial) template specializations. Example code:
-      //
-      //   template <typename T0>
-      //   struct X {
-      //     template <typename T1>
-      //     struct Y {};
-      //   };
-      //
-      //   template <>
-      //   struct X {
-      //     template <typename A>
-      //     struct Y { int[42] magic; };
-      //   };
-      //
-      //   template <typename U0> void f() {
-      //     typename X<U0>::template Y<U0> y{};
-      //                   //^^^^^^^^^^^^^^ TypeSpecWithTemplate
-      //     std::cout << sizeof(y) << '\n';
-      //   }
-      //
-      // In 'template Y<U0>', clangd will navigate to 'Y' in the body of 'X',
-      // even when there is partial template specialization of X
-      // (so calling f<int>() will print a different value).
-      // Ideally, we should surface such specializations too.
       break;
     }
     nameSpecLoc = nameSpecLoc.getPrefix();
@@ -834,6 +808,17 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
     const clang::TemplateSpecializationTypeLoc &templateSpecializationTypeLoc) {
   auto *templateSpecializationType = templateSpecializationTypeLoc.getTypePtr();
   auto templateName = templateSpecializationType->getTemplateName();
+
+  // Unwrap QualifiedTemplateName and DeducedTemplateStorage to get the
+  // underlying template. These wrappers preserve source-level qualifications
+  // but we need the actual template declaration for indexing.
+  if (auto *qualifiedName = templateName.getAsQualifiedTemplateName()) {
+    templateName = qualifiedName->getUnderlyingTemplate();
+  }
+  if (auto *deducedStorage = templateName.getAsDeducedTemplateName()) {
+    templateName = deducedStorage->getUnderlying();
+  }
+
   using Kind = clang::TemplateName::NameKind;
   switch (templateName.getKind()) {
   case Kind::Template: {
@@ -871,6 +856,7 @@ void TuIndexer::saveTemplateSpecializationTypeLoc(
   case Kind::OverloadedTemplate:
   case Kind::AssumedTemplate:
   case Kind::QualifiedTemplate:
+  case Kind::DeducedTemplate:
   case Kind::DependentTemplate:
   case Kind::SubstTemplateTemplateParm:
   case Kind::SubstTemplateTemplateParmPack:
