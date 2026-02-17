@@ -97,7 +97,7 @@ Run `./tools/reformat.sh` to reformat code and config files.
 
 ## IDE integration
 
-Run `./tools/regenerate-compdb.sh` to generate a compilation database
+Run `bazel run //tools:refresh_compile_commands` to generate a compilation database
 at the root of the repository. It will be automatically
 picked up by clangd-based editor extensions (you may
 need to reload the editor).

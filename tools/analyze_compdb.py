@@ -17,7 +17,7 @@ import time
 import typing
 from typing import Any
 
-from compdb import *
+from translation_unit_runner import *
 
 
 class Measurement(enum.Enum):

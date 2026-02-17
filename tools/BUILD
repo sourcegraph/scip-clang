@@ -1,15 +1,14 @@
 # TODO(def: cpp-linters): Add clang-format and clang-tidy usage here.
 
-load("@com_grail_bazel_compdb//:defs.bzl", "compilation_database")
-load("@com_grail_bazel_output_base_util//:defs.bzl", "OUTPUT_BASE")
+load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 load("@rules_python//python:defs.bzl", "py_binary")
 load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 load("@python_deps//:requirements.bzl", pip_requirement = "requirement")
 
-compilation_database(
-    name = "compdb",
-    testonly = True,
-    output_base = OUTPUT_BASE,
+refresh_compile_commands(
+    name = "refresh_compile_commands",
+    exclude_external_sources = True,
+    exclude_headers = "external",
     targets = [
         "//proto:fwd_decls",
         "//indexer/os",
