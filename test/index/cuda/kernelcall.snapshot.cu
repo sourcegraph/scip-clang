@@ -151,7 +151,7 @@
     }
     void e() { d0(1); }
 //       ^ definition [..] b#e(49f6e7a06ebc5aa8).
-//             ^^ reference [..] b#d0(d4f767463ce0a6b3).
+//             ^^ reference [..] b#d0(9b289cee16747614).
   };
   
   namespace x {
