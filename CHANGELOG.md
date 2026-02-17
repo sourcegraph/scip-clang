@@ -1,5 +1,10 @@
 # scip-clang ChangeLog
 
+## v0.3.3 (beta)
+
+- Fixes missing symbols for template functions using `enable_if`.
+  (https://github.com/sourcegraph/scip-clang/pull/506)
+
 ## v0.3.2 (beta)
 
 - Common architecture related arguments such as `-march`,
