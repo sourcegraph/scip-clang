@@ -773,6 +773,20 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
       }
     }
   }
+  // For explicit template specializations (e.g. template<> struct Foo<int>),
+  // emit a reference to the primary template in addition to the definition.
+  // The name in the specialization refers back to the primary template, and
+  // SCIP uses the same symbol for both, so the reference enables
+  // Go-to-Definition navigation from the specialization to the primary
+  // template.
+  if (auto *specDecl =
+          llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(&tagDecl);
+      specDecl
+      && !llvm::isa<clang::ClassTemplatePartialSpecializationDecl>(specDecl)
+      && specDecl->getSpecializationKind()
+             == clang::TSK_ExplicitSpecialization) {
+    this->saveReference(symbol, tagDecl.getLocation());
+  }
   this->saveDefinition(symbol, tagDecl.getLocation(), std::move(symbolInfo));
 }
 
