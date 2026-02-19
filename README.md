@@ -45,8 +45,6 @@ Here are some code navigation examples:
 are available for x86_64 Linux (glibc 2.16 or newer) and x86_64 macOS
 (supported on arm64 macOS via Rosetta).
 
-We're exploring [Windows support](https://github.com/sourcegraph/scip-clang/issues/170).
-
 Codebases using GCC and/or Clang for routine compilation
 are both supported. For codebases exclusively built using GCC,
 compatibility should be as good as Clang's compatibility

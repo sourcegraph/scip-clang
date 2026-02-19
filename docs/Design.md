@@ -378,7 +378,7 @@ in a way, but only one of them is going to be active
 at a given time. For a single build, it doesn't matter
 for the two definitions to have different locations.
 If/when we implement index merging across builds
-(e.g. debug/release, Linux/macOS/Windows etc.),
+(e.g. debug/release, Linux/macOS etc.),
 there will be two different kinds of expansion sites:
 
 1. Conditional expansion sites:
