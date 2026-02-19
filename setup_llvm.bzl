@@ -34,13 +34,11 @@ def setup_llvm_toolchain(name):
         # On Linux, use the bundled libc++ (builtin-libc++) for hermetic builds.
         stdlib = {
             "darwin-aarch64": "libc++",
-            "darwin-x86_64": "libc++",
             "": "builtin-libc++",  # Default for all other platforms
         },
         # Point to macOS SDK for system headers and frameworks
         sysroot = {
             "darwin-aarch64": _MACOS_SDK,
-            "darwin-x86_64": _MACOS_SDK,
         },
         # Add extra cxx_flags to use macOS SDK libc++ headers instead of LLVM's bundled ones.
         # -nostdinc++ disables the default C++ header search paths (including LLVM's bundled headers)
@@ -52,41 +50,31 @@ def setup_llvm_toolchain(name):
                 "-isystem",
                 _MACOS_SDK + "/usr/include/c++/v1",
             ],
-            "darwin-x86_64": [
-                "-nostdinc++",
-                "-isystem",
-                _MACOS_SDK + "/usr/include/c++/v1",
-            ],
         },
         # Override link_libs for darwin platforms to use dynamic libc++ instead
         # of the default static -l:libc++.a which doesn't exist on macOS.
         # We explicitly link -lc++ and -lc++abi dynamically.
         link_libs = {
             "darwin-aarch64": ["-lc++", "-lc++abi"],
-            "darwin-x86_64": ["-lc++", "-lc++abi"],
         },
         llvm_versions = {
             "linux-aarch64": "21.1.8",
             "linux-x86_64": "21.1.8",
             "darwin-aarch64": "21.1.8",
-            "darwin-x86_64": "21.1.8",
         },
         sha256 = {
             "linux-aarch64": "65ce0b329514e5643407db2d02a5bd34bf33d159055dafa82825c8385bd01993",
             "linux-x86_64": "b3b7f2801d15d50736acea3c73982994d025b01c2f035b91ae3b49d1b575732b",
             "darwin-aarch64": "b95bdd32a33a81ee4d40363aaeb26728a26783fcef26a4d80f65457433ea4669",
-            "darwin-x86_64": "b95bdd32a33a81ee4d40363aaeb26728a26783fcef26a4d80f65457433ea4669",  # Use ARM64 via Rosetta
         },
         strip_prefix = {
             "linux-aarch64": "LLVM-21.1.8-Linux-ARM64",
             "linux-x86_64": "LLVM-21.1.8-Linux-X64",
             "darwin-aarch64": "LLVM-21.1.8-macOS-ARM64",
-            "darwin-x86_64": "LLVM-21.1.8-macOS-ARM64",  # Use ARM64 via Rosetta
         },
         urls = {
             "linux-aarch64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-Linux-ARM64.tar.xz"],
             "linux-x86_64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-Linux-X64.tar.xz"],
             "darwin-aarch64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-macOS-ARM64.tar.xz"],
-            "darwin-x86_64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-macOS-ARM64.tar.xz"],  # Use ARM64 via Rosetta
         },
     )

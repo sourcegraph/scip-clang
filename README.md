@@ -42,8 +42,7 @@ Here are some code navigation examples:
 ## Supported Platforms
 
 [Binary releases](https://github.com/sourcegraph/scip-clang/releases)
-are available for x86_64 Linux (glibc 2.16 or newer) and x86_64 macOS
-(supported on arm64 macOS via Rosetta).
+are available for x86_64 Linux (glibc 2.16 or newer) and arm64 macOS.
 
 Codebases using GCC and/or Clang for routine compilation
 are both supported. For codebases exclusively built using GCC,
