@@ -21,9 +21,9 @@
 extern "C" {
 // If we are linked against the LLVM sanitizers, this symbol will be
 // replaced with the definition from the sanitizer runtime
-void __attribute__((weak))
-__sanitizer_symbolize_pc(void *pc, const char *fmt, char *outBuf,
-                         size_t outBufSize) {
+void __attribute__((weak)) __sanitizer_symbolize_pc(void *pc, const char *fmt,
+                                                    char *outBuf,
+                                                    size_t outBufSize) {
   (void)pc;
   (void)fmt;
   std::snprintf(outBuf, outBufSize, "<null>");

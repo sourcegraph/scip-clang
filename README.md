@@ -1,6 +1,6 @@
 # scip-clang: SCIP indexer for C and C++ ![(Status: Beta)](https://img.shields.io/badge/status-beta-yellow?style=flat)
 
-scip-clang is a precise code indexer based on Clang 16,
+scip-clang is a precise code indexer based on Clang 21,
 which supports cross-repository code navigation for C, C++ and CUDA
 in Sourcegraph.
 
@@ -44,8 +44,6 @@ Here are some code navigation examples:
 [Binary releases](https://github.com/sourcegraph/scip-clang/releases)
 are available for x86_64 Linux (glibc 2.16 or newer) and x86_64 macOS
 (supported on arm64 macOS via Rosetta).
-
-We're exploring [Windows support](https://github.com/sourcegraph/scip-clang/issues/170).
 
 Codebases using GCC and/or Clang for routine compilation
 are both supported. For codebases exclusively built using GCC,
@@ -201,7 +199,7 @@ scip-clang --compdb-path=build/small_compdb.json --show-compiler-diagnostics
 <summary>Known diagnostics when indexing CUDA</summary>
 
 1. If you see an error related to the `texture` template, that is likely
-   because of the Clang version not being Clang 16 or newer.
+   because of the Clang version not being Clang 21 or newer.
    See https://github.com/llvm/llvm-project/issues/61340
 2. If you see any errors related to GCC headers, that's a
    [known issue](https://github.com/sourcegraph/scip-clang/issues/440).

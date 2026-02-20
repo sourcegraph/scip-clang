@@ -1,31 +1,92 @@
 load("@toolchains_llvm//toolchain:rules.bzl", grailbio_llvm_toolchain = "llvm_toolchain")
 
+# macOS SDK path for system libc++ headers (should match `xcrun --show-sdk-path`).
+# LLVM 21's bundled libc++ headers reference std::__1::__hash_memory, which doesn't
+# exist in Apple's system libc++. We use this path with -nostdinc++ and -isystem below
+# to force the use of Apple's SDK headers instead of LLVM's bundled ones.
+_MACOS_SDK = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+
 def setup_llvm_toolchain(name):
     # NOTE: The ASan build uses paths which involve the version.
     # Keep the version list in sync with settings.bzl
-    mapping = {
-        "linux-aarch64": {"version": "15.0.6", "triple": "aarch64-linux-gnu", "sha256": "8ca4d68cf103da8331ca3f35fe23d940c1b78fb7f0d4763c1c059e352f5d1bec"},
-        "linux-x86_64": {"version": "15.0.6", "triple": "x86_64-linux-gnu-ubuntu-18.04", "sha256": "38bc7f5563642e73e69ac5626724e206d6d539fbef653541b34cae0ba9c3f036"},
-        "darwin-aarch64": {"version": "15.0.6", "triple": "arm64-apple-darwin21.0", "sha256": "32bc7b8eee3d98f72dd4e5651e6da990274ee2d28c5c19a7d8237eb817ce8d91"},
-        "darwin-arm64": {"version": "15.0.6", "triple": "arm64-apple-darwin21.0", "sha256": "32bc7b8eee3d98f72dd4e5651e6da990274ee2d28c5c19a7d8237eb817ce8d91"},
-        "darwin-x86_64": {"version": "15.0.7", "triple": "x86_64-apple-darwin21.0", "sha256": "d16b6d536364c5bec6583d12dd7e6cf841b9f508c4430d9ee886726bd9983f1c"},
-        "windows": {"version": "15.0.6", "sha256": "22e2f2c38be4c44db7a1e9da5e67de2a453c5b4be9cf91e139592a63877ac0a2", "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/LLVM-15.0.6-win64.exe"},
-    }
-    llvm_versions, sha256, strip_prefix, urls = {}, {}, {}, {}
-    for (k, v) in mapping.items():
-        llvm_versions[k] = v["version"]
-        sha256[k] = v["sha256"]
-        if "url" in v:
-            urls[k] = [v["url"]]
-        else:
-            prefix = "clang+llvm-{version}-{triple}".format(version = v["version"], triple = v["triple"])
-            strip_prefix[k] = prefix
-            urls[k] = ["https://github.com/llvm/llvm-project/releases/download/llvmorg-{version}/{prefix}.tar.xz".format(version = v["version"], prefix = prefix)]
-
+    #
+    # LLVM 21 uses new naming convention: LLVM-VERSION-Platform.tar.xz
+    # with strip prefix LLVM-VERSION-Platform
+    #
+    # On macOS, we use stdlib = "libc++" to use the system's libc++ instead of
+    # the bundled LLVM libc++. This avoids the __hash_memory ABI mismatch issue
+    # where LLVM 21's libc++ headers reference symbols that Apple's system libc++
+    # doesn't have.
+    #
+    # IMPORTANT: stdlib="libc++" only affects LINKING, not header search paths!
+    # By default, the toolchain still uses LLVM's bundled libc++ headers from
+    # {toolchain_path_prefix}/include/c++/v1, which causes the ABI mismatch.
+    #
+    # To fix this, we use cxx_flags to:
+    # 1. Add -nostdinc++ to disable the default C++ stdlib header search
+    # 2. Use -isystem to add macOS SDK headers explicitly
+    #
+    # We also set sysroot to the macOS SDK so the toolchain knows where to find
+    # system headers and frameworks.
     grailbio_llvm_toolchain(
         name = name,
-        llvm_versions = llvm_versions,
-        strip_prefix = strip_prefix,
-        urls = urls,
-        sha256 = sha256,
+        # Use system libc++ on macOS to avoid ABI mismatch with LLVM 21's bundled headers.
+        # On Linux, use the bundled libc++ (builtin-libc++) for hermetic builds.
+        stdlib = {
+            "darwin-aarch64": "libc++",
+            "darwin-x86_64": "libc++",
+            "": "builtin-libc++",  # Default for all other platforms
+        },
+        # Point to macOS SDK for system headers and frameworks
+        sysroot = {
+            "darwin-aarch64": _MACOS_SDK,
+            "darwin-x86_64": _MACOS_SDK,
+        },
+        # Add extra cxx_flags to use macOS SDK libc++ headers instead of LLVM's bundled ones.
+        # -nostdinc++ disables the default C++ header search paths (including LLVM's bundled headers)
+        # -isystem adds the macOS SDK's libc++ headers as a system include path
+        # NOTE: We use extra_cxx_flags (not cxx_flags) to ADD to defaults rather than replace them.
+        extra_cxx_flags = {
+            "darwin-aarch64": [
+                "-nostdinc++",
+                "-isystem",
+                _MACOS_SDK + "/usr/include/c++/v1",
+            ],
+            "darwin-x86_64": [
+                "-nostdinc++",
+                "-isystem",
+                _MACOS_SDK + "/usr/include/c++/v1",
+            ],
+        },
+        # Override link_libs for darwin platforms to use dynamic libc++ instead
+        # of the default static -l:libc++.a which doesn't exist on macOS.
+        # We explicitly link -lc++ and -lc++abi dynamically.
+        link_libs = {
+            "darwin-aarch64": ["-lc++", "-lc++abi"],
+            "darwin-x86_64": ["-lc++", "-lc++abi"],
+        },
+        llvm_versions = {
+            "linux-aarch64": "21.1.8",
+            "linux-x86_64": "21.1.8",
+            "darwin-aarch64": "21.1.8",
+            "darwin-x86_64": "21.1.8",
+        },
+        sha256 = {
+            "linux-aarch64": "65ce0b329514e5643407db2d02a5bd34bf33d159055dafa82825c8385bd01993",
+            "linux-x86_64": "b3b7f2801d15d50736acea3c73982994d025b01c2f035b91ae3b49d1b575732b",
+            "darwin-aarch64": "b95bdd32a33a81ee4d40363aaeb26728a26783fcef26a4d80f65457433ea4669",
+            "darwin-x86_64": "b95bdd32a33a81ee4d40363aaeb26728a26783fcef26a4d80f65457433ea4669",  # Use ARM64 via Rosetta
+        },
+        strip_prefix = {
+            "linux-aarch64": "LLVM-21.1.8-Linux-ARM64",
+            "linux-x86_64": "LLVM-21.1.8-Linux-X64",
+            "darwin-aarch64": "LLVM-21.1.8-macOS-ARM64",
+            "darwin-x86_64": "LLVM-21.1.8-macOS-ARM64",  # Use ARM64 via Rosetta
+        },
+        urls = {
+            "linux-aarch64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-Linux-ARM64.tar.xz"],
+            "linux-x86_64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-Linux-X64.tar.xz"],
+            "darwin-aarch64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-macOS-ARM64.tar.xz"],
+            "darwin-x86_64": ["https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-macOS-ARM64.tar.xz"],  # Use ARM64 via Rosetta
+        },
     )

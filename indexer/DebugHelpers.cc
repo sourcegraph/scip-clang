@@ -175,7 +175,6 @@ std::string formatKind(clang::NestedNameSpecifier::SpecifierKind kind) {
     HANDLE_KIND(Namespace)
     HANDLE_KIND(NamespaceAlias)
     HANDLE_KIND(TypeSpec)
-    HANDLE_KIND(TypeSpecWithTemplate)
     HANDLE_KIND(Global)
     HANDLE_KIND(Super)
   }

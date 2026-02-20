@@ -3,6 +3,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Type.h"
+#include "clang/Sema/HeuristicResolver.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -13,7 +14,6 @@
 #include "spdlog/spdlog.h"
 
 namespace scip_clang {
-
 MemberLookupKey::MemberLookupKey(const clang::Type *type,
                                  const clang::DeclarationNameInfo &declNameInfo)
     : canonicalTypePtr(type->getCanonicalTypeInternal().getTypePtrOrNull()),
@@ -65,8 +65,9 @@ ApproximateNameResolver::tryResolveMember(
       continue;
     }
     cxxRecordDecl = cxxRecordDecl->getDefinition();
-    auto lookupResults =
-        cxxRecordDecl->lookupDependentName(declNameInfo.getName(), filter);
+    clang::HeuristicResolver resolver(this->astContext);
+    auto lookupResults = resolver.lookupDependentName(
+        cxxRecordDecl, declNameInfo.getName(), filter);
     for (auto *namedDecl : lookupResults) {
       auto *unresolvedUsingValueDecl =
           llvm::dyn_cast<clang::UnresolvedUsingValueDecl>(namedDecl);

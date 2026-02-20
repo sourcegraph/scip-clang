@@ -4,13 +4,13 @@ _BAZEL_SKYLIB_VERSION = "1.3.0"
 _PLATFORMS_VERSION = "1.0.0"
 _BAZEL_TOOLCHAIN_VERSION = "1.6.0"
 _RULES_BOOST_COMMIT = "00b9b9ecb9b43564de44ea0b10e22b29dcf84d79"
-_LLVM_COMMIT = "e0f3110b854a476c16cce7b44472cd7838d344e9"  # Keep in sync with Version.h
-_ABSL_COMMIT = "4ffaea74c1f5408e0757547a1ca0518ad43fa9f1"
+_LLVM_COMMIT = "2078da43e25a4623cab2d0d60decddf709aaea28"  # Keep in sync with Version.h
+_ABSL_VERSION = "20240722.0"
 _CXXOPTS_VERSION = "3.0.0"
 _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
-_SPDLOG_COMMIT = "edc51df1bdad8667b628999394a1e7c4dc6f3658"
-_PROTOBUF_VERSION = "3.21.12"
+_SPDLOG_COMMIT = "486b55554f11c9cccc913e11a87085b2a91f706f"  # v1.16.0
+_PROTOBUF_VERSION = "25.3"
 _SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
 _UTFCPP_VERSION = "4.0.5"
 # ^ When bumping this version, check if any new fields are introduced
@@ -82,14 +82,14 @@ def fetch_direct_dependencies():
     # Keep the name 'zlib' so that Protobuf doesn't pull in another copy.
     #
     # https://sourcegraph.com/github.com/protocolbuffers/protobuf/-/blob/protobuf_deps.bzl?L48-58
+    # Using zlib 1.3.1 to fix macro conflicts with macOS headers in zlib 1.2.11
     http_archive(
         name = "zlib",
         build_file = "@scip_clang//third_party:zlib.BUILD",
-        sha256 = "c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1",
-        strip_prefix = "zlib-1.2.11",
+        sha256 = "17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c",
+        strip_prefix = "zlib-1.3.1",
         urls = [
-            "https://mirror.bazel.build/zlib.net/zlib-1.2.11.tar.gz",
-            "https://zlib.net/zlib-1.2.11.tar.gz",
+            "https://github.com/madler/zlib/archive/refs/tags/v1.3.1.tar.gz",
         ],
     )
 
@@ -103,17 +103,33 @@ def fetch_direct_dependencies():
         ],
     )
 
+    # LLVM 18+ uses zlib-ng instead of zlib
+    http_archive(
+        name = "llvm_zlib",
+        build_file = "@llvm-raw//utils/bazel/third_party_build:zlib-ng.BUILD",
+        sha256 = "e36bb346c00472a1f9ff2a0a4643e590a254be6379da7cddd9daeb9a7f296731",
+        strip_prefix = "zlib-ng-2.0.7",
+        urls = [
+            "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.7.zip",
+        ],
+    )
+
+    # Cherry-pick fix for CUDA assertion failure from
+    # https://github.com/llvm/llvm-project/pull/173762
+    # Can be removed once LLVM merges the fix and we update the commit.
     http_archive(
         name = "llvm-raw",
-        sha256 = "04b76a5be88331f71a4e4fe96bccfebec302ddd0dbd9418fd5c186a7361c54fb",
+        sha256 = "536a4d64ab21bc85bf95ae4dc412b36e8a9c72d487a476839f3c31c3ded69e96",
         strip_prefix = "llvm-project-%s" % _LLVM_COMMIT,
         build_file_content = "# empty",
         urls = ["https://github.com/llvm/llvm-project/archive/%s.tar.gz" % _LLVM_COMMIT],
+        patch_args = ["-p1"],
+        patches = ["//third_party:llvm-cuda-tooling.patch"],
     )
 
     http_archive(
         name = "com_google_protobuf",
-        sha256 = "f7042d540c969b00db92e8e1066a9b8099c8379c33f40f360eb9e1d98a36ca26",
+        sha256 = "5156b22536feaa88cf95503153a6b2cd67cc80f20f1218f154b84a12c288a220",
         urls = ["https://github.com/protocolbuffers/protobuf/archive/v%s.zip" % _PROTOBUF_VERSION],
         strip_prefix = "protobuf-%s" % _PROTOBUF_VERSION,
     )
@@ -132,11 +148,9 @@ def fetch_direct_dependencies():
     # https://sourcegraph.com/github.com/protocolbuffers/protobuf/-/blob/protobuf_deps.bzl?L39-46
     http_archive(
         name = "com_google_absl",
-        sha256 = "fee8ec623d8bbf0ecb9563a8e08ae319d1ca9fdf8c1c84384520a6992f571659",
-        strip_prefix = "abseil-cpp-%s" % _ABSL_COMMIT,
-        urls = ["https://github.com/abseil/abseil-cpp/archive/%s.zip" % _ABSL_COMMIT],
-        patch_args = ["-p1"],
-        patches = ["//third_party:abseil.patch"],
+        sha256 = "95e90be7c3643e658670e0dd3c1b27092349c34b632c6e795686355f67eca89f",
+        strip_prefix = "abseil-cpp-%s" % _ABSL_VERSION,
+        urls = ["https://github.com/abseil/abseil-cpp/archive/%s.zip" % _ABSL_VERSION],
     )
 
     # Abseil also has a flags/argument parsing library, but let's
@@ -168,7 +182,7 @@ def fetch_direct_dependencies():
     # NOTE: fmt also comes through spdlog, we don't have an explicit dep on fmt.
     http_archive(
         name = "spdlog",
-        sha256 = "93a270dd7ec8fa672eb4feaef443dc14a4a9edc7b59aea998ae5da6cbf7b7119",
+        sha256 = "d2fef585c9879dd239dc498e2e8a1e22982b3ed67b2d14e78622b7ef25bdfdfa",
         build_file = "@scip_clang//third_party:spdlog.BUILD",
         strip_prefix = "spdlog-%s" % _SPDLOG_COMMIT,
         urls = ["https://github.com/gabime/spdlog/archive/%s.tar.gz" % _SPDLOG_COMMIT],
