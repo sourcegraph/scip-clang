@@ -1,5 +1,12 @@
 # scip-clang ChangeLog
 
+## v0.4.0 (beta)
+
+- Updated LLVM to version 21.
+  (https://github.com/sourcegraph/scip-clang/pull/513)
+- Dropped macOS x86 binaries; only ARM (Apple Silicon) is supported.
+  (https://github.com/sourcegraph/scip-clang/pull/515)
+
 ## v0.3.3 (beta)
 
 - Fixes missing symbols for template functions using `enable_if`.
