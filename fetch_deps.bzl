@@ -11,7 +11,7 @@ _RAPIDJSON_COMMIT = "a98e99992bd633a2736cc41f96ec85ef0c50e44d"
 _WYHASH_COMMIT = "ea3b25e1aef55d90f707c3a292eeb9162e2615d8"
 _SPDLOG_COMMIT = "486b55554f11c9cccc913e11a87085b2a91f706f"  # v1.16.0
 _PROTOBUF_VERSION = "25.3"
-_SCIP_COMMIT = "aa0e511dcfefbacc3b96dcc2fe2abd9894416b1e"
+_SCIP_COMMIT = "9330cbd49aeb85aee026842770a61ad28e5c4093"
 _UTFCPP_VERSION = "4.0.5"
 # ^ When bumping this version, check if any new fields are introduced
 # in the types for which we implement hashing and comparison in
@@ -136,7 +136,7 @@ def fetch_direct_dependencies():
 
     http_archive(
         name = "scip",
-        sha256 = "b1d2fc009345857aa32cdddec11b75ce1e5c20430f668044231ed309d48b7355",
+        sha256 = "4eb9fa42516a90fbb3536351413bc807b97be0153176d1a8a201fd1899336dd5",
         build_file = "@scip_clang//third_party:scip.BUILD",
         strip_prefix = "scip-%s" % _SCIP_COMMIT,
         urls = ["https://github.com/sourcegraph/scip/archive/%s.zip" % _SCIP_COMMIT],
