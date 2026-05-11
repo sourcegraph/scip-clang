@@ -40,6 +40,7 @@ class SnapshotPrinter {
                  const google::protobuf::RepeatedPtrField<std::string> &);
   void printSymbol(std::string_view);
   void printRelationships(const scip::SymbolInformation &);
+  void printKind(const scip::SymbolInformation &);
 
   static FormatOptions readFormatOptions(AbsolutePathRef);
 

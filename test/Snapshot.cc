@@ -156,6 +156,13 @@ void SnapshotPrinter::printDocs(
   }
 }
 
+void SnapshotPrinter::printKind(const scip::SymbolInformation &symbolInfo) {
+  if (symbolInfo.kind() != scip::SymbolInformation::UnspecifiedKind) {
+    auto kindName = scip::SymbolInformation::Kind_Name(symbolInfo.kind());
+    this->out << this->lineStart << "kind " << kindName << '\n';
+  }
+}
+
 void SnapshotPrinter::printRelationships(
     const scip::SymbolInformation &symbolInfo) {
   std::vector<scip::Relationship> relationships;
@@ -196,6 +203,7 @@ std::string SnapshotPrinter::formatExternalSymbols(
   for (auto &extSym : externalSymbols) {
     out << lineStart << ::formatSymbol(extSym.symbol()) << '\n';
     printer.printDocs("documentation", extSym.documentation());
+    printer.printKind(extSym);
     printer.printRelationships(extSym);
   }
   return buf;
@@ -281,6 +289,7 @@ void SnapshotPrinter::printDocument(const scip::Document &document,
         continue;
       }
       printer.printDocs("documentation", symbolInfo.documentation());
+      printer.printKind(symbolInfo);
       printer.printRelationships(symbolInfo);
     }
   }

@@ -2,6 +2,7 @@
 //^^^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/doc_check.cc`/
 //documentation
 //| File: doc_check.cc
+//kind File
   
   /// Doc comment on forward decl
   class F;
@@ -15,4 +16,5 @@
 //     ^ definition [..] f(84962a9dbd25570f).
 //     documentation
 //     | No documentation available.
+//     kind Function
 //       ^ reference [..] F#

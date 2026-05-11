@@ -1,5 +1,6 @@
   // Minimized from
 //^^^^^^^^^^^^^^^^^ definition [..] `<file>/bad_tagdecl.cc`/
+//kind File
   // https://sourcegraph.com/github.com/llvm/llvm-project@08b9835072c0b2c50cf3be9d6182bc89f64ae51d/-/blob/llvm/include/llvm/Support/YAMLTraits.h?L1283-1285
   // when indexing llvm/lib/Support/AMDGPUMetadata.cpp
   //
@@ -12,34 +13,49 @@
   
   template<bool B, class T = void>
 //              ^ definition local 0
+//              kind Parameter
 //                       ^ definition local 1
+//                       kind TypeParameter
   struct enable_if {};
 //       ^^^^^^^^^ definition [..] enable_if#
+//       kind Struct
    
   template<class T>
 //               ^ definition local 2
+//               kind TypeParameter
   struct enable_if<true, T> { typedef T type; };
 //       ^^^^^^^^^ definition [..] enable_if#
+//       kind Struct
 //                       ^ reference local 2
 //                                    ^ reference local 2
 //                                      ^^^^ definition [..] enable_if#type#
+//                                      kind TypeAlias
   
   template< bool B, class T = void >
 //               ^ definition local 3
+//               kind Parameter
 //                        ^ definition local 4
+//                        kind TypeParameter
   using enable_if_t = typename enable_if<B,T>::type;
 //      ^^^^^^^^^^^ definition [..] enable_if_t#
+//      kind TypeAlias
 //                             ^^^^^^^^^ reference [..] enable_if#
   
   template <typename T, typename Enable = void> struct MyTemplate { };
 //                   ^ definition local 5
+//                   kind TypeParameter
 //                               ^^^^^^ definition local 6
+//                               kind TypeParameter
 //                                                     ^^^^^^^^^^ definition [..] MyTemplate#
+//                                                     kind Struct
   
   template <class T>
 //                ^ definition local 7
+//                kind TypeParameter
   struct ShouldEnable { static bool const value = false; };
 //       ^^^^^^^^^^^^ definition [..] ShouldEnable#
+//       kind Struct
 //                                        ^^^^^ definition [..] ShouldEnable#value.
+//                                        kind StaticDataMember
   
   struct MyTemplate<Undeclared, enable_if_t<ShouldEnable<int8_t>::value>> { };

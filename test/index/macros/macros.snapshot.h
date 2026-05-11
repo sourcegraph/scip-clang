@@ -1,6 +1,8 @@
   #define MY_MACRO 0
 //^ definition [..] `<file>/macros.h`/
+//kind File
 //        ^^^^^^^^ definition [..] `macros.h:1:9`!
+//        kind Macro
   
   #ifdef MY_MACRO
 //       ^^^^^^^^ reference [..] `macros.h:1:9`!
@@ -12,4 +14,5 @@
   
   #define MY_MACRO_ALIAS MY_MACRO
 //        ^^^^^^^^^^^^^^ definition [..] `macros.h:9:9`!
+//        kind Macro
 //                       ^^^^^^^^ reference [..] `macros.h:1:9`!

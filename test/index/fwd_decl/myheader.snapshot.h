@@ -10,6 +10,7 @@
   
   struct C {
 //       ^ definition [..] C#
+//       kind Struct
     /// Look, a method!
     void m();
 //       ^ reference [..] C#m(49f6e7a06ebc5aa8).
@@ -18,3 +19,4 @@
   /// Look, a global!
   extern int Global;
 //           ^^^^^^ definition [..] Global.
+//           kind Variable

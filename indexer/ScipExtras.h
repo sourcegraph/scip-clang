@@ -89,14 +89,17 @@ constexpr char missingDocumentationPlaceholder[28] =
 class SymbolInformationBuilder final {
   std::vector<std::string> documentation;
   absl::flat_hash_set<RelationshipExt> relationships;
+  scip::SymbolInformation::Kind kind;
   scip_clang::Bomb _bomb;
 
 public:
   SymbolNameRef name;
 
   template <typename C1, typename C2>
-  SymbolInformationBuilder(SymbolNameRef name, C1 &&docs, C2 &&rels)
-      : documentation(), relationships(),
+  SymbolInformationBuilder(SymbolNameRef name, C1 &&docs, C2 &&rels,
+                           scip::SymbolInformation::Kind kind =
+                               scip::SymbolInformation::UnspecifiedKind)
+      : documentation(), relationships(), kind(kind),
         _bomb(BOMB_INIT(
             fmt::format("SymbolInformationBuilder for '{}'", name.value))),
         name(name) {

@@ -110,6 +110,7 @@ void FileLocalMacroOccurrence::emitOccurrence(SymbolFormatter &symbolFormatter,
 void FileLocalMacroOccurrence::emitSymbolInformation(
     const std::string &name, scip::SymbolInformation &symbolInfo) const {
   symbolInfo.set_symbol(name);
+  symbolInfo.set_kind(scip::SymbolInformation::Macro);
   // TODO: Set documentation
 }
 
@@ -127,6 +128,7 @@ void NonFileBasedMacro::emitSymbolInformation(
   auto name =
       symbolFormatter.getMacroSymbol(this->defInfo->getDefinitionLoc()).value;
   symbolInfo.set_symbol(name.data(), name.size());
+  symbolInfo.set_kind(scip::SymbolInformation::Macro);
 }
 
 void MacroIndexer::saveOccurrence(clang::FileID occFileId,
@@ -424,6 +426,7 @@ void TuIndexer::saveSyntheticFileDefinition(clang::FileID fileId,
       docComment = fmt::format("File: {}", stableFileId.path.asStringView());
     }
     *symbolInfo.add_documentation() = std::move(docComment);
+    symbolInfo.set_kind(scip::SymbolInformation::File);
     this->saveDefinition(symbol, fileStartLoc, std::move(symbolInfo));
     return;
   }
@@ -454,8 +457,10 @@ void TuIndexer::saveBindingDecl(const clang::BindingDecl &bindingDecl) {
   if (!optSymbol.has_value()) {
     return;
   }
+  scip::SymbolInformation symbolInfo{};
+  symbolInfo.set_kind(scip::SymbolInformation::Variable);
   this->saveDefinition(optSymbol.value(), bindingDecl.getLocation(),
-                       std::nullopt);
+                       std::move(symbolInfo));
 }
 
 void TuIndexer::saveClassTemplateDecl(const clang::ClassTemplateDecl &) {
@@ -473,6 +478,7 @@ void TuIndexer::saveEnumConstantDecl(
 
   scip::SymbolInformation symbolInfo{};
   this->getDocComment(enumConstantDecl).addTo(symbolInfo);
+  symbolInfo.set_kind(scip::SymbolInformation::EnumMember);
 
   ENFORCE(enumConstantDecl.getBeginLoc() == enumConstantDecl.getLocation());
   this->saveDefinition(symbol, enumConstantDecl.getLocation(),
@@ -513,6 +519,7 @@ void TuIndexer::saveFieldDecl(const clang::FieldDecl &fieldDecl) {
   }
   scip::SymbolInformation symbolInfo{};
   this->getDocComment(fieldDecl).addTo(symbolInfo);
+  symbolInfo.set_kind(scip::SymbolInformation::Field);
   this->saveDefinition(optSymbol.value(), fieldDecl.getLocation(), symbolInfo);
 }
 
@@ -534,6 +541,20 @@ void TuIndexer::saveFunctionDecl(const clang::FunctionDecl &functionDecl) {
       || functionDecl.isThisDeclarationADefinition()) {
     scip::SymbolInformation symbolInfo{};
     this->getDocComment(functionDecl).addTo(symbolInfo);
+    if (llvm::isa<clang::CXXConstructorDecl>(&functionDecl)) {
+      symbolInfo.set_kind(scip::SymbolInformation::Constructor);
+    } else if (functionDecl.isPureVirtual()) {
+      symbolInfo.set_kind(scip::SymbolInformation::PureVirtualMethod);
+    } else if (auto *cxxMethodDecl =
+                   llvm::dyn_cast<clang::CXXMethodDecl>(&functionDecl)) {
+      if (cxxMethodDecl->isStatic()) {
+        symbolInfo.set_kind(scip::SymbolInformation::StaticMethod);
+      } else {
+        symbolInfo.set_kind(scip::SymbolInformation::Method);
+      }
+    } else {
+      symbolInfo.set_kind(scip::SymbolInformation::Function);
+    }
     if (auto *cxxMethodDecl =
             llvm::dyn_cast<clang::CXXMethodDecl>(&functionDecl)) {
       for (auto &overridenMethodDecl : cxxMethodDecl->overridden_methods()) {
@@ -611,6 +632,7 @@ void TuIndexer::saveNamespaceDecl(const clang::NamespaceDecl &namespaceDecl) {
           : fmt::format("{}namespace {}",
                         namespaceDecl.isInlineNamespace() ? "inline " : "",
                         namespaceDecl.getName());
+  symbolInfo.set_kind(scip::SymbolInformation::Namespace);
 
   this->saveDefinition(symbol, startLoc, std::move(symbolInfo));
 }
@@ -702,6 +724,23 @@ void TuIndexer::saveTagDecl(const clang::TagDecl &tagDecl) {
 
   scip::SymbolInformation symbolInfo{};
   this->getDocComment(tagDecl).addTo(symbolInfo);
+  switch (tagDecl.getTagKind()) {
+  case clang::TagTypeKind::Struct:
+    symbolInfo.set_kind(scip::SymbolInformation::Struct);
+    break;
+  case clang::TagTypeKind::Class:
+    symbolInfo.set_kind(scip::SymbolInformation::Class);
+    break;
+  case clang::TagTypeKind::Union:
+    symbolInfo.set_kind(scip::SymbolInformation::Union);
+    break;
+  case clang::TagTypeKind::Enum:
+    symbolInfo.set_kind(scip::SymbolInformation::Enum);
+    break;
+  case clang::TagTypeKind::Interface:
+    symbolInfo.set_kind(scip::SymbolInformation::Interface);
+    break;
+  }
 
   llvm::SmallPtrSet<const clang::CXXRecordDecl *, 1> seen{};
   llvm::SmallVector<const clang::CXXRecordDecl *, 1> stack{};
@@ -801,14 +840,33 @@ void TuIndexer::saveTagTypeLoc(const clang::TagTypeLoc &tagTypeLoc) {
   }
 }
 
-#define SAVE_TEMPLATE_PARM(name_)                                          \
-  void TuIndexer::save##name_##Decl(const clang::name_##Decl &decl) {      \
-    if (auto optSymbol = this->symbolFormatter.get##name_##Symbol(decl)) { \
-      this->saveDefinition(*optSymbol, decl.getLocation(), std::nullopt);  \
-    }                                                                      \
+void TuIndexer::saveNonTypeTemplateParmDecl(
+    const clang::NonTypeTemplateParmDecl &decl) {
+  if (auto optSymbol = this->symbolFormatter.getNonTypeTemplateParmSymbol(decl)) {
+    scip::SymbolInformation symbolInfo{};
+    symbolInfo.set_kind(scip::SymbolInformation::Parameter);
+    this->saveDefinition(*optSymbol, decl.getLocation(), std::move(symbolInfo));
   }
-FOR_EACH_TEMPLATE_PARM_TO_BE_INDEXED(SAVE_TEMPLATE_PARM)
-#undef SAVE_TEMPLATE_PARM
+}
+
+void TuIndexer::saveTemplateTemplateParmDecl(
+    const clang::TemplateTemplateParmDecl &decl) {
+  if (auto optSymbol =
+          this->symbolFormatter.getTemplateTemplateParmSymbol(decl)) {
+    scip::SymbolInformation symbolInfo{};
+    symbolInfo.set_kind(scip::SymbolInformation::TypeParameter);
+    this->saveDefinition(*optSymbol, decl.getLocation(), std::move(symbolInfo));
+  }
+}
+
+void TuIndexer::saveTemplateTypeParmDecl(
+    const clang::TemplateTypeParmDecl &decl) {
+  if (auto optSymbol = this->symbolFormatter.getTemplateTypeParmSymbol(decl)) {
+    scip::SymbolInformation symbolInfo{};
+    symbolInfo.set_kind(scip::SymbolInformation::TypeParameter);
+    this->saveDefinition(*optSymbol, decl.getLocation(), std::move(symbolInfo));
+  }
+}
 
 void TuIndexer::saveTemplateTypeParmTypeLoc(
     const clang::TemplateTypeParmTypeLoc &templateTypeParmTypeLoc) {
@@ -891,6 +949,7 @@ void TuIndexer::saveTypedefNameDecl(
   }
   scip::SymbolInformation symbolInfo{};
   this->getDocComment(typedefNameDecl).addTo(symbolInfo);
+  symbolInfo.set_kind(scip::SymbolInformation::TypeAlias);
   this->saveDefinition(*optSymbol, typedefNameDecl.getLocation(),
                        std::move(symbolInfo));
 }
@@ -938,13 +997,27 @@ void TuIndexer::saveVarDecl(const clang::VarDecl &varDecl) {
   }
   if (varDecl.isLocalVarDeclOrParm()) {
     GET_SYMBOL;
-    this->saveDefinition(*optSymbol, loc, std::nullopt);
+    scip::SymbolInformation symbolInfo{};
+    if (llvm::isa<clang::ParmVarDecl>(&varDecl)) {
+      symbolInfo.set_kind(scip::SymbolInformation::Parameter);
+    } else {
+      symbolInfo.set_kind(scip::SymbolInformation::Variable);
+    }
+    this->saveDefinition(*optSymbol, loc, std::move(symbolInfo));
   }
   if (varDecl.isStaticDataMember() || varDecl.isFileVarDecl()) {
     GET_SYMBOL;
     // Non-static data members are handled by saveFieldDecl
     scip::SymbolInformation symbolInfo{};
     this->getDocComment(varDecl).addTo(symbolInfo);
+    if (varDecl.isStaticDataMember()) {
+      symbolInfo.set_kind(scip::SymbolInformation::StaticDataMember);
+    } else if (varDecl.isStaticLocal()
+               || varDecl.getStorageClass() == clang::SC_Static) {
+      symbolInfo.set_kind(scip::SymbolInformation::StaticVariable);
+    } else {
+      symbolInfo.set_kind(scip::SymbolInformation::Variable);
+    }
     this->saveDefinition(*optSymbol, loc, symbolInfo);
   }
 #undef GET_SYMBOL
@@ -1186,6 +1259,9 @@ void TuIndexer::saveDefinition(
   auto optStableFileId = this->fileMetadataMap.getStableFileId(fileId);
   if (!optStableFileId.has_value()) {
     return;
+  }
+  if (symbol.value.starts_with("local ")) {
+    optSymbolInfo = std::nullopt;
   }
   if (optSymbolInfo.has_value() && optSymbolInfo->documentation_size() == 0) {
     *optSymbolInfo->add_documentation() = scip::missingDocumentationPlaceholder;

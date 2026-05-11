@@ -376,7 +376,7 @@ private:
   ///
   /// Setting the symbol name on \param symbolInfo is not necessary.
   ///
-  /// For local variables, \param symbolInfo should be \c std::nullopt.
+  /// Symbol information is ignored for local symbols.
   void saveDefinition(SymbolNameRef symbol, clang::SourceLocation loc,
                       std::optional<scip::SymbolInformation> &&symbolInfo,
                       int32_t extraRoles = 0);

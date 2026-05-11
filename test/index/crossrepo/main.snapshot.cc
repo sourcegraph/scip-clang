@@ -1,9 +1,11 @@
   #include "external/dep1/dep1.h"
 //^ definition main v0$ `<file>/main.cc`/
+//kind File
 //         ^^^^^^^^^^^^^^^^^^^^^^ reference dep1 v1$ `<file>/dep1.h`/
   
   int main(int, char **) {
 //    ^^^^ definition main v0$ main(afcd3168fc1188a4).
+//    kind Function
     dep1::f();
 //  ^^^^ reference dep1 v1$ dep1/
 //        ^ reference dep1 v1$ dep1/f(49f6e7a06ebc5aa8).
@@ -11,6 +13,7 @@
 //  ^^^^ reference dep1 v1$ dep1/
 //        ^ reference [..] dep1/C#
 //           ^ definition local 0
+//           kind Variable
 //               ^^^^ reference dep1 v1$ dep1/
 //                     ^^^^ reference [..] dep1/newC(b06852b0fa3d4847).
     dep1::deleteC(c);
@@ -21,6 +24,7 @@
 //  ^^^^ reference dep1 v1$ dep1/
 //        ^ reference dep1 v1$ dep1/S#
 //               ^ definition local 1
+//               kind Variable
     return s.identity(0);
 //         ^ reference local 1
 //           ^^^^^^^^ reference dep1 v1$ dep1/S#identity(d08e07a8525eb4c).

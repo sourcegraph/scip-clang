@@ -1,41 +1,55 @@
   // extra-args: -std=c++2b
 //^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] `<file>/operators.cc`/
+//kind File
   
   // Overloaded operators
   
   struct MyStream {};
 //       ^^^^^^^^ definition [..] MyStream#
+//       kind Struct
   
   MyStream &operator<<(MyStream &s, int) { return s; }
 //^^^^^^^^ reference [..] MyStream#
 //          ^^^^^^^^ definition [..] `operator<<`(97f6638197cf8bc4).
+//          kind Function
 //                     ^^^^^^^^ reference [..] MyStream#
 //                               ^ definition local 0
+//                               kind Parameter
 //                                                ^ reference local 0
   MyStream &operator<<(MyStream &s, const char *) { return s; }
 //^^^^^^^^ reference [..] MyStream#
 //          ^^^^^^^^ definition [..] `operator<<`(5651711ec4adbebf).
+//          kind Function
 //                     ^^^^^^^^ reference [..] MyStream#
 //                               ^ definition local 1
+//                               kind Parameter
 //                                                         ^ reference local 1
   
   struct Int { int val; };
 //       ^^^ definition [..] Int#
+//       kind Struct
 //                 ^^^ definition [..] Int#val.
+//                 kind Field
   struct IntPair { Int x; Int y; };
 //       ^^^^^^^ definition [..] IntPair#
+//       kind Struct
 //                 ^^^ reference [..] Int#
 //                     ^ definition [..] IntPair#x.
+//                     kind Field
 //                        ^^^ reference [..] Int#
 //                            ^ definition [..] IntPair#y.
+//                            kind Field
   
   IntPair operator,(Int x, Int y) {
 //^^^^^^^ reference [..] IntPair#
 //        ^^^^^^^^ definition [..] `operator,`(56a2b3932346e301).
+//        kind Function
 //                  ^^^ reference [..] Int#
 //                      ^ definition local 2
+//                      kind Parameter
 //                         ^^^ reference [..] Int#
 //                             ^ definition local 3
+//                             kind Parameter
     return IntPair{x, y};
 //         ^^^^^^^ reference [..] IntPair#
 //                 ^ reference local 2
@@ -45,8 +59,10 @@
   Int operator++(Int &i, int) {
 //^^^ reference [..] Int#
 //    ^^^^^^^^ definition [..] operator++(be31e3af2b2ba0e).
+//    kind Function
 //               ^^^ reference [..] Int#
 //                    ^ definition local 4
+//                    kind Parameter
     return Int{i.val+1};
 //         ^^^ reference [..] Int#
 //             ^ reference local 4
@@ -55,18 +71,25 @@
   
   struct FnLike {
 //       ^^^^^^ definition [..] FnLike#
+//       kind Struct
     int operator()() { return 0; }
 //      ^^^^^^^^ definition [..] FnLike#`operator()`(b126dc7c1de90089).
+//      kind Method
   };
   
   struct Table {
 //       ^^^^^ definition [..] Table#
+//       kind Struct
     int value;
 //      ^^^^^ definition [..] Table#value.
+//      kind Field
     int &operator[](int i, int j) { // since C++23
 //       ^^^^^^^^ definition [..] Table#`operator[]`(77cf9b7ed2f5124c).
+//       kind Method
 //                      ^ definition local 5
+//                      kind Parameter
 //                             ^ definition local 6
+//                             kind Parameter
       return this->value;
 //                 ^^^^^ reference [..] Table#value.
     }
@@ -74,20 +97,25 @@
   
   struct TablePtr {
 //       ^^^^^^^^ definition [..] TablePtr#
+//       kind Struct
     Table *t;
 //  ^^^^^ reference [..] Table#
 //         ^ definition [..] TablePtr#t.
+//         kind Field
     Table *operator->() { return t; }
 //  ^^^^^ reference [..] Table#
 //         ^^^^^^^^ definition [..] TablePtr#`operator->`(ed921902444779f1).
+//         kind Method
 //                               ^ reference [..] TablePtr#t.
   };
   
   void test_overloaded_operators() {
 //     ^^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] test_overloaded_operators(49f6e7a06ebc5aa8).
+//     kind Function
     MyStream s{};
 //  ^^^^^^^^ reference [..] MyStream#
 //           ^ definition local 7
+//           kind Variable
     s << 0 << "nothing to see here";
 //  ^ reference local 7
 //    ^^ reference [..] `operator<<`(97f6638197cf8bc4).
@@ -95,12 +123,15 @@
     Int x{0};
 //  ^^^ reference [..] Int#
 //      ^ definition local 8
+//      kind Variable
     Int y{0};
 //  ^^^ reference [..] Int#
 //      ^ definition local 9
+//      kind Variable
     IntPair p = (x, y);
 //  ^^^^^^^ reference [..] IntPair#
 //          ^ definition local 10
+//          kind Variable
 //               ^ reference local 8
 //                ^ reference [..] `operator,`(56a2b3932346e301).
 //                  ^ reference local 9
@@ -126,32 +157,41 @@
   // Based on https://en.cppreference.com/w/cpp/language/cast_operator
   struct IntConvertible {
 //       ^^^^^^^^^^^^^^ definition [..] IntConvertible#
+//       kind Struct
     operator int() const { return 0; }
 //  ^^^^^^^^ definition [..] IntConvertible#`operator int`(455f465bc33b4cdf).
+//  kind Method
     explicit operator const char*() const { return "aaa"; }
 //           ^^^^^^^^ definition [..] IntConvertible#`operator const char *`(a9f41ea0e82d88cf).
+//           kind Method
     using arr_t = int[3];
 //        ^^^^^ definition [..] IntConvertible#arr_t#
+//        kind TypeAlias
     operator arr_t*() const { return nullptr; }
 //  ^^^^^^^^ definition [..] IntConvertible#`operator int (*)[3]`(a00bb5473f10e296).
+//  kind Method
 //           ^^^^^ reference [..] IntConvertible#arr_t#
 //           ^^^^^ reference [..] IntConvertible#arr_t#
   };
   
   void test_implicit_conversion() {
 //     ^^^^^^^^^^^^^^^^^^^^^^^^ definition [..] test_implicit_conversion(49f6e7a06ebc5aa8).
+//     kind Function
     IntConvertible x;
 //  ^^^^^^^^^^^^^^ reference [..] IntConvertible#
 //                 ^ definition local 11
+//                 kind Variable
     (void)static_cast<int>(x);
 //                         ^ reference local 11
     int m = x;
 //      ^ definition local 12
+//      kind Variable
 //          ^ reference local 11
     (void)static_cast<const char *>(x);
 //                                  ^ reference local 11
     int (*pa)[3] = x;
 //        ^^ definition local 13
+//        kind Variable
 //                 ^ reference local 11
   }
   
@@ -162,29 +202,38 @@
   #else
   using size_t = unsigned long;
 //      ^^^^^^ definition [..] size_t#
+//      kind TypeAlias
   #endif
   
   // Override global stuff
   void *operator new(size_t) { return nullptr; }
 //      ^^^^^^^^ definition [..] `operator new`(bfcfa4d6b7f7ef64).
+//      kind Function
 //                   ^^^^^^ reference [..] size_t#
   void *operator new[](size_t) { return nullptr; }
 //      ^^^^^^^^ definition [..] `operator new[]`(bfcfa4d6b7f7ef64).
+//      kind Function
 //                     ^^^^^^ reference [..] size_t#
   void operator delete(void *) noexcept {}
 //     ^^^^^^^^ definition [..] `operator delete`(bd21765a0afc8e3c).
+//     kind Function
   void operator delete[](void *) noexcept {}
 //     ^^^^^^^^ definition [..] `operator delete[]`(bd21765a0afc8e3c).
+//     kind Function
   
   struct Arena {};
 //       ^^^^^ definition [..] Arena#
+//       kind Struct
   
   struct InArena {
 //       ^^^^^^^ definition [..] InArena#
+//       kind Struct
     static void *operator new(size_t count, Arena &) {
 //               ^^^^^^^^ definition [..] InArena#`operator new`(747707f21471d499).
+//               kind StaticMethod
 //                            ^^^^^^ reference [..] size_t#
 //                                   ^^^^^ definition local 14
+//                                   kind Parameter
 //                                          ^^^^^ reference [..] Arena#
       return ::operator new(count);
 //             ^^^^^^^^ reference [..] `operator new`(bfcfa4d6b7f7ef64).
@@ -192,8 +241,10 @@
     }
     static void *operator new[](size_t count, Arena &) {
 //               ^^^^^^^^ definition [..] InArena#`operator new[]`(747707f21471d499).
+//               kind StaticMethod
 //                              ^^^^^^ reference [..] size_t#
 //                                     ^^^^^ definition local 15
+//                                     kind Parameter
 //                                            ^^^^^ reference [..] Arena#
       return ::operator new[](count);
 //             ^^^^^^^^ reference [..] `operator new[]`(bfcfa4d6b7f7ef64).
@@ -201,14 +252,18 @@
     }
     static void operator delete(void *p) {
 //              ^^^^^^^^ definition [..] InArena#`operator delete`(bd21765a0afc8e3c).
+//              kind StaticMethod
 //                                    ^ definition local 16
+//                                    kind Parameter
       return ::operator delete(p);
 //             ^^^^^^^^ reference [..] `operator delete`(bd21765a0afc8e3c).
 //                             ^ reference local 16
     }
     static void operator delete[](void *p) {
 //              ^^^^^^^^ definition [..] InArena#`operator delete[]`(bd21765a0afc8e3c).
+//              kind StaticMethod
 //                                      ^ definition local 17
+//                                      kind Parameter
       return ::operator delete[](p);
 //             ^^^^^^^^ reference [..] `operator delete[]`(bd21765a0afc8e3c).
 //                               ^ reference local 17
@@ -217,7 +272,9 @@
     // if the corresponding operator new has an exception.
     static void operator delete(void *p, Arena &) {
 //              ^^^^^^^^ definition [..] InArena#`operator delete`(71e17451144c5c5c).
+//              kind StaticMethod
 //                                    ^ definition local 18
+//                                    kind Parameter
 //                                       ^^^^^ reference [..] Arena#
       return ::operator delete(p);
 //             ^^^^^^^^ reference [..] `operator delete`(bd21765a0afc8e3c).
@@ -225,7 +282,9 @@
     }
     static void operator delete[](void *p, Arena &) {
 //              ^^^^^^^^ definition [..] InArena#`operator delete[]`(71e17451144c5c5c).
+//              kind StaticMethod
 //                                      ^ definition local 19
+//                                      kind Parameter
 //                                         ^^^^^ reference [..] Arena#
       return ::operator delete[](p);
 //             ^^^^^^^^ reference [..] `operator delete[]`(bd21765a0afc8e3c).
@@ -235,26 +294,32 @@
   
   void test_new_delete() {
 //     ^^^^^^^^^^^^^^^ definition [..] test_new_delete(49f6e7a06ebc5aa8).
+//     kind Function
     int *x = new int;
 //       ^ definition local 20
+//       kind Variable
     delete x;
 //         ^ reference local 20
     int *xs = new int[4];
 //       ^^ definition local 21
+//       kind Variable
     delete[] xs;
 //           ^^ reference local 21
   
     Arena a{};
 //  ^^^^^ reference [..] Arena#
 //        ^ definition local 22
+//        kind Variable
     auto *p1 = new (a) InArena;
 //        ^^ definition local 23
+//        kind Variable
 //                  ^ reference local 22
 //                     ^^^^^^^ reference [..] InArena#
     delete p1;
 //         ^^ reference local 23
     auto *p2 = new (a) InArena[3];
 //        ^^ definition local 24
+//        kind Variable
 //                  ^ reference local 22
 //                     ^^^^^^^ reference [..] InArena#
     delete[] p2;
@@ -265,25 +330,33 @@
   
   void operator ""_ull_lit(unsigned long long) { return; }
 //     ^^^^^^^^ definition [..] `operator""_ull_lit`(891dc3055356b409).
+//     kind Function
   void operator ""_raw_lit(const char *) { return; }
 //     ^^^^^^^^ definition [..] `operator""_raw_lit`(85c52e162fed56f9).
+//     kind Function
   
   template <char...>
   void operator""_templated_lit() {}
 //     ^^^^^^^^ definition [..] `operator""_templated_lit`(49f6e7a06ebc5aa8).
+//     kind Function
   
   struct A { constexpr A(const char *) {} };
 //       ^ definition [..] A#
+//       kind Struct
 //                     ^ definition [..] A#A(85c52e162fed56f9).
+//                     kind Constructor
   
   template <A a> // since C++20
 //          ^ reference [..] A#
 //            ^ definition local 25
+//            kind Parameter
   void operator ""_a_op() { return; }
 //     ^^^^^^^^ definition [..] `operator""_a_op`(49f6e7a06ebc5aa8).
+//     kind Function
   
   void test_literals() {
 //     ^^^^^^^^^^^^^ definition [..] test_literals(49f6e7a06ebc5aa8).
+//     kind Function
     123_ull_lit;
 //     ^^^^^^^^ reference [..] `operator""_ull_lit`(891dc3055356b409).
     123_raw_lit;

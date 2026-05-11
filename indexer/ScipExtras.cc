@@ -106,6 +106,8 @@ void SymbolInformationBuilder::finish(bool deterministic,
     *out.add_documentation() = std::move(doc);
   }
 
+  out.set_kind(this->kind);
+
   out.mutable_relationships()->Reserve(this->relationships.size());
   scip_clang::extractTransform(
       std::move(this->relationships), deterministic,
@@ -187,7 +189,8 @@ void DocumentBuilder::merge(scip::Document &&doc) {
       // the initializer.
       SymbolInformationBuilder builder{
           name, std::move(*symbolInfo.mutable_documentation()),
-          std::move(*symbolInfo.mutable_relationships())};
+          std::move(*symbolInfo.mutable_relationships()),
+          symbolInfo.kind()};
       this->symbolInfos.emplace(name, std::move(builder));
       continue;
     }
@@ -284,7 +287,7 @@ void IndexBuilder::addExternalSymbolUnchecked(
     rels.insert({std::move(rel)});
   }
   auto builder = std::make_unique<SymbolInformationBuilder>(
-      name, std::move(docs), std::move(rels));
+      name, std::move(docs), std::move(rels), extSym.kind());
   this->externalSymbols.emplace(name, std::move(builder));
 }
 
