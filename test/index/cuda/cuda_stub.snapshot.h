@@ -67,6 +67,7 @@
 //                          ^^^^^^^^^^^ definition [..] cudaError_t#
   
   extern "C" int cudaConfigureCall(dim3 gridSize, dim3 blockSize,
+//               ^^^^^^^^^^^^^^^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //                                 ^^^^ reference [..] dim3#
 //                                      ^^^^^^^^ definition local 3
 //                                                ^^^^ reference [..] dim3#
@@ -78,6 +79,7 @@
 //                                 ^^^^^^^^^^^^ reference [..] cudaStream_t#
 //                                              ^^^^^^ definition local 6
   extern "C" int __cudaPushCallConfiguration(dim3 gridSize, dim3 blockSize,
+//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^ reference [..] __cudaPushCallConfiguration(c850c79d62248396).
 //                                           ^^^^ reference [..] dim3#
 //                                                ^^^^^^^^ definition local 7
 //                                                          ^^^^ reference [..] dim3#
@@ -90,6 +92,7 @@
 //                                                        ^^^^^^ definition local 10
   extern "C" cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim,
 //           ^^^^^^^^^^^ reference [..] cudaError_t#
+//                       ^^^^^^^^^^^^^^^^ reference [..] cudaLaunchKernel(94fa9035c8371171).
 //                                                    ^^^^ definition local 11
 //                                                          ^^^^ reference [..] dim3#
 //                                                               ^^^^^^^ definition local 12

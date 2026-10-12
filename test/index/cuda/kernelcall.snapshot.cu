@@ -17,6 +17,8 @@
 //                                ^^^ definition local 2
     g1<<<arg, arg>>>(1);
 //  ^^ reference [..] g1(d4f767463ce0a6b3).
+//    ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//    ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //       ^^^ reference local 2
 //            ^^^ reference local 2
   }
@@ -32,6 +34,8 @@
 //    ^^^^ definition [..] main(b126dc7c1de90089).
     g1<<<1, 1>>>(42);
 //  ^^ reference [..] g1(d4f767463ce0a6b3).
+//    ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//    ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //       ^ reference [..] dim3#dim3(6df00707c193238d).
 //          ^ reference [..] dim3#dim3(6df00707c193238d).
     g1(42); // expected-error {{call to global function 'g1' not configured}}
@@ -98,17 +102,23 @@
 //                                  ^^^ definition local 10
       a0<c>::Call<<<0, 0>>>(arg);
 //    ^^ reference [..] a0#
+//               ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//               ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //                  ^ reference [..] dim3#dim3(6df00707c193238d).
 //                     ^ reference [..] dim3#dim3(6df00707c193238d).
 //                          ^^^ reference local 10
       a1::Call<<<0,0>>>(arg);
 //    ^^ reference [..] a1#
 //        ^^^^ reference [..] a1#Call(9b289cee16747614).
+//            ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//            ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //               ^ reference [..] dim3#dim3(6df00707c193238d).
 //                 ^ reference [..] dim3#dim3(6df00707c193238d).
 //                      ^^^ reference local 10
       a2<c>::Call<<<0,0>>>(arg);
 //    ^^ reference [..] a2#
+//               ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//               ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //                  ^ reference [..] dim3#dim3(6df00707c193238d).
 //                    ^ reference [..] dim3#dim3(6df00707c193238d).
 //                         ^^^ reference local 10
@@ -116,6 +126,8 @@
 //    ^^ reference [..] a3#
 //        ^^^^ reference [..] a3#Call(5d22bdacc48458e8).
 //        ^^^^ reference [..] a3#Call(d4f767463ce0a6b3).
+//            ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//            ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //               ^ reference [..] dim3#dim3(6df00707c193238d).
 //                  ^ reference [..] dim3#dim3(6df00707c193238d).
 //                       ^^^ reference local 10
@@ -126,24 +138,32 @@
       a0<void*>::Call<<<0, 0>>>(arg);
 //    ^^ reference [..] a0#
 //               ^^^^ reference [..] a0#Call(9b289cee16747614).
+//                   ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//                   ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //                      ^ reference [..] dim3#dim3(6df00707c193238d).
 //                         ^ reference [..] dim3#dim3(6df00707c193238d).
 //                              ^^^ reference local 11
       a1::Call<<<0,0>>>(arg);
 //    ^^ reference [..] a1#
 //        ^^^^ reference [..] a1#Call(9b289cee16747614).
+//            ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//            ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //               ^ reference [..] dim3#dim3(6df00707c193238d).
 //                 ^ reference [..] dim3#dim3(6df00707c193238d).
 //                      ^^^ reference local 11
       a2<void*>::Call<<<0,0>>>(arg);
 //    ^^ reference [..] a2#
 //               ^^^^ reference [..] a2#Call(9b289cee16747614).
+//                   ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//                   ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //                      ^ reference [..] dim3#dim3(6df00707c193238d).
 //                        ^ reference [..] dim3#dim3(6df00707c193238d).
 //                             ^^^ reference local 11
       a3::Call<<<0, 0>>>(arg);
 //    ^^ reference [..] a3#
 //        ^^^^ reference [..] a3#Call(5d22bdacc48458e8).
+//            ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//            ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //               ^ reference [..] dim3#dim3(6df00707c193238d).
 //                  ^ reference [..] dim3#dim3(6df00707c193238d).
 //                       ^^^ reference local 11
@@ -182,6 +202,8 @@
 //        ^^^^^^^^ reference [..] x/y/mykernel(36fc24b3817d5bcc).
 //                 ^^^^^ reference local 17
 //                        ^^^^^^ reference local 18
+//                               ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
+//                               ^^^ reference [..] cudaConfigureCall(c850c79d62248396).
 //                                  ^ reference [..] dim3#dim3(6df00707c193238d).
 //                                     ^ reference [..] dim3#dim3(6df00707c193238d).
   }
