@@ -1,5 +1,12 @@
 # scip-clang ChangeLog
 
+## v0.4.1 (beta)
+
+- The Docker image is now based on Ubuntu 24.04 (pinned by digest) and ships
+  `ca-certificates` 20260816ubuntu0.24.04.1 or newer, so curl, git, CMake and
+  Python in the image no longer trust the compromised eMudhra intermediate CA
+  chains. Docker tag pushes now also publish `M.N.P` and `M.N` tags.
+
 ## v0.4.0 (beta)
 
 - Updated LLVM to version 21.
