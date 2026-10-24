@@ -35,7 +35,7 @@ jobs:
         run: bazel build //indexer:scip-clang --config release
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           path: bazel-bin/indexer/scip-clang
           name: ${{ matrix.binary-name }}
@@ -78,7 +78,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Download pre-built binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.binary-name }}
           path: /tmp/binary
@@ -102,7 +102,7 @@ jobs:
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-${{ env.PLATFORM_PAIR }}
           path: ${{ runner.temp }}/digests/*
@@ -114,7 +114,7 @@ jobs:
     needs: [build-docker]
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
           pattern: digests-*
