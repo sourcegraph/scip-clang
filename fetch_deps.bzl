@@ -86,10 +86,10 @@ def fetch_direct_dependencies():
     http_archive(
         name = "zlib",
         build_file = "@scip_clang//third_party:zlib.BUILD",
-        sha256 = "17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c",
-        strip_prefix = "zlib-1.3.1",
+        sha256 = "b99a0b86c0ba9360ec7e78c4f1e43b1cbdf1e6936c8fa0f6835c0cd694a495a1",
+        strip_prefix = "zlib-1.3.2",
         urls = [
-            "https://github.com/madler/zlib/archive/refs/tags/v1.3.1.tar.gz",
+            "https://github.com/madler/zlib/archive/refs/tags/v1.3.2.tar.gz",
         ],
     )
 
