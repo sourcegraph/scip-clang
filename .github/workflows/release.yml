@@ -37,7 +37,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: "📝 Check version"
         run: |
           set -euo pipefail
@@ -59,7 +59,7 @@ jobs:
           fi
       - id: auth
         name: "🔓 Authenticate to Google Cloud"
-        uses: "google-github-actions/auth@v2"
+        uses: "google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed" # v2.1.13
         with:
           workload_identity_provider: ${{ secrets.GCP_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
@@ -110,7 +110,7 @@ jobs:
           OS: ${{ env.OS }}
           CONFIG: ${{ matrix.config }}
       - name: ${{ format('📦 Store binary ({0})', matrix.config) }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.platform }}-${{ matrix.config }}-release-artifacts
           path: ${{ env.outBinaryPath }}
@@ -123,7 +123,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: "📝 Create Release"
         run: |
           REV="$INPUT_REVISION"
@@ -140,7 +140,7 @@ jobs:
       # Download everything to avoid spelling out the different
       # platforms here.
       - name: "📥 Download all artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
       - name: "📤 Upload artifacts for release"
         run: gh release upload "${GITHUB_REF/refs\/tags\//}" ./*-release-artifacts/*
         env:
