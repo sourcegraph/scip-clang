@@ -325,6 +325,8 @@ It can also be run on demand from the
    (without `NEW_VERSION`, it bumps the patch version) and edit the CHANGELOG entry.
 3. Once the PR is merged to main, the [tag workflow](/.github/workflows/tag-release.yml)
    pushes the `vM.N.P` tag and publishes the release binaries and Docker images.
+   GitHub adds the merged PRs since the previous release to the release notes,
+   below the download instructions. The scheduled CHANGELOG entry links to those notes.
 
 The release workflow can also be triggered against any branch
 in a "dry run" mode using the

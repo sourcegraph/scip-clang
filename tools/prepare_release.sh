@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-# Bumps the version in Version.h and adds a CHANGELOG entry listing
-# the commits since the latest release tag.
+# Bumps the version in Version.h and adds an editable Docker rebuild entry.
 #
 # Inputs:
 # NEW_VERSION (optional) should be a string M.N.P. Defaults to the
@@ -26,31 +25,17 @@ if [ "$(printf '%s\n%s\n' "${LAST_TAG#v}" "$NEW_VERSION" | sort -V | tail -n 1)"
   exit 1
 fi
 
-# Reuse the qualifier of the latest entry, such as "(beta)".
-QUALIFIER="$(grep -m 1 '^## v' CHANGELOG.md | cut -d ' ' -f 3-)"
-
-# Squash-merged commit subjects end with "(#123)"; link the PR
-# the same way existing CHANGELOG entries do.
-CHANGES="$(git log --format='%s' "$LAST_TAG"..HEAD | awk '{
-  if (match($0, / \(#[0-9]+\)$/)) {
-    print "- " substr($0, 1, RSTART - 1)
-    print "  (https://github.com/sourcegraph/scip-clang/pull/" substr($0, RSTART + 3, RLENGTH - 4) ")"
-  } else {
-    print "- " $0
+awk -v version="v$NEW_VERSION" '
+  !inserted && /^## v/ {
+    heading = $0
+    sub(/^## v[^ ]+/, "## " version, heading)
+    print heading "\n\n- Rebuild the Docker image with the latest Ubuntu package updates.\n"
+    print "[Full release notes](https://github.com/sourcegraph/scip-clang/releases/tag/" version ")\n"
+    inserted = 1
   }
-}')"
-if [ -z "$CHANGES" ]; then
-  CHANGES="- No code changes. The Docker image is rebuilt with the latest Ubuntu package updates."
-fi
-
-ENTRY_FILE="$(mktemp)"
-printf '## v%s %s\n\n%s\n\n' "$NEW_VERSION" "$QUALIFIER" "$CHANGES" >"$ENTRY_FILE"
-awk -v entry_file="$ENTRY_FILE" '
-  !inserted && /^## v/ { while ((getline line < entry_file) > 0) print line; inserted = 1 }
   { print }
 ' CHANGELOG.md >CHANGELOG.md.new
 mv CHANGELOG.md.new CHANGELOG.md
-rm "$ENTRY_FILE"
 
 sed -E "s|^#define VERSION \".*\"|#define VERSION \"$NEW_VERSION\"|" indexer/Version.h >indexer/Version.h.new
 mv indexer/Version.h.new indexer/Version.h

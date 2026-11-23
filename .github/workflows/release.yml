@@ -132,7 +132,7 @@ jobs:
           fi
           TEMPLATE="$(< .github/workflows/release-template.md)"
           echo "${TEMPLATE//TAG_PLACEHOLDER/$REV}" > notes
-          gh release create "$REV" --title "scip-clang $REV" --notes-file notes
+          gh release create "$REV" --title "scip-clang $REV" --notes-file notes --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TRIGGER: ${{ github.event_name }}
