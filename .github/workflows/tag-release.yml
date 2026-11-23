@@ -11,30 +11,55 @@ permissions:
   actions: write
 
 jobs:
-  tag-release:
+  tag:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
-      - name: "🏷️ Tag and publish release"
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: "🏷️ Tag release"
+        id: tag
         run: |
           set -euo pipefail
           VERSION="$(sed -nE 's/^#define VERSION "(.*)"/\1/p' indexer/Version.h)"
           TAG="v$VERSION"
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "$TAG already exists"
-            exit 0
+            # A rerun of this workflow finds its own tag; publish again.
+            # Other Version.h changes, such as LLVM bumps, find an older tag.
+            if [ "$(git rev-parse "$TAG^{commit}")" != "$GITHUB_SHA" ]; then
+              echo "$TAG already exists on an earlier commit; nothing to release"
+              exit 0
+            fi
+          else
+            NEW_VERSION="$VERSION" ./tools/version_check.sh
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "$TAG"
           fi
-          NEW_VERSION="$VERSION" ./tools/version_check.sh
+          echo "tag=$TAG" >>"$GITHUB_OUTPUT"
 
-          git tag "$TAG" "$GITHUB_SHA"
-          git push origin "$TAG"
-
-          # Tags pushed with GITHUB_TOKEN don't trigger workflows,
-          # so start the release workflows for the tag explicitly.
-          gh workflow run release.yml --ref "$TAG" -f revision="$TAG" -f create_release=true
-          gh workflow run release-docker.yml --ref "$TAG"
+  # Tags pushed with GITHUB_TOKEN don't trigger workflows,
+  # so start the release workflows for the tag explicitly.
+  # Separate jobs let a failed dispatch be rerun on its own.
+  dispatch:
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        workflow: ["release.yml", "release-docker.yml"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: ${{ format('🚀 Start {0}', matrix.workflow) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.tag.outputs.tag }}
+          WORKFLOW: ${{ matrix.workflow }}
+        run: |
+          if [ "$WORKFLOW" = "release.yml" ]; then
+            gh workflow run "$WORKFLOW" -R "$GITHUB_REPOSITORY" --ref "$TAG" -f revision="$TAG" -f create_release=true
+          else
+            gh workflow run "$WORKFLOW" -R "$GITHUB_REPOSITORY" --ref "$TAG"
+          fi

@@ -23,6 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          # Release from main even when dispatched from another branch.
+          ref: main
           fetch-depth: 0
 
       - name: "📝 Open release PR"
@@ -42,8 +44,10 @@ jobs:
           VERSION="$(sed -nE 's/^#define VERSION "(.*)"/\1/p' indexer/Version.h)"
           BRANCH="release/v$VERSION"
 
-          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
-            echo "::warning::A PR for $BRANCH is already open; merge or close it first."
+          # A separate assignment, so a failed lookup stops the job under set -e.
+          OPEN_PR="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')"
+          if [ -n "$OPEN_PR" ]; then
+            echo "::warning::PR #$OPEN_PR for $BRANCH is already open; merge or close it first."
             exit 0
           fi
 
@@ -51,7 +55,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git commit -am "release/v$VERSION"
-          git push --force origin "$BRANCH"
+          git push origin "$BRANCH"
 
           gh pr create --base main --head "$BRANCH" --title "release/v$VERSION" --body "$(cat <<EOF
           Scheduled release. Edit the CHANGELOG entry if needed.

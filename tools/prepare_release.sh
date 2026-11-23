@@ -16,6 +16,16 @@ LAST_TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
 IFS=. read -r MAJOR MINOR PATCH <<<"${LAST_TAG#v}"
 NEW_VERSION="${NEW_VERSION:-$MAJOR.$MINOR.$((PATCH + 1))}"
 
+if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "error: NEW_VERSION=$NEW_VERSION is not of the form M.N.P"
+  exit 1
+fi
+if [ "$(printf '%s\n%s\n' "${LAST_TAG#v}" "$NEW_VERSION" | sort -V | tail -n 1)" != "$NEW_VERSION" ] ||
+  [ "$NEW_VERSION" = "${LAST_TAG#v}" ]; then
+  echo "error: NEW_VERSION=$NEW_VERSION must be newer than the latest release $LAST_TAG"
+  exit 1
+fi
+
 # Reuse the qualifier of the latest entry, such as "(beta)".
 QUALIFIER="$(grep -m 1 '^## v' CHANGELOG.md | cut -d ' ' -f 3-)"
 
