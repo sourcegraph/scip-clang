@@ -1,5 +1,11 @@
 # scip-clang ChangeLog
 
+## v0.4.2 (beta)
+
+- Rebuild the Docker image with the latest Ubuntu package updates.
+
+[Full release notes](https://github.com/sourcegraph/scip-clang/releases/tag/v0.4.2)
+
 ## v0.4.1 (beta)
 
 - The Docker image is now based on Ubuntu 24.04 (pinned by digest) and ships
