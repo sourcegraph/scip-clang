@@ -2,5 +2,48 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>sourcegraph/renovate-config"
+  ],
+  "timezone": "Europe/Warsaw",
+  "schedule": [
+    "before 9am on monday"
+  ],
+  "packageRules": [
+    {
+      "description": "Merge non-major updates once the required Buildkite check passes; major updates need review.",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pin",
+        "pinDigest"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Update all platform binaries of a tool in one PR.",
+      "matchDepNames": [
+        "/^buildifier_/"
+      ],
+      "groupName": "buildifier"
+    },
+    {
+      "matchDepNames": [
+        "/^actionlint_/"
+      ],
+      "groupName": "actionlint"
+    },
+    {
+      "description": "Update the Python formatting tools together so their pins stay compatible.",
+      "matchFileNames": [
+        "tools/requirements_lock.txt"
+      ],
+      "groupName": "Python tooling"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "GitHub Actions"
+    }
   ]
 }
