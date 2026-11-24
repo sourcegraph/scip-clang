@@ -309,15 +309,24 @@ Open the saved trace file using the [online Perfetto UI](https://ui.perfetto.dev
 
 ## Publishing releases
 
+A [scheduled workflow](/.github/workflows/scheduled-release.yml)
+opens a patch release PR every 4 weeks on Monday, even without code changes,
+so the Docker image picks up the latest Ubuntu package updates.
+It can also be run on demand from the
+[GitHub Actions UI](https://github.com/sourcegraph/scip-clang/actions/workflows/scheduled-release.yml).
+
 1. Manually double-check that
    [indexing works on one or more large projects](#indexing-large-projects).
-2. Land a PR with the following:
+2. Land a PR with the following (the scheduled PR already has both):
    - A [CHANGELOG](/CHANGELOG.md) entry.
    - Version bump in [Version.h](/indexer/Version.h).
-3. Once the PR is merged to main, run:
-   ```bash
-   NEW_VERSION="vM.N.P" bash -c 'git checkout main && git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"'
-   ```
+
+   To prepare one by hand, run `NEW_VERSION="M.N.P" ./tools/prepare_release.sh`
+   (without `NEW_VERSION`, it bumps the patch version) and edit the CHANGELOG entry.
+3. Once the PR is merged to main, the [tag workflow](/.github/workflows/tag-release.yml)
+   pushes the `vM.N.P` tag and publishes the release binaries and Docker images.
+   GitHub adds the merged PRs since the previous release to the release notes,
+   below the download instructions. The scheduled CHANGELOG entry links to those notes.
 
 The release workflow can also be triggered against any branch
 in a "dry run" mode using the

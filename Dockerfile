@@ -5,7 +5,8 @@ FROM ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451
 # Fail the build if the archive serves a ca-certificates package that still trusts the
 # compromised eMudhra intermediate CA chains (INC-541), which 20260816ubuntu0.24.04.1 removes.
 ARG MIN_CA_CERTIFICATES_VERSION=20260816ubuntu0.24.04.1
-RUN apt-get update && apt-get install -y ca-certificates curl libc6-dev python3 build-essential ninja-build git cmake \
+# Upgrade the base image's packages too, so every rebuild picks up Ubuntu security updates.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y ca-certificates curl libc6-dev python3 build-essential ninja-build git cmake \
   && CA_VERSION="$(dpkg-query -W -f='${Version}' ca-certificates)" \
   && { dpkg --compare-versions "$CA_VERSION" ge "$MIN_CA_CERTIFICATES_VERSION" \
        || { echo "ca-certificates $CA_VERSION is older than $MIN_CA_CERTIFICATES_VERSION" >&2; exit 1; }; }
