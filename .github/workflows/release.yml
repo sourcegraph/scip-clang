@@ -24,8 +24,8 @@ jobs:
             config: "dev"
           - platform: "ubuntu-24.04-32core-graph-team-amd64"
             config: "release"
-          # macOS 14 => arm64
-          - platform: "macos-14"
+          # macOS 15 => arm64
+          - platform: "macos-15"
             config: "release"
     runs-on: ${{ matrix.platform }}
     env:
