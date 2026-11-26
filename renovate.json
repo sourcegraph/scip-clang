@@ -40,10 +40,12 @@
       "groupName": "Python tooling"
     },
     {
+      "description": "Wait a week before adopting a new action release, so a compromised release is likely pulled first.",
       "matchManagers": [
         "github-actions"
       ],
-      "groupName": "GitHub Actions"
+      "groupName": "GitHub Actions",
+      "minimumReleaseAge": "7 days"
     }
   ]
 }
