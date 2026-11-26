@@ -20,6 +20,17 @@
       "automerge": true
     },
     {
+      "description": "Stay on the Ubuntu LTS before the newest one; move to 26.04 when 28.04 is released.",
+      "matchDatasources": [
+        "docker",
+        "github-runners"
+      ],
+      "matchPackageNames": [
+        "ubuntu"
+      ],
+      "allowedVersions": "/^24\\.04$/"
+    },
+    {
       "description": "Update all platform binaries of a tool in one PR.",
       "matchDepNames": [
         "/^buildifier_/"
