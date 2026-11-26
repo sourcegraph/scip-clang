@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   tag:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
@@ -50,7 +50,7 @@ jobs:
       fail-fast: false
       matrix:
         workflow: ["release.yml", "release-docker.yml"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: ${{ format('🚀 Start {0}', matrix.workflow) }}
         env:
