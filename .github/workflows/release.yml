@@ -132,7 +132,12 @@ jobs:
           fi
           TEMPLATE="$(< .github/workflows/release-template.md)"
           echo "${TEMPLATE//TAG_PLACEHOLDER/$REV}" > notes
-          gh release create "$REV" --title "scip-clang $REV" --notes-file notes --generate-notes
+          # A rerun finds the release created by the first attempt.
+          if gh release view "$REV" >/dev/null 2>&1; then
+            echo "Release $REV already exists"
+          else
+            gh release create "$REV" --title "scip-clang $REV" --notes-file notes --generate-notes
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TRIGGER: ${{ github.event_name }}
@@ -142,6 +147,6 @@ jobs:
       - name: "📥 Download all artifacts"
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
       - name: "📤 Upload artifacts for release"
-        run: gh release upload "${GITHUB_REF/refs\/tags\//}" ./*-release-artifacts/*
+        run: gh release upload --clobber "${GITHUB_REF/refs\/tags\//}" ./*-release-artifacts/*
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

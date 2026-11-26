@@ -47,10 +47,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-26.04
             platform: linux/amd64
             binary-name: scip-clang-x86_64-linux
-          - os: ubuntu-22.04-arm
+          - os: ubuntu-26.04-arm
             platform: linux/arm64
             binary-name: scip-clang-arm64-linux
     runs-on: ${{ matrix.os }}
@@ -146,17 +146,33 @@ jobs:
           tags: |
             type=raw,value=latest-snapshot
 
+      # Only the newest release moves latest, M.N and M,
+      # so republishing an older release doesn't roll them back.
+      - name: Check for a newer release
+        id: newest
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          NEWEST="$(git ls-remote --tags --refs "https://github.com/$GITHUB_REPOSITORY" 'refs/tags/v[0-9]*' | sed 's|.*refs/tags/||' | sort -V | tail -n 1)"
+          if [ "$NEWEST" = "$GITHUB_REF_NAME" ]; then
+            echo "newest=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::$NEWEST is newer than $GITHUB_REF_NAME; pushing only the $GITHUB_REF_NAME tag"
+            echo "newest=false" >>"$GITHUB_OUTPUT"
+          fi
+
       - name: Tag metadata
         if: startsWith(github.ref, 'refs/tags/v')
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: |
             ${{ env.REGISTRY_IMAGE }}
-          # type=semver also adds `latest` (flavor latest=auto) for non-prerelease tags.
+          flavor: |
+            latest=${{ steps.newest.outputs.newest }}
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.newest.outputs.newest }}
+            type=semver,pattern={{major}},enable=${{ steps.newest.outputs.newest == 'true' && !startsWith(github.ref, 'refs/tags/v0.') }}
 
       # tag-release.yml dispatches this workflow for release tags.
       - name: Create manifest list and push

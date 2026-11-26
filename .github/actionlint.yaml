@@ -4,3 +4,6 @@ self-hosted-runner:
   labels:
     - ubuntu-24.04-32core-graph-team-amd64
     - ubuntu-24.04-32core-graph-team-arm64
+    # GitHub-hosted labels that actionlint 1.7.12 doesn't know yet.
+    - ubuntu-26.04
+    - ubuntu-26.04-arm
