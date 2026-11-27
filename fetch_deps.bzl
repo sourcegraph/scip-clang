@@ -107,10 +107,10 @@ def fetch_direct_dependencies():
     http_archive(
         name = "llvm_zlib",
         build_file = "@llvm-raw//utils/bazel/third_party_build:zlib-ng.BUILD",
-        sha256 = "e36bb346c00472a1f9ff2a0a4643e590a254be6379da7cddd9daeb9a7f296731",
-        strip_prefix = "zlib-ng-2.0.7",
+        sha256 = "5b01369b98c951d79b8aec0dcd74ad539db13d9d333366cd3ba0d20743ee90b0",
+        strip_prefix = "zlib-ng-2.3.3",
         urls = [
-            "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.7.zip",
+            "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.3.3.zip",
         ],
     )
 
