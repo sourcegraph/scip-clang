@@ -343,6 +343,10 @@ std::optional<SymbolNameRef>
 SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext,
                                   clang::SourceLocation loc) {
   loc = this->sourceManager.getExpansionLoc(loc);
+  if (auto *linkageDecl =
+          llvm::dyn_cast<clang::LinkageSpecDecl>(&declContext)) {
+    return this->getContextSymbol(*linkageDecl->getParent(), loc);
+  }
   if (auto *namespaceDecl =
           llvm::dyn_cast<clang::NamespaceDecl>(&declContext)) {
     return this->getNamespaceSymbolPrefix(*namespaceDecl, loc);
@@ -364,6 +368,7 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext,
   // Done
   // - TranslationUnitDecl
   // - ExternCContext
+  // - LinkageSpecDecl
   // - NamespaceDecl
   // - TagDecl
   // - FunctionDecl
@@ -372,7 +377,6 @@ SymbolFormatter::getContextSymbol(const clang::DeclContext &declContext,
   // - OMPDeclareMapperDecl
   // - ObjCMethodDecl
   // - ObjCContainerDecl
-  // - LinkageSpecDecl
   // - ExportDecl
   // - BlockDecl
   // - CapturedDecl
