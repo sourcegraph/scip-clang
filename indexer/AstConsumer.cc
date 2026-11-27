@@ -54,6 +54,11 @@ public:
   FOR_EACH_EXPR_TO_BE_INDEXED(VISIT_EXPR)
 #undef VISIT_EXPR
 
+  bool VisitUserDefinedLiteral(clang::UserDefinedLiteral *literal) {
+    this->tuIndexer.saveUserDefinedLiteral(*literal);
+    return true;
+  }
+
 #define VISIT_TYPE_LOC(TypeName)                                    \
   bool Visit##TypeName##TypeLoc(clang::TypeName##TypeLoc typeLoc) { \
     this->tuIndexer.save##TypeName##TypeLoc(typeLoc);               \

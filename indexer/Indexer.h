@@ -48,6 +48,7 @@ class TagDecl;
 class TagTypeLoc;
 class Token;
 class Type;
+class UserDefinedLiteral;
 } // namespace clang
 
 namespace scip {
@@ -311,6 +312,9 @@ class TuIndexer final {
 
   ForwardDeclMap forwardDeclarations;
 
+  absl::flat_hash_map<const clang::DeclRefExpr *, clang::SourceLocation>
+      literalCalleeLocations;
+
 public:
   TuIndexer(const clang::SourceManager &, const clang::LangOptions &,
             clang::ASTContext &, const FileIdsToBeIndexedSet &,
@@ -342,6 +346,7 @@ public:
   void save##ExprName##Expr(const clang::ExprName##Expr &);
   FOR_EACH_EXPR_TO_BE_INDEXED(SAVE_EXPR)
 #undef SAVE_EXPR
+  void saveUserDefinedLiteral(const clang::UserDefinedLiteral &);
   void saveNestedNameSpecifierLoc(const clang::NestedNameSpecifierLoc &);
   void trySaveMemberReferenceViaLookup(const clang::QualType &,
                                        const clang::DeclarationNameInfo &);

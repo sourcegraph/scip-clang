@@ -992,6 +992,37 @@ void TuIndexer::saveCXXDependentScopeMemberExpr(
       cxxDepScopeMemberExpr.getMemberNameInfo());
 }
 
+void TuIndexer::saveUserDefinedLiteral(
+    const clang::UserDefinedLiteral &literal) {
+  auto *callee = llvm::dyn_cast<clang::DeclRefExpr>(
+      literal.getCallee()->IgnoreParenImpCasts());
+  if (!callee) {
+    return;
+  }
+  clang::Token token;
+  auto loc = this->sourceManager.getExpansionLoc(literal.getEndLoc());
+  if (clang::Lexer::getRawToken(loc, token, this->sourceManager,
+                                this->langOptions)) {
+    return;
+  }
+  std::string_view spelling(
+      this->sourceManager.getCharacterData(token.getLocation()),
+      token.getLength());
+  auto firstQuote = spelling.find('"');
+  if (firstQuote == std::string_view::npos || firstQuote == 0
+      || spelling[firstQuote - 1] != 'R') {
+    return;
+  }
+  // Clang's implicit callee location can advance past the raw string suffix
+  // when its contents contain backslash-newline pairs. Use the physical token
+  // spelling, where those pairs remain part of the raw string.
+  auto suffixOffset = spelling.rfind('"') + 1;
+  if (suffixOffset < spelling.size()) {
+    this->literalCalleeLocations.emplace(
+        callee, token.getLocation().getLocWithOffset(suffixOffset));
+  }
+}
+
 void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   // In the presence of 'using', prefer going to the 'using' instead
   // of directly dereferencing.
@@ -1007,7 +1038,13 @@ void TuIndexer::saveDeclRefExpr(const clang::DeclRefExpr &declRefExpr) {
   //       ^ getLocation()
   // ^^^^^^ getSourceRange()
   // ^ getExprLoc()
-  this->saveReference(optSymbol.value(), declRefExpr.getLocation(), foundDecl);
+  auto loc = declRefExpr.getLocation();
+  if (auto it = this->literalCalleeLocations.find(&declRefExpr);
+      it != this->literalCalleeLocations.end()) {
+    loc = it->second;
+    this->literalCalleeLocations.erase(it);
+  }
+  this->saveReference(optSymbol.value(), loc, foundDecl);
   // ^ TODO: Add read-write access to the symbol role here
 }
 
