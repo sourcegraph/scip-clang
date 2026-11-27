@@ -1,5 +1,5 @@
 # Pinned by digest (multi-arch index for ubuntu:24.04) so builds are reproducible.
-FROM ubuntu:24.04@sha256:562111b88caa79c71391c0c4d3c2114a7d5c35915c20561fd893cb1e07929e6b as indexer
+FROM ubuntu:26.04@sha256:d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db as indexer
 
 # The base image does not ship ca-certificates; it comes from the Ubuntu archive at build time.
 # Fail the build if the archive serves a ca-certificates package that still trusts the
